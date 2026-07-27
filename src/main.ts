@@ -33,7 +33,7 @@ export default class DevRadarPlugin extends Plugin {
 			id: 'open-modal-simple',
 			name: 'Open modal (simple)',
 			callback: () => {
-				new DevRadarModal(this.app).open();
+				new PluginModal(this.app).open();
 			},
 		});
 		// This adds an editor command that can perform some operation on the current editor instance
@@ -59,7 +59,7 @@ export default class DevRadarPlugin extends Plugin {
 					// If checking is true, we're simply "checking" if the command can be run.
 					// If checking is false, then we want to actually perform the operation.
 					if (!checking) {
-						new DevRadarModal(this.app).open();
+						new PluginModal(this.app).open();
 					}
 
 					// This command will only show up in Command Palette when the check function returns true
@@ -78,10 +78,6 @@ export default class DevRadarPlugin extends Plugin {
 			new Notice('Click');
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
 	}
 
 	onunload() {}
@@ -99,7 +95,7 @@ export default class DevRadarPlugin extends Plugin {
 	}
 }
 
-class DevRadarModal extends Modal {
+class PluginModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.setText('Woah!');
