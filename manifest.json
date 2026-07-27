@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "devradar",
+	"name": "DevRadar",
+	"version": "0.0.1",
 	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Local-first Obsidian plugin for following selected GitHub users.",
+	"author": "FerdiHS",
+	"authorUrl": "https://github.com/FerdiHS",
 	"isDesktopOnly": false
 }

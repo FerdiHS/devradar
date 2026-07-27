@@ -1,18 +1,18 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import MyPlugin from './main';
+import DevRadarPlugin from './main';
 
-export interface MyPluginSettings {
+export interface DevRadarSettings {
 	mySetting: string;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
+export const DEFAULT_SETTINGS: DevRadarSettings = {
 	mySetting: 'default',
 };
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class DevRadarSettingTab extends PluginSettingTab {
+	plugin: DevRadarPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: DevRadarPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
