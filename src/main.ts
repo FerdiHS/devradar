@@ -13,8 +13,6 @@ export default class DevRadarPlugin extends Plugin {
 		this.addSettingTab(new DevRadarSettingTab(this.app, this));
 	}
 
-	onunload() {}
-
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
