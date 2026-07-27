@@ -1,13 +1,9 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import DevRadarPlugin from './main';
 
-export interface DevRadarSettings {
-	mySetting: string;
-}
+export type DevRadarSettings = Record<string, never>;
 
-export const DEFAULT_SETTINGS: DevRadarSettings = {
-	mySetting: 'default',
-};
+export const DEFAULT_SETTINGS: DevRadarSettings = {};
 
 export class DevRadarSettingTab extends PluginSettingTab {
 	plugin: DevRadarPlugin;
@@ -17,22 +13,17 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	getSettingDefinitions() {
+		return [];
+	}
+
 	display(): void {
 		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder('Enter your secret')
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+			.setName('No settings yet')
+			.setDesc('There are no configurable settings yet.');
 	}
 }
