@@ -3,7 +3,7 @@
 	"name": "DevRadar",
 	"version": "0.0.1",
 	"minAppVersion": "1.0.0",
-	"description": "Local-first Obsidian plugin for following selected GitHub users.",
+	"description": "Follow selected GitHub users and record public activity in connected Markdown notes.",
 	"author": "FerdiHS",
 	"authorUrl": "https://github.com/FerdiHS",
 	"isDesktopOnly": false
