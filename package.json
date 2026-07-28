@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "devradar",
+	"version": "0.0.1",
+	"description": "Follow selected GitHub users and record public activity in connected Markdown notes.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

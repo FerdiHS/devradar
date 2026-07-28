@@ -1,38 +1,17 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
-import MyPlugin from './main';
+import { PluginSettingTab } from 'obsidian';
 
-export interface MyPluginSettings {
-	mySetting: string;
-}
+export type DevRadarSettings = Record<string, never>;
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default',
-};
+export const DEFAULT_SETTINGS: DevRadarSettings = {};
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
+export class DevRadarSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder('Enter your secret')
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		containerEl.createEl('p', {
+			text: 'There are no configurable settings yet.',
+		});
 	}
 }
