@@ -6,11 +6,8 @@ export type DevRadarSettings = Record<string, never>;
 export const DEFAULT_SETTINGS: DevRadarSettings = {};
 
 export class DevRadarSettingTab extends PluginSettingTab {
-	plugin: DevRadarPlugin;
-
 	constructor(app: App, plugin: DevRadarPlugin) {
 		super(app, plugin);
-		this.plugin = plugin;
 	}
 
 	getSettingDefinitions() {
