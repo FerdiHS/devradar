@@ -1,5 +1,4 @@
 import { PluginSettingTab } from 'obsidian';
-export { DEFAULT_SETTINGS, createSettings, type DevRadarSettings } from './settings-data';
 
 export class DevRadarSettingTab extends PluginSettingTab {
 	display(): void {
