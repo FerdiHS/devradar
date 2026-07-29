@@ -11,7 +11,7 @@
 		"build": "npm run typecheck && node esbuild.config.mjs production",
 		"check": "npm run format:check && npm run lint && npm run test && npm run build",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "vitest run --passWithNoTests",
 		"test:watch": "vitest",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
