@@ -1,8 +1,8 @@
 import { Plugin } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
-	DevRadarSettings,
 	DevRadarSettingTab,
+	type DevRadarSettings,
 } from './settings';
 
 export default class DevRadarPlugin extends Plugin {

@@ -1,15 +1,22 @@
-import { PluginSettingTab } from 'obsidian';
+import { App, PluginSettingTab, type Plugin } from 'obsidian';
 
 export type DevRadarSettings = Record<string, never>;
 
 export const DEFAULT_SETTINGS: DevRadarSettings = {};
 
 export class DevRadarSettingTab extends PluginSettingTab {
+	constructor(app: App, plugin: Plugin) {
+		super(app, plugin);
+	}
+
+	getSettingDefinitions() {
+		return [];
+	}
+
 	display(): void {
 		const { containerEl } = this;
 
 		containerEl.empty();
-
 		containerEl.createEl('p', {
 			text: 'There are no configurable settings yet.',
 		});

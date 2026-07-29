@@ -29,4 +29,15 @@ export default defineConfig(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ['tests/**/*.ts'],
+		languageOptions: {
+			globals: {
+				...globals.node,
+			},
+		},
+		rules: {
+			'obsidianmd/no-nodejs-modules': 'off',
+		},
+	},
 );
