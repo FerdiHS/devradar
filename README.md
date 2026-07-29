@@ -1,9 +1,22 @@
 # DevRadar
 
-DevRadar is an early-development, local-first Obsidian plugin for following selected GitHub users and recording supported public developer activity in connected Markdown notes.
+DevRadar is a local-first Obsidian plugin for following selected GitHub users and recording supported public activity in Markdown notes.
 
-Installation and usage documentation will be added as the MVP develops. It is intended to stay private by default and does not require a backend, hosted account, or telemetry.
+## Development
+
+Use a dedicated Obsidian test vault and install the plugin at `<Test Vault>/.obsidian/plugins/devradar/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
+
+DevRadar supports Node.js 24 LTS for local development, with Node.js 22 as the minimum supported version, plus npm.
+
+## Common commands
+
+- `npm install`
+- `npm ci`
+- `npm run dev`
+- `npm run build`
+- `npm run check` for full validation
 
 ## Project documentation
 
-- [DevRadar product direction and MVP boundaries](docs/product-direction.md)
+- [Contributor guide](CONTRIBUTING.md)
+- [Product direction](docs/product-direction.md)
