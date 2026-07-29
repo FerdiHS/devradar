@@ -13,7 +13,8 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"version:sync": "node version-bump.mjs sync",
+		"version:check": "node version-bump.mjs check",
 		"lint": "eslint ."
 	},
 	"keywords": [],
