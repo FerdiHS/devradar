@@ -2,13 +2,25 @@
 
 ## Project summary
 
-DevRadar is a local-first Obsidian Community Plugin for following selected GitHub users and recording supported public activity in Markdown notes.
+DevRadar is a local-first Obsidian Community Plugin for following selected GitHub users and recording supported public developer activity in Markdown notes.
 
 ## Canonical docs
 
 - [Product direction](docs/product-direction.md)
 - [README](README.md)
 - [Contributing](CONTRIBUTING.md)
+
+## Repository map
+
+- `src/main.ts`: plugin lifecycle and command registration only.
+- `src/settings.ts`: settings types, defaults, and settings UI.
+- `tests/`: unit tests and focused regressions.
+- `package.json`: scripts, engines, dependencies, and hook config.
+- `package-lock.json`: npm lockfile.
+- `.husky/`: local Git hook entrypoints.
+- `manifest.json` / `versions.json`: plugin metadata and release compatibility.
+- `docs/`: product and contributor docs.
+- `README.md` and `CONTRIBUTING.md`: public entry points for setup and workflow.
 
 ## Dependency direction
 
@@ -27,12 +39,21 @@ domain logic
 
 ## Durable rules
 
+- Scope: keep changes issue-scoped and avoid unrelated refactors.
+- Terminology: use follow, track, and developer activity language.
+- Design: do not add empty folders or speculative abstractions.
 - Note ownership: the user owns everything except the DevRadar-managed section.
-- Marker safety: only edit the managed section; stop on missing, duplicated, malformed, or ambiguous markers.
-- API usage: use documented GitHub REST APIs through `requestUrl()` for the unauthenticated MVP; do not use GraphQL, Octokit, scraping, or webhooks.
-- Privacy: stay local-first, avoid telemetry, and never move vault data outside the plugin-managed flow.
-- Compatibility: keep the default experience working on Obsidian Desktop and Mobile; avoid desktop-only APIs unless the feature is explicitly desktop-only.
-- Testing: add or update tests when behavior changes, and run the repo checks before declaring work complete.
+- Note safety: never automatically delete, rename, or move notes; stop on missing, duplicated, malformed, or ambiguous markers.
+- Obsidian APIs: use safe vault APIs for note operations.
+- GitHub APIs: use documented GitHub REST APIs through `requestUrl()` for the unauthenticated MVP; do not use GraphQL, Octokit, scraping, or webhooks.
+- Rate limits: respect GitHub rate-limit and retry headers; do not bypass them.
+- History: do not promise exhaustive or real-time activity history.
+- Partial failures: preserve successful updates when another followed person fails.
+- Privacy: stay local-first, public-data-only, and free of telemetry or hosted infrastructure.
+- Compatibility: avoid unnecessary Node.js, Electron, and desktop-only APIs; keep `isDesktopOnly` accurate.
+- Dependencies: avoid unnecessary production dependencies.
+- Testing: use sanitized fixtures rather than live GitHub requests in tests; add or update focused tests when behavior changes.
+- Build hygiene: do not commit generated `main.js`.
 
 ## MVP boundary
 
