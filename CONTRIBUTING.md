@@ -13,10 +13,10 @@ Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported
 2. Locate or create the `.obsidian/plugins/` folder inside that vault.
 3. Clone or check out this repository directly into `<Test Vault>/.obsidian/plugins/devradar/`.
 4. Run `npm install`.
-5. Run `npm run build` and confirm that `main.js` exists in the plugin folder.
+5. Run `npm run dev` and confirm that `main.js` appears in the plugin folder. Leave the watch build running during development.
 6. Open Obsidian Desktop, enable **DevRadar** under **Settings → Community plugins**, and then reload manually after rebuilds.
 
-If you need a clean reinstall, use:
+If you need a clean reinstall from a clean working tree, use:
 
 ```bash
 npm ci
@@ -81,4 +81,4 @@ Preserve user data and never overwrite vault content outside the plugin-managed 
 - Missing plugin: confirm the repository is checked out into `<Test Vault>/.obsidian/plugins/devradar/`, that **DevRadar** is enabled under **Settings → Community plugins**, and reload Obsidian.
 - Missing `main.js`: run `npm run dev` or `npm run build` again, then reload Obsidian.
 - Stale build output: rerun the build, then reload Obsidian manually.
-- Broken dependency state: delete `node_modules/` and run `npm ci`.
+- Broken dependency state: from a clean working tree, run `npm ci` to recreate `node_modules/` from the lockfile.
