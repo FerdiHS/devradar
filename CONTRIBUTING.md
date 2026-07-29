@@ -5,18 +5,16 @@ DevRadar is a local-first Obsidian community plugin. Keep every change scoped, t
 ## Setup
 
 Use a dedicated Obsidian test vault for all work. Do not use a personal vault or a production vault.
+Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 
 Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported version, and npm is the package manager.
 
-Clone or check out this repository directly into:
-
-`<Test Vault>/.obsidian/plugins/devradar/`
-
-Install dependencies with:
-
-```bash
-npm install
-```
+1. Create and open an empty Obsidian test vault.
+2. Locate or create the `.obsidian/plugins/` folder inside that vault.
+3. Clone or check out this repository directly into `<Test Vault>/.obsidian/plugins/devradar/`.
+4. Run `npm install`.
+5. Run `npm run build` and confirm that `main.js` exists in the plugin folder.
+6. Open Obsidian Desktop, enable **DevRadar** under **Settings → Community plugins**, and then reload manually after rebuilds.
 
 If you need a clean reinstall, use:
 
@@ -32,16 +30,24 @@ npm run dev
 
 Then reload Obsidian manually to pick up the rebuilt plugin.
 
+## Desktop and mobile
+
+- Use Obsidian Desktop for the normal development loop.
+- Desktop testing does not prove mobile compatibility.
+- Keep `isDesktopOnly` accurate.
+- For user-facing changes, do a quick mobile smoke test when possible.
+
 ## Commands
 
 - `npm install`: normal dependency setup
 - `npm ci`: clean reinstall from the lockfile
 - `npm run dev`: build in watch mode
-- `npm run build`: production bundle
+- `npm run build`: type-check and build the production bundle
 - `npm run format`: format the repository
 - `npm run format:check`: check formatting only
 - `npm run lint`: lint the codebase
 - `npm run test`: run the test suite
+- `npm run test:watch`: watch the test suite
 - `npm run typecheck`: run TypeScript type checking
 - `npm run check`: full validation for the repo
 
@@ -70,7 +76,7 @@ Preserve user data and never overwrite vault content outside the plugin-managed 
 
 ## Troubleshooting
 
-- Missing plugin: confirm the repository is checked out into `<Test Vault>/.obsidian/plugins/devradar/` and reload Obsidian.
-- Missing `main.js`: run `npm run dev` or `npm run build` again.
+- Missing plugin: confirm the repository is checked out into `<Test Vault>/.obsidian/plugins/devradar/`, that **DevRadar** is enabled under **Settings → Community plugins**, and reload Obsidian.
+- Missing `main.js`: run `npm run dev` or `npm run build` again, then reload Obsidian.
 - Stale build output: rerun the build, then reload Obsidian manually.
 - Broken dependency state: delete `node_modules/` and run `npm ci`.

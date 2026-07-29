@@ -1,6 +1,6 @@
 # DevRadar
 
-DevRadar is a local-first Obsidian plugin for following selected GitHub users and recording supported public activity in Markdown notes.
+DevRadar is a local-first Obsidian plugin for following selected GitHub users and recording supported public developer activity in connected Markdown person notes.
 
 ## Development
 
