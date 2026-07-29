@@ -15,8 +15,4 @@ export default class DevRadarPlugin extends Plugin {
 			(await this.loadData()) as Partial<DevRadarSettings>,
 		);
 	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
 }
