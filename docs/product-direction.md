@@ -31,13 +31,13 @@ The MVP workflow is:
 1. Add a GitHub username.
 2. Select an existing Markdown note or specify a path for a new note.
 3. Choose a per-person tracking start:
-   - from now;
-   - import available recent activity; or
-   - a selected date and time.
+    - from now;
+    - import available recent activity; or
+    - a selected date and time.
 4. Configure one global set of enabled activity types.
 5. Manually run either:
-   - **Sync all followed people**; or
-   - **Sync one person**.
+    - **Sync all followed people**; or
+    - **Sync one person**.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
