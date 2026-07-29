@@ -1,15 +1,43 @@
-import { readFileSync, writeFileSync } from 'fs';
-const targetVersion = process.env.npm_package_version;
-if (!targetVersion) {
-	throw new Error('npm_package_version is required');
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+export function applyVersionUpdate(manifest, versions, targetVersion) {
+	const nextManifest = {
+		...manifest,
+		version: targetVersion,
+	};
+
+	const nextVersions = { ...versions };
+	if (!(targetVersion in nextVersions)) {
+		nextVersions[targetVersion] = manifest.minAppVersion;
+	}
+
+	return {
+		manifest: nextManifest,
+		versions: nextVersions,
+	};
 }
 
-const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
-const versions = JSON.parse(readFileSync('versions.json', 'utf8'));
+function main() {
+	const targetVersion = process.env.npm_package_version;
+	if (!targetVersion) {
+		throw new Error('npm_package_version is required');
+	}
 
-manifest.version = targetVersion;
-writeFileSync('manifest.json', JSON.stringify(manifest, null, '\t'));
-if (!(targetVersion in versions)) {
-	versions[targetVersion] = manifest.minAppVersion;
-	writeFileSync('versions.json', JSON.stringify(versions, null, '\t'));
+	const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
+	const versions = JSON.parse(readFileSync('versions.json', 'utf8'));
+	const updated = applyVersionUpdate(manifest, versions, targetVersion);
+
+	writeFileSync(
+		'manifest.json',
+		JSON.stringify(updated.manifest, null, '\t'),
+	);
+	writeFileSync(
+		'versions.json',
+		JSON.stringify(updated.versions, null, '\t'),
+	);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+	main();
 }
