@@ -1,9 +1,9 @@
 import { Plugin } from 'obsidian';
+import { DevRadarSettingTab } from './settings';
 import {
-	DEFAULT_SETTINGS,
-	DevRadarSettings,
-	DevRadarSettingTab,
-} from './settings';
+	createSettings,
+	type DevRadarSettings,
+} from './settings-data';
 
 export default class DevRadarPlugin extends Plugin {
 	settings!: DevRadarSettings;
@@ -14,9 +14,7 @@ export default class DevRadarPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
+		this.settings = createSettings(
 			(await this.loadData()) as Partial<DevRadarSettings>,
 		);
 	}
