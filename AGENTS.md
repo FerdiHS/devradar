@@ -12,14 +12,14 @@ DevRadar is a local-first Obsidian Community Plugin for following selected GitHu
 
 ## Repository map
 
-- `src/main.ts`: plugin lifecycle and command registration only.
+- `src/main.ts`: plugin lifecycle and thin registration/wiring.
 - `src/settings.ts`: settings types, defaults, and settings UI.
 - `tests/`: unit tests and focused regressions.
 - `package.json`: scripts, engines, dependencies, and hook config.
 - `package-lock.json`: npm lockfile.
 - `.husky/`: local Git hook entrypoints.
 - `manifest.json` / `versions.json`: plugin metadata and release compatibility.
-- `docs/`: product and contributor docs.
+- `docs/`: product and design docs.
 - `README.md` and `CONTRIBUTING.md`: public entry points for setup and workflow.
 
 ## Dependency direction
@@ -43,7 +43,7 @@ domain logic
 - Terminology: use follow, track, and developer activity language.
 - Design: do not add empty folders or speculative abstractions.
 - Note ownership: the user owns everything except the DevRadar-managed section.
-- Note safety: never automatically delete, rename, or move notes; stop on missing, duplicated, malformed, or ambiguous markers.
+- Note safety: preserve all user content outside DevRadar-managed sections; never automatically delete, rename, move, or overwrite whole notes; stop on missing, duplicated, malformed, or ambiguous markers.
 - Obsidian APIs: use safe vault APIs for note operations.
 - GitHub APIs: use documented GitHub REST APIs through `requestUrl()` for the unauthenticated MVP; do not use GraphQL, Octokit, scraping, or webhooks.
 - Rate limits: respect GitHub rate-limit and retry headers; do not bypass them.
@@ -65,4 +65,5 @@ Use a short Conventional Commit-style pull-request title, such as `feat: ...` or
 
 ## Completion rule
 
-Do not declare work complete until `npm run check` passes.
+- Run `npm run check` before declaring work complete.
+- Do not claim validation passed unless you actually ran the command and observed a successful result.
