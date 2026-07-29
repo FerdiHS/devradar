@@ -1,5 +1,4 @@
 import { Plugin } from 'obsidian';
-import { DevRadarSettingTab } from './settings';
 import { createSettings, type DevRadarSettings } from './settings-data';
 
 export default class DevRadarPlugin extends Plugin {
@@ -7,7 +6,6 @@ export default class DevRadarPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		this.addSettingTab(new DevRadarSettingTab(this.app, this));
 	}
 
 	async loadSettings() {
