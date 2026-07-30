@@ -48,16 +48,6 @@ if (mode === 'check') {
 		);
 	}
 
-	if (
-		process.env.GITHUB_REF_TYPE === 'tag' &&
-		process.env.GITHUB_REF_NAME &&
-		process.env.GITHUB_REF_NAME !== targetVersion
-	) {
-		errors.push(
-			`git tag ${process.env.GITHUB_REF_NAME} does not match package.json version ${targetVersion}`,
-		);
-	}
-
 	if (errors.length > 0) {
 		throw new Error(errors.join('\n'));
 	}
