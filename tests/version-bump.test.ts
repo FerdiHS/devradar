@@ -9,11 +9,9 @@ const scriptPath = join(process.cwd(), 'version-bump.mjs');
 function run(
 	mode: 'sync' | 'check',
 	cwd: string,
-	env: Record<string, string | undefined> = {},
 ) {
 	return execFileSync(process.execPath, [scriptPath, mode], {
 		cwd,
-		env: { ...process.env, ...env },
 		stdio: 'pipe',
 	});
 }
