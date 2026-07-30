@@ -25,7 +25,7 @@ jobs:
         if: >-
             github.event.pull_request.head.repo.full_name == github.repository &&
             !github.event.pull_request.draft &&
-            github.event.pull_request.head.ref == 'release-please--branches--main'
+            github.event.pull_request.head.ref == 'release-please--branches--main--components--devradar'
 
         steps:
             - name: Checkout Release Please PR
