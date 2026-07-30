@@ -1,14 +1,6 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readJson, writeJsonIfChanged } from './version-bump-core.mjs';
 
 const mode = process.argv[2] ?? 'sync';
-
-function readJson(path) {
-	return JSON.parse(readFileSync(path, 'utf8'));
-}
-
-function writeJson(path, value) {
-	writeFileSync(path, `${JSON.stringify(value, null, '\t')}\n`);
-}
 
 const packageJson = readJson('package.json');
 const manifest = readJson('manifest.json');
@@ -25,11 +17,17 @@ if (!minAppVersion) {
 }
 
 if (mode === 'sync') {
-	manifest.version = targetVersion;
-	versions[targetVersion] = minAppVersion;
+	const nextManifest = {
+		...manifest,
+		version: targetVersion,
+	};
+	const nextVersions = {
+		...versions,
+		[targetVersion]: minAppVersion,
+	};
 
-	writeJson('manifest.json', manifest);
-	writeJson('versions.json', versions);
+	writeJsonIfChanged('manifest.json', nextManifest);
+	writeJsonIfChanged('versions.json', nextVersions);
 	process.exit(0);
 }
 
