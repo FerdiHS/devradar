@@ -6,10 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 const scriptPath = join(process.cwd(), 'version-bump.mjs');
 
-function run(
-	mode: 'sync' | 'check',
-	cwd: string,
-) {
+function run(mode: 'sync' | 'check', cwd: string) {
 	return execFileSync(process.execPath, [scriptPath, mode], {
 		cwd,
 		stdio: 'pipe',
@@ -17,11 +14,9 @@ function run(
 }
 
 function makeFixture({
-	packageVersion = '0.0.2',
 	manifestVersion = '0.0.1',
 	versions = { '0.0.1': '1.0.0' },
 }: {
-	packageVersion?: string;
 	manifestVersion?: string;
 	versions?: Record<string, string>;
 } = {}) {
@@ -29,7 +24,7 @@ function makeFixture({
 
 	writeFileSync(
 		join(cwd, 'package.json'),
-		JSON.stringify({ version: packageVersion }, null, '\t'),
+		JSON.stringify({ version: '0.0.2' }, null, '\t'),
 	);
 	writeFileSync(
 		join(cwd, 'manifest.json'),
