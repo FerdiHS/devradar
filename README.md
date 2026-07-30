@@ -10,8 +10,6 @@ DevRadar supports Node.js 24 LTS for local development, with Node.js 22 as the m
 
 ## Common commands
 
-- `npm install`
-- `npm ci`
 - `npm run dev`
 - `npm run build`
 - `npm run check` for full validation

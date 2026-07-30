@@ -22,14 +22,6 @@ If you need a clean reinstall from a clean working tree, use:
 npm ci
 ```
 
-During normal development, run:
-
-```bash
-npm run dev
-```
-
-Then reload Obsidian manually to pick up the rebuilt plugin.
-
 ## Desktop and mobile
 
 - Use Obsidian Desktop for the normal development loop.
@@ -61,7 +53,6 @@ Husky owns the local Git hooks for this repository.
 - `npm run prepare` restores the hooks after a fresh install or clean checkout.
 - The hooks intentionally run a narrower set of checks to provide fast local feedback.
 - They are optional local safeguards, not a replacement for `npm run check` or the required GitHub Actions checks.
-- `npm run check` is still required before opening or updating a pull request.
 
 ## Workflow
 
