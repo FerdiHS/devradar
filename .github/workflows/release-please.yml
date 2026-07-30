@@ -54,6 +54,14 @@ jobs:
                   node-version: 24
                   cache: 'npm'
 
+            - name: Create GitHub App token
+              id: app-token
+              uses: actions/create-github-app-token@v3
+              with:
+                  app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+                  private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+                  permission-contents: write
+
             - name: Install dependencies
               run: npm ci
 
@@ -62,7 +70,7 @@ jobs:
 
             - name: Upload release assets
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
               run: |
                   gh release upload "$TAG_NAME" main.js manifest.json --clobber
