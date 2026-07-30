@@ -25,8 +25,7 @@ jobs:
         if: >-
             github.event.pull_request.head.repo.full_name == github.repository &&
             !github.event.pull_request.draft &&
-            startsWith(github.event.pull_request.head.ref, 'release-please--branches--main') &&
-            startsWith(github.event.pull_request.title, 'chore(main): release')
+            startsWith(github.event.pull_request.head.ref, 'release-please--branches--main')
 
         steps:
             - name: Checkout Release Please PR

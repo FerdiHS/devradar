@@ -5,8 +5,11 @@
 		".": {
 			"release-type": "node",
 			"changelog-path": "CHANGELOG.md",
+			"include-component-in-tag": false,
 			"include-v-in-tag": false,
 			"include-v-in-release-name": false,
+			"draft": true,
+			"force-tag-creation": true,
 			"initial-version": "0.1.0",
 			"extra-files": [
 				{

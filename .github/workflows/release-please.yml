@@ -72,9 +72,11 @@ jobs:
             - name: Upload release assets
               env:
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                  REPOSITORY: ${{ github.repository }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
               run: |
-                  gh release upload "$TAG_NAME" main.js manifest.json --clobber
+                  gh release upload "$TAG_NAME" main.js manifest.json --clobber --repo "$REPOSITORY"
                   if [ -f styles.css ]; then
-                    gh release upload "$TAG_NAME" styles.css --clobber
+                    gh release upload "$TAG_NAME" styles.css --clobber --repo "$REPOSITORY"
                   fi
+                  gh release edit "$TAG_NAME" --draft=false --repo "$REPOSITORY"
