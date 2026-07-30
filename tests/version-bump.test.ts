@@ -143,4 +143,15 @@ describe('version-bump CLI', () => {
 			}),
 		).toThrow(/Unknown mode: bogus/);
 	});
+
+	it('fails on unsupported mode before reading metadata', () => {
+		const cwd = mkdtempSync(join(tmpdir(), 'devradar-version-bump-mode-'));
+
+		expect(() =>
+			execFileSync(process.execPath, [scriptPath, 'bogus'], {
+				cwd,
+				stdio: 'pipe',
+			}),
+		).toThrow(/Unknown mode: bogus/);
+	});
 });

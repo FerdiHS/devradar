@@ -2,6 +2,10 @@ import { readJson, writeJsonIfChanged } from './version-bump-core.mjs';
 
 const mode = process.argv[2] ?? 'sync';
 
+if (mode !== 'sync' && mode !== 'check') {
+	throw new Error(`Unknown mode: ${mode}`);
+}
+
 const packageJson = readJson('package.json');
 const manifest = readJson('manifest.json');
 const versions = readJson('versions.json');
@@ -52,5 +56,3 @@ if (mode === 'check') {
 
 	process.exit(0);
 }
-
-throw new Error(`Unknown mode: ${mode}`);
