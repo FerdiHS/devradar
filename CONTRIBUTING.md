@@ -57,7 +57,7 @@ Husky owns the local Git hooks for this repository.
 
 - Normal `npm install` and `npm ci` install the hooks automatically.
 - `pre-commit` runs `lint-staged` on staged files for formatting and lint fixes.
-- `pre-push` runs `npm run test` and `npm run build`.
+- `pre-push` runs `npm run test && npm run build`.
 - `npm run prepare` restores the hooks after a fresh install or clean checkout.
 - The hooks intentionally run a narrower set of checks to provide fast local feedback.
 - They are optional local safeguards, not a replacement for `npm run check` or the required GitHub Actions checks.
