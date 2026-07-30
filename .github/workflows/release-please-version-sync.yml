@@ -72,6 +72,7 @@ jobs:
             - name: Push metadata changes
               env:
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
+                  EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   REPOSITORY: ${{ github.repository }}
               run: |
@@ -84,4 +85,4 @@ jobs:
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                   git add manifest.json versions.json
                   git commit -m "chore(release): sync Obsidian metadata"
-                  git push "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git" "HEAD:${HEAD_REF}"
+                  git push --force-with-lease="refs/heads/${HEAD_REF}:${EXPECTED_HEAD_SHA}" "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git" "HEAD:refs/heads/${HEAD_REF}"
