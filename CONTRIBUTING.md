@@ -1,7 +1,5 @@
 # Contributing to DevRadar
 
-DevRadar is a local-first Obsidian community plugin. Keep every change scoped, testable, and safe for both Obsidian Desktop and Mobile.
-
 ## Setup
 
 Use a dedicated Obsidian test vault for all work. Do not use a personal vault or a production vault.
