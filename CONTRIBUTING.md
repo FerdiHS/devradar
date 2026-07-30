@@ -9,9 +9,6 @@
 - Use `!` or `BREAKING CHANGE` to mark breaking changes.
 - Use `docs:`, `test:`, `ci:`, `refactor:`, and `chore:` for non-product work.
 - Release Please reads the commits that land on `main`, so squash-merged PR titles should use the intended Conventional Commit type.
-- Squash merge pull requests.
-- Use the final PR title as the squash commit title.
-- Keep pull requests issue-scoped when practical.
 
 Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported version, and npm is the package manager.
 
