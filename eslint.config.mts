@@ -25,6 +25,7 @@ export default defineConfig(
 						'eslint.config.mts',
 						'manifest.json',
 						'version-bump-core.mjs',
+						'.github/scripts/release-please-approval.mjs',
 					],
 				},
 				tsconfigRootDir: import.meta.dirname,
@@ -34,7 +35,15 @@ export default defineConfig(
 	},
 	...obsidianmd.configs.recommended,
 	{
-		files: ['version-bump-core.mjs'],
+		files: [
+			'version-bump-core.mjs',
+			'.github/scripts/release-please-approval.mjs',
+		],
+		languageOptions: {
+			globals: {
+				...globals.node,
+			},
+		},
 		rules: {
 			'obsidianmd/no-nodejs-modules': 'off',
 		},

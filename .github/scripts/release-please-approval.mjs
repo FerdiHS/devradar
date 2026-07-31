@@ -162,5 +162,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 		process.stdin.on('error', rejectInput);
 	});
 
-	console.log(JSON.stringify(evaluateReleaseApproval(JSON.parse(input))));
+	process.stdout.write(
+		`${JSON.stringify(evaluateReleaseApproval(JSON.parse(input)))}\n`,
+	);
 }

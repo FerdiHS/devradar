@@ -50,38 +50,46 @@ jobs:
 
                   check_runs='[]'
                   statuses='[]'
+                  api_failure=''
 
                   if [ "$ACTION" = 'labeled' ] && [ "$LABEL_NAME" = 'release: ready' ]; then
-                      check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"
-                      statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"
+                      if ! check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
+                          api_failure='Could not retrieve check runs for the approved head.'
+                      elif ! statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
+                          api_failure='Could not retrieve commit statuses for the approved head.'
+                      fi
                   fi
 
                   pull_request="$(jq -c '.pull_request' "$GITHUB_EVENT_PATH")"
-                  result="$(jq -n \
-                      --arg action "$ACTION" \
-                      --arg labelName "$LABEL_NAME" \
-                      --arg actorLogin "$ACTOR_LOGIN" \
-                      --arg repository "$REPOSITORY" \
-                      --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
-                      --argjson checkRuns "$check_runs" \
-                      --argjson statuses "$statuses" \
-                      --argjson pullRequest "$pull_request" \
-                      '{
-                          action: $action,
-                          labelName: $labelName,
-                          actorLogin: $actorLogin,
-                          repository: $repository,
-                          baseRef: $pullRequest.base.ref,
-                          headRepository: $pullRequest.head.repo.full_name,
-                          headRef: $pullRequest.head.ref,
-                          headSha: $pullRequest.head.sha,
-                          authorLogin: $pullRequest.user.login,
-                          draft: $pullRequest.draft,
-                          body: $pullRequest.body,
-                          releasePleaseAppSlug: $releasePleaseAppSlug,
-                          checkRuns: $checkRuns,
-                          statuses: $statuses
-                      }' | node .github/scripts/release-please-approval.mjs)"
+                  if [ -n "$api_failure" ]; then
+                      result="$(jq -n --arg reason "$api_failure" '{ decision: "reject", reason: $reason }')"
+                  else
+                      result="$(jq -n \
+                          --arg action "$ACTION" \
+                          --arg labelName "$LABEL_NAME" \
+                          --arg actorLogin "$ACTOR_LOGIN" \
+                          --arg repository "$REPOSITORY" \
+                          --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
+                          --argjson checkRuns "$check_runs" \
+                          --argjson statuses "$statuses" \
+                          --argjson pullRequest "$pull_request" \
+                          '{
+                              action: $action,
+                              labelName: $labelName,
+                              actorLogin: $actorLogin,
+                              repository: $repository,
+                              baseRef: $pullRequest.base.ref,
+                              headRepository: $pullRequest.head.repo.full_name,
+                              headRef: $pullRequest.head.ref,
+                              headSha: $pullRequest.head.sha,
+                              authorLogin: $pullRequest.user.login,
+                              draft: $pullRequest.draft,
+                              body: $pullRequest.body,
+                              releasePleaseAppSlug: $releasePleaseAppSlug,
+                              checkRuns: $checkRuns,
+                              statuses: $statuses
+                          }' | node .github/scripts/release-please-approval.mjs)"
+                  fi
 
                   printf 'decision=%s\n' "$(jq -r '.decision' <<<"$result")" >> "$GITHUB_OUTPUT"
                   printf 'reason=%s\n' "$(jq -r '.reason // ""' <<<"$result")" >> "$GITHUB_OUTPUT"
@@ -116,7 +124,19 @@ jobs:
                   set -euo pipefail
 
                   remove_ready_label() {
-                      gh api --method DELETE "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/release%3A%20ready" >/dev/null
+                      local label_error
+                      label_error="$(mktemp)"
+
+                      if gh api --method DELETE "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/release%3A%20ready" >/dev/null 2>"$label_error"; then
+                          return 0
+                      fi
+
+                      if grep -Fq 'HTTP 404' "$label_error"; then
+                          return 0
+                      fi
+
+                      cat "$label_error"
+                      return 1
                   }
 
                   reject() {
@@ -151,16 +171,9 @@ jobs:
                       exit 1
                   fi
 
-                  merge_error="$(mktemp)"
-                  if ! merge_response="$(gh api --method PUT "repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" -f sha="${HEAD_SHA}" -f merge_method=squash 2>"$merge_error")"; then
-                      if grep -Eq 'HTTP (405|409)' "$merge_error"; then
-                          reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
-                          exit $?
-                      fi
-
-                      cat "$merge_error"
-                      echo 'Operational failure: the merge API request failed.'
-                      exit 1
+                  if ! merge_response="$(gh api --method PUT "repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" -f sha="${HEAD_SHA}" -f merge_method=squash)"; then
+                      reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
+                      exit $?
                   fi
 
                   if [ "$(jq -r '.merged' <<<"$merge_response")" != 'true' ]; then
