@@ -54,6 +54,16 @@ npm ci
 - Keep historical `versions.json` entries intact; only the current version entry should change.
 - Release Please metadata is synchronized automatically by the trusted workflow.
 
+### Release Please approval
+
+1. Wait for version synchronisation.
+2. Review the latest Release Please head.
+3. Wait for all checks to pass.
+4. Apply `release: ready` as `FerdiHS`.
+5. Reapprove after any later head change.
+
+Normal pull requests are unaffected. Approval is tied to the exact head, and failed validation or merging requires the label to be applied again.
+
 ## Git hooks
 
 Husky owns the local Git hooks for this repository.
