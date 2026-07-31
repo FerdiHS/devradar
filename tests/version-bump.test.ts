@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { writeJsonIfChanged } from '../version-bump-core.mjs';
 
 const scriptPath = join(process.cwd(), 'version-bump.mjs');
 
@@ -49,7 +50,27 @@ function readJson<T>(cwd: string, fileName: string): T {
 	return JSON.parse(readFileSync(join(cwd, fileName), 'utf8')) as T;
 }
 
+function snapshot(cwd: string, fileName: string) {
+	const path = join(cwd, fileName);
+	const stats = statSync(path, { bigint: true });
+
+	return {
+		contents: readFileSync(path, 'utf8'),
+		mtimeNs: stats.mtimeNs,
+	};
+}
+
 describe('version-bump CLI', () => {
+	it('writeJsonIfChanged returns false when the JSON is already identical', () => {
+		const cwd = mkdtempSync(join(tmpdir(), 'devradar-version-bump-write-'));
+		const path = join(cwd, 'manifest.json');
+
+		writeFileSync(path, '{\n\t"version": "0.0.2"\n}\n');
+
+		expect(writeJsonIfChanged(path, { version: '0.0.2' })).toBe(false);
+		expect(readFileSync(path, 'utf8')).toBe('{\n\t"version": "0.0.2"\n}\n');
+	});
+
 	it('sync updates manifest.json and adds a matching versions.json entry', () => {
 		const cwd = makeFixture();
 
@@ -62,6 +83,24 @@ describe('version-bump CLI', () => {
 			'0.0.1': '1.0.0',
 			'0.0.2': '1.0.0',
 		});
+	});
+
+	it('sync leaves canonical metadata unchanged on a second run', () => {
+		const cwd = makeFixture();
+
+		run('sync', cwd);
+
+		const before = {
+			manifest: snapshot(cwd, 'manifest.json'),
+			versions: snapshot(cwd, 'versions.json'),
+		};
+
+		run('sync', cwd);
+
+		expect({
+			manifest: snapshot(cwd, 'manifest.json'),
+			versions: snapshot(cwd, 'versions.json'),
+		}).toEqual(before);
 	});
 
 	it('check passes when release metadata is aligned', () => {
@@ -96,5 +135,51 @@ describe('version-bump CLI', () => {
 		});
 
 		expect(() => run('check', cwd)).toThrow(/versions\.json entry/);
+	});
+
+	it('check fails when versions.json is missing the current version entry', () => {
+		const cwd = makeFixture({
+			manifestVersion: '0.0.2',
+			versions: { '0.0.1': '1.0.0' },
+		});
+
+		expect(() => run('check', cwd)).toThrow(
+			/versions\.json entry for 0\.0\.2 must be 1\.0\.0/,
+		);
+	});
+
+	it.each(['manifest.json', 'versions.json'])(
+		'fails with a file-scoped error for malformed %s',
+		(fileName) => {
+			const cwd = makeFixture({
+				manifestVersion: '0.0.2',
+				versions: { '0.0.2': '1.0.0' },
+			});
+			writeFileSync(join(cwd, fileName), '{');
+
+			expect(() => run('check', cwd)).toThrow(new RegExp(`${fileName}:`));
+		},
+	);
+
+	it('fails on unsupported mode', () => {
+		const cwd = makeFixture();
+
+		expect(() =>
+			execFileSync(process.execPath, [scriptPath, 'bogus'], {
+				cwd,
+				stdio: 'pipe',
+			}),
+		).toThrow(/Unknown mode: bogus/);
+	});
+
+	it('fails when mode is missing before reading metadata', () => {
+		const cwd = mkdtempSync(join(tmpdir(), 'devradar-version-bump-mode-'));
+
+		expect(() =>
+			execFileSync(process.execPath, [scriptPath], {
+				cwd,
+				stdio: 'pipe',
+			}),
+		).toThrow(/Unknown mode: <missing>/);
 	});
 });

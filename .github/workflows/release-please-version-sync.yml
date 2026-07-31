@@ -38,8 +38,10 @@ jobs:
             - name: Sync metadata with trusted script
               env:
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  TRUSTED_HELPER: ${{ runner.temp }}/version-bump-core.mjs
                   TRUSTED_SCRIPT: ${{ runner.temp }}/version-bump.mjs
               run: |
+                  git show "${BASE_SHA}:version-bump-core.mjs" > "$TRUSTED_HELPER"
                   git show "${BASE_SHA}:version-bump.mjs" > "$TRUSTED_SCRIPT"
                   node "$TRUSTED_SCRIPT" sync
                   node "$TRUSTED_SCRIPT" check

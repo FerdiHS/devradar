@@ -46,6 +46,14 @@ npm ci
 - `npm run typecheck`: run TypeScript type checking
 - `npm run check`: full validation for the repo
 
+## Release metadata
+
+- `package.json.version` is the source of truth for release metadata.
+- Run `npm run version:sync` to update `manifest.json` and `versions.json`.
+- Run `npm run version:check` to verify that the release metadata still matches.
+- Keep historical `versions.json` entries intact; only the current version entry should change.
+- Release Please metadata is synchronized automatically by the trusted workflow.
+
 ## Git hooks
 
 Husky owns the local Git hooks for this repository.
