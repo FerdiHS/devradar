@@ -892,6 +892,12 @@ describe('Release Please workflow contracts', () => {
 		expect(versionSyncWorkflow).toContain(
 			'git ls-files --others --exclude-standard',
 		);
+		expect(versionSyncWorkflow).toContain(
+			"github.event.pull_request.user.login == format('{0}[bot]', vars.RELEASE_PLEASE_APP_SLUG)",
+		);
+		expect(versionSyncWorkflow).toContain(
+			"contains(github.event.pull_request.body, 'This PR was generated with Release Please.')",
+		);
 		expect(versionSyncWorkflow).toContain('git ls-remote');
 		expect(versionSyncWorkflow).not.toContain('--force-with-lease');
 		expect(versionSyncWorkflow).not.toContain('git push --force');
