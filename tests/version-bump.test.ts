@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -50,6 +50,16 @@ function readJson<T>(cwd: string, fileName: string): T {
 	return JSON.parse(readFileSync(join(cwd, fileName), 'utf8')) as T;
 }
 
+function snapshot(cwd: string, fileName: string) {
+	const path = join(cwd, fileName);
+	const stats = statSync(path, { bigint: true });
+
+	return {
+		contents: readFileSync(path, 'utf8'),
+		mtimeNs: stats.mtimeNs,
+	};
+}
+
 describe('version-bump CLI', () => {
 	it('writeJsonIfChanged returns false when the JSON is already identical', () => {
 		const cwd = mkdtempSync(join(tmpdir(), 'devradar-version-bump-write-'));
@@ -73,6 +83,24 @@ describe('version-bump CLI', () => {
 			'0.0.1': '1.0.0',
 			'0.0.2': '1.0.0',
 		});
+	});
+
+	it('sync leaves canonical metadata unchanged on a second run', () => {
+		const cwd = makeFixture();
+
+		run('sync', cwd);
+
+		const before = {
+			manifest: snapshot(cwd, 'manifest.json'),
+			versions: snapshot(cwd, 'versions.json'),
+		};
+
+		run('sync', cwd);
+
+		expect({
+			manifest: snapshot(cwd, 'manifest.json'),
+			versions: snapshot(cwd, 'versions.json'),
+		}).toEqual(before);
 	});
 
 	it('check passes when release metadata is aligned', () => {
@@ -144,14 +172,14 @@ describe('version-bump CLI', () => {
 		).toThrow(/Unknown mode: bogus/);
 	});
 
-	it('fails on unsupported mode before reading metadata', () => {
+	it('fails when mode is missing before reading metadata', () => {
 		const cwd = mkdtempSync(join(tmpdir(), 'devradar-version-bump-mode-'));
 
 		expect(() =>
-			execFileSync(process.execPath, [scriptPath, 'bogus'], {
+			execFileSync(process.execPath, [scriptPath], {
 				cwd,
 				stdio: 'pipe',
 			}),
-		).toThrow(/Unknown mode: bogus/);
+		).toThrow(/Unknown mode: <missing>/);
 	});
 });
