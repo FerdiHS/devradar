@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -37,6 +43,15 @@ type ApprovalDecision = {
 };
 
 type EvaluateReleaseApproval = (input: ApprovalInput) => ApprovalDecision;
+
+type ApprovalShellFixture = {
+	callsPath: string;
+	directory: string;
+	eventPath: string;
+	outputPath: string;
+	path: string;
+	scenario: string;
+};
 
 const evaluateReleaseApproval =
 	importedEvaluateReleaseApproval as EvaluateReleaseApproval;
@@ -125,6 +140,135 @@ function git(cwd: string, args: string[]) {
 		encoding: 'utf8',
 		stdio: 'pipe',
 	}).trim();
+}
+
+function readWorkflowOutputs(path: string) {
+	const outputs = Object.fromEntries(
+		readFileSync(path, 'utf8')
+			.trim()
+			.split('\n')
+			.filter(Boolean)
+			.map((line) => {
+				const separator = line.indexOf('=');
+				return [line.slice(0, separator), line.slice(separator + 1)];
+			}),
+	);
+
+	return {
+		decision: outputs.decision ?? '',
+		operational_failure: outputs.operational_failure ?? '',
+		reason: outputs.reason ?? '',
+	};
+}
+
+function createApprovalShellFixture(scenario: string) {
+	const directory = mkdtempSync(
+		join(tmpdir(), 'devradar-approval-workflow-'),
+	);
+	const binDirectory = join(directory, 'bin');
+	const callsPath = join(directory, 'gh-calls.log');
+	const eventPath = join(directory, 'event.json');
+	const outputPath = join(directory, 'output.txt');
+	const ghPath = join(binDirectory, 'gh');
+
+	mkdirSync(binDirectory);
+	writeFileSync(
+		ghPath,
+		`#!/bin/bash
+set -euo pipefail
+
+printf '%s\\n' "$*" >> "$GH_CALLS"
+
+case "$*" in
+  *check-runs*)
+    if [ "$GH_SCENARIO" = 'check-api-failure' ]; then
+      echo 'HTTP 503' >&2
+      exit 1
+    fi
+    printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
+    ;;
+  *statuses*)
+    if [ "$GH_SCENARIO" = 'status-api-failure' ]; then
+      echo 'HTTP 503' >&2
+      exit 1
+    fi
+    printf '%s\\n' '[[{"state":"success"}]]'
+    ;;
+  *'/merge'*)
+    case "$GH_SCENARIO" in
+      stale-head)
+        echo 'HTTP 409' >&2
+        exit 1
+        ;;
+      merge-api-failure)
+        echo 'HTTP 500' >&2
+        exit 1
+        ;;
+    esac
+    printf '%s\\n' '{"merged":true}'
+    ;;
+  *'/labels/'*)
+    if [ "$GH_SCENARIO" = 'missing-label' ]; then
+      echo 'HTTP 404' >&2
+      exit 1
+    fi
+    printf '%s\\n' '{}'
+    ;;
+  *)
+    printf '%s\\n' '{}'
+    ;;
+esac
+`,
+	);
+	chmodSync(ghPath, 0o755);
+	writeFileSync(
+		eventPath,
+		JSON.stringify({
+			pull_request: {
+				base: { ref: 'main', sha: 'base-sha' },
+				head: {
+					repo: { full_name: 'FerdiHS/devradar' },
+					ref: 'release-please--branches--main--components--devradar',
+					sha: 'head-sha',
+				},
+				user: { login: 'release-please[bot]' },
+				draft: false,
+				body: 'This PR was generated with Release Please.',
+			},
+		}),
+	);
+
+	return {
+		callsPath,
+		directory,
+		eventPath,
+		outputPath,
+		path: `${binDirectory}:${process.env.PATH ?? ''}`,
+		scenario,
+	};
+}
+
+function approvalEnvironment(
+	fixture: ApprovalShellFixture,
+	override: Record<string, string> = {},
+) {
+	return {
+		ACTION: 'labeled',
+		ACTOR_LOGIN: 'FerdiHS',
+		GH_CALLS: fixture.callsPath,
+		GH_SCENARIO: fixture.scenario,
+		GH_TOKEN: 'sanitized-token',
+		GITHUB_EVENT_PATH: fixture.eventPath,
+		GITHUB_OUTPUT: fixture.outputPath,
+		HEAD_REF: 'release-please--branches--main--components--devradar',
+		HEAD_SHA: 'head-sha',
+		LABEL_NAME: 'release: ready',
+		PATH: fixture.path,
+		PR_NUMBER: '123',
+		RELEASE_PLEASE_APP_SLUG: 'release-please',
+		REPOSITORY: 'FerdiHS/devradar',
+		...override,
+	};
 }
 
 function validApprovalInput(override: Partial<ApprovalInput> = {}) {
@@ -221,6 +365,14 @@ const trustedBaseStep = extractRunStep(
 );
 const guardStep = extractRunStep(versionSyncWorkflow, 'Guard changed files');
 const pushStep = extractRunStep(versionSyncWorkflow, 'Push metadata changes');
+const approvalEvaluationStep = extractRunStep(
+	approvalWorkflow,
+	'Evaluate approval policy',
+);
+const approvalMutationStep = extractRunStep(
+	approvalWorkflow,
+	'Invalidate, reject, or merge',
+);
 
 describe('Release Please approval policy', () => {
 	it('approves a qualifying Release Please pull request', () => {
@@ -234,8 +386,18 @@ describe('Release Please approval policy', () => {
 		['fork', { headRepository: 'someone/fork' }],
 		['draft', { draft: true }],
 		['wrong base', { baseRef: 'release' }],
+		[
+			'wrong Release Please branch',
+			{
+				headRef:
+					'release-please--branches--release--components--devradar',
+			},
+		],
 		['wrong bot', { authorLogin: 'human' }],
 		['missing marker', { body: 'ordinary body' }],
+		['missing repository', { repository: '' }],
+		['missing head SHA', { headSha: '' }],
+		['missing app slug', { releasePleaseAppSlug: '' }],
 	])('%s is rejected', (_name, override) => {
 		expect(
 			evaluateReleaseApproval(validApprovalInput(override)),
@@ -436,6 +598,22 @@ describe('Release Please version sync shell steps', () => {
 		);
 	});
 
+	it.each(['manifest.json.bak', 'versions.json.bak'])(
+		'guard rejects the lookalike tracked file %s',
+		(fileName) => {
+			const { checkout } = createGitFixture();
+
+			writeFileSync(join(checkout, fileName), 'lookalike\n');
+			git(checkout, ['add', fileName]);
+			git(checkout, ['commit', '-m', `track ${fileName}`]);
+			writeFileSync(join(checkout, fileName), 'modified lookalike\n');
+
+			expect(() => runBash(guardStep, checkout)).toThrow(
+				/Unexpected files changed/,
+			);
+		},
+	);
+
 	it('guard rejects an unexpected untracked file', () => {
 		const { checkout } = createGitFixture();
 
@@ -484,6 +662,150 @@ describe('Release Please version sync shell steps', () => {
 		expect(
 			git(checkout, ['show', '--format=%s', '--no-patch', 'HEAD']),
 		).toBe('chore(release): sync Obsidian metadata');
+	});
+});
+
+describe('Release Please approval shell steps', () => {
+	it('evaluates and merges a qualifying Release Please pull request', () => {
+		const fixture = createApprovalShellFixture('success');
+
+		runBash(
+			approvalEvaluationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture),
+		);
+		const outputs = readWorkflowOutputs(fixture.outputPath);
+
+		expect(outputs).toMatchObject({
+			decision: 'approve',
+			operational_failure: 'false',
+		});
+		runBash(
+			approvalMutationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture, {
+				DECISION: outputs.decision,
+				OPERATIONAL_FAILURE: outputs.operational_failure,
+				REASON: outputs.reason,
+			}),
+		);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('merge_method=squash');
+		expect(calls).toContain('git/refs/heads/');
+	});
+
+	it.each(['check-api-failure', 'status-api-failure'])(
+		'signals the %s after cleanup',
+		(scenario) => {
+			const fixture = createApprovalShellFixture(scenario);
+
+			runBash(
+				approvalEvaluationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture),
+			);
+			const outputs = readWorkflowOutputs(fixture.outputPath);
+
+			expect(outputs).toMatchObject({
+				decision: 'reject',
+				operational_failure: 'true',
+			});
+			expect(() =>
+				runBash(
+					approvalMutationStep,
+					repositoryRoot,
+					approvalEnvironment(fixture, {
+						DECISION: outputs.decision,
+						OPERATIONAL_FAILURE: outputs.operational_failure,
+						REASON: outputs.reason,
+					}),
+				),
+			).toThrow(/Operational failure/);
+			const calls = readFileSync(fixture.callsPath, 'utf8');
+
+			expect(calls).toContain('/labels/release%3A%20ready');
+			expect(calls).toContain('/comments');
+		},
+	);
+
+	it('treats an exact-head merge conflict as an expected rejection', () => {
+		const fixture = createApprovalShellFixture('stale-head');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).not.toThrow();
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+	});
+
+	it('returns nonzero for an operational merge failure after cleanup', () => {
+		const fixture = createApprovalShellFixture('merge-api-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+	});
+
+	it('invalidates a normal pull request without a ready label', () => {
+		const fixture = createApprovalShellFixture('missing-label');
+
+		runBash(
+			approvalEvaluationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture, {
+				ACTION: 'synchronize',
+				ACTOR_LOGIN: 'ordinary-user',
+				LABEL_NAME: '',
+			}),
+		);
+		const outputs = readWorkflowOutputs(fixture.outputPath);
+
+		expect(outputs).toMatchObject({
+			decision: 'invalidate',
+			operational_failure: 'false',
+		});
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: outputs.decision,
+					OPERATIONAL_FAILURE: outputs.operational_failure,
+					REASON: outputs.reason,
+				}),
+			),
+		).not.toThrow();
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).not.toContain('/comments');
+		expect(calls).not.toContain('/merge');
 	});
 });
 

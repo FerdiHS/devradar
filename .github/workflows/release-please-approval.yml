@@ -27,6 +27,7 @@ jobs:
         timeout-minutes: 10
         outputs:
             decision: ${{ steps.policy.outputs.decision }}
+            operational_failure: ${{ steps.policy.outputs.operational_failure }}
             reason: ${{ steps.policy.outputs.reason }}
         steps:
             - name: Checkout trusted base
@@ -62,7 +63,7 @@ jobs:
 
                   pull_request="$(jq -c '.pull_request' "$GITHUB_EVENT_PATH")"
                   if [ -n "$api_failure" ]; then
-                      result="$(jq -n --arg reason "$api_failure" '{ decision: "reject", reason: $reason }')"
+                      result="$(jq -n --arg reason "$api_failure" '{ decision: "reject", operationalFailure: true, reason: $reason }')"
                   else
                       result="$(jq -n \
                           --arg action "$ACTION" \
@@ -92,6 +93,7 @@ jobs:
                   fi
 
                   printf 'decision=%s\n' "$(jq -r '.decision' <<<"$result")" >> "$GITHUB_OUTPUT"
+                  printf 'operational_failure=%s\n' "$(jq -r '.operationalFailure // false' <<<"$result")" >> "$GITHUB_OUTPUT"
                   printf 'reason=%s\n' "$(jq -r '.reason // ""' <<<"$result")" >> "$GITHUB_OUTPUT"
 
     mutate:
@@ -114,6 +116,7 @@ jobs:
             - name: Invalidate, reject, or merge
               env:
                   DECISION: ${{ needs.evaluate.outputs.decision }}
+                  OPERATIONAL_FAILURE: ${{ needs.evaluate.outputs.operational_failure }}
                   REASON: ${{ needs.evaluate.outputs.reason }}
                   REPOSITORY: ${{ github.repository }}
                   PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -141,6 +144,7 @@ jobs:
 
                   reject() {
                       local reason="$1"
+                      local operational_failure="${2:-false}"
 
                       if ! remove_ready_label; then
                           echo 'Operational failure: could not remove release: ready.'
@@ -149,6 +153,11 @@ jobs:
 
                       if ! gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" -f "body=Release Please approval was not completed: ${reason}" >/dev/null; then
                           echo 'Operational failure: could not comment on the pull request.'
+                          return 1
+                      fi
+
+                      if [ "$operational_failure" = 'true' ]; then
+                          echo "Operational failure: ${reason}"
                           return 1
                       fi
                   }
@@ -162,7 +171,7 @@ jobs:
                   fi
 
                   if [ "$DECISION" = 'reject' ]; then
-                      reject "$REASON"
+                      reject "$REASON" "$OPERATIONAL_FAILURE"
                       exit $?
                   fi
 
@@ -171,8 +180,14 @@ jobs:
                       exit 1
                   fi
 
-                  if ! merge_response="$(gh api --method PUT "repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" -f sha="${HEAD_SHA}" -f merge_method=squash)"; then
-                      reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
+                  merge_error="$(mktemp)"
+                  if ! merge_response="$(gh api --method PUT "repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" -f sha="${HEAD_SHA}" -f merge_method=squash 2>"$merge_error")"; then
+                      if grep -Eq 'HTTP (405|409)' "$merge_error"; then
+                          reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
+                          exit $?
+                      fi
+
+                      reject 'Could not complete the Release Please merge. An operator must investigate.' true
                       exit $?
                   fi
 
