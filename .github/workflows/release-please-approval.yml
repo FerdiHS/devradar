@@ -98,7 +98,7 @@ jobs:
 
     mutate:
         needs: evaluate
-        if: ${{ needs.evaluate.outputs.decision != 'ignore' }}
+        if: "${{ needs.evaluate.outputs.decision != 'ignore' && contains(github.event.pull_request.labels.*.name, 'release: ready') }}"
         name: Apply Release Please approval decision
         runs-on: ubuntu-latest
         timeout-minutes: 10

@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import {
 	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -210,6 +211,13 @@ case "$*" in
   *'/labels/'*)
     if [ "$GH_SCENARIO" = 'missing-label' ]; then
       echo 'HTTP 404' >&2
+      exit 1
+    fi
+    printf '%s\\n' '{}'
+    ;;
+  *'git/refs/heads/'*)
+    if [ "$GH_SCENARIO" = 'branch-delete-failure' ]; then
+      echo 'HTTP 500' >&2
       exit 1
     fi
     printf '%s\\n' '{}'
@@ -772,7 +780,37 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('/comments');
 	});
 
-	it('invalidates a normal pull request without a ready label', () => {
+	it('comments and returns nonzero when branch deletion fails after merge', () => {
+		const fixture = createApprovalShellFixture('branch-delete-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8')
+			.trim()
+			.split('\n');
+		const mergeIndex = calls.findIndex((call) => call.includes('/merge'));
+		const deleteIndex = calls.findIndex((call) =>
+			call.includes('git/refs/heads/'),
+		);
+		const commentIndex = calls.findIndex((call) =>
+			call.includes('/comments'),
+		);
+
+		expect(mergeIndex).toBeGreaterThanOrEqual(0);
+		expect(deleteIndex).toBeGreaterThan(mergeIndex);
+		expect(commentIndex).toBeGreaterThan(deleteIndex);
+	});
+
+	it('keeps invalidate for an ordinary pull request without a ready label', () => {
 		const fixture = createApprovalShellFixture('missing-label');
 
 		runBash(
@@ -790,22 +828,7 @@ describe('Release Please approval shell steps', () => {
 			decision: 'invalidate',
 			operational_failure: 'false',
 		});
-		expect(() =>
-			runBash(
-				approvalMutationStep,
-				repositoryRoot,
-				approvalEnvironment(fixture, {
-					DECISION: outputs.decision,
-					OPERATIONAL_FAILURE: outputs.operational_failure,
-					REASON: outputs.reason,
-				}),
-			),
-		).not.toThrow();
-		const calls = readFileSync(fixture.callsPath, 'utf8');
-
-		expect(calls).toContain('/labels/release%3A%20ready');
-		expect(calls).not.toContain('/comments');
-		expect(calls).not.toContain('/merge');
+		expect(existsSync(fixture.callsPath)).toBe(false);
 	});
 });
 
@@ -838,6 +861,9 @@ describe('Release Please workflow contracts', () => {
 		]) {
 			expect(approvalWorkflow).toContain(workflowTerm);
 		}
+		expect(approvalWorkflow).toMatch(
+			/if: "\$\{\{ needs\.evaluate\.outputs\.decision != 'ignore' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'release: ready'\) \}\}"/,
+		);
 		for (const policyTerm of [
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',
