@@ -214,16 +214,20 @@ case "$*" in
     fi
     printf '%s\\n' '{}'
     ;;
-  *'git/refs/heads/'*)
+	  *'git/refs/heads/'*)
     if [ "$GH_SCENARIO" = 'branch-delete-failure' ]; then
       echo 'HTTP 500' >&2
       exit 1
     fi
-    printf '%s\\n' '{}'
-    ;;
-  *)
-    printf '%s\\n' '{}'
-    ;;
+	    printf '%s\\n' '{}'
+	    ;;
+	  *'/comments'*)
+	    printf '%s\\n' '{}'
+	    ;;
+	  *)
+	    echo "Unexpected gh call: $*" >&2
+	    exit 1
+	    ;;
 esac
 `,
 	);
@@ -751,11 +755,16 @@ describe('Release Please approval shell steps', () => {
 				}),
 			),
 		).not.toThrow();
-		const calls = readFileSync(fixture.callsPath, 'utf8');
+		const calls = readFileSync(fixture.callsPath, 'utf8')
+			.trim()
+			.split('\n');
+		const mergeCalls = calls.filter((call) => call.includes('/merge'));
 
-		expect(calls).toContain('/merge');
-		expect(calls).toContain('/labels/release%3A%20ready');
-		expect(calls).toContain('/comments');
+		expect(mergeCalls).toHaveLength(1);
+		expect(mergeCalls[0]).toContain('sha=head-sha');
+		expect(calls.join('\n')).toContain('/merge');
+		expect(calls.join('\n')).toContain('/labels/release%3A%20ready');
+		expect(calls.join('\n')).toContain('/comments');
 	});
 
 	it('returns nonzero for an operational merge failure after cleanup', () => {
