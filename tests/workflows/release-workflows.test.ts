@@ -259,11 +259,22 @@ case "$*" in
     fi
     printf '%s\\n' '{}'
     ;;
-	  *'git/refs/heads/'*)
+  *'git/refs/heads/'*)
     if [ "$GH_SCENARIO" = 'branch-delete-failure' ]; then
       echo 'HTTP 500' >&2
       exit 1
     fi
+	    if [ "$GH_SCENARIO" = 'branch-already-absent' ]; then
+	      echo 'HTTP 404' >&2
+	      exit 1
+	    fi
+	    printf '%s\\n' '{}'
+	    ;;
+	  *'git/ref/heads/'*)
+	    if [ "$GH_SCENARIO" = 'branch-already-absent' ]; then
+	      echo 'HTTP 404' >&2
+	      exit 1
+	    fi
 	    printf '%s\\n' '{}'
 	    ;;
   *'/comments'*)
@@ -319,6 +330,7 @@ function approvalEnvironment(
 		GH_CALLS: fixture.callsPath,
 		GH_SCENARIO: fixture.scenario,
 		GH_TOKEN: 'sanitized-token',
+		READ_GH_TOKEN: 'sanitized-read-token',
 		EVALUATION_RESULT: 'success',
 		GITHUB_EVENT_PATH: fixture.eventPath,
 		GITHUB_OUTPUT: fixture.outputPath,
@@ -1016,6 +1028,28 @@ describe('Release Please approval shell steps', () => {
 		expect(commentIndex).toBeGreaterThan(deleteIndex);
 	});
 
+	it('treats an already-deleted branch as successful cleanup', () => {
+		const fixture = createApprovalShellFixture('branch-already-absent');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).not.toThrow();
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('git/refs/heads/');
+		expect(calls).toContain('git/ref/heads/');
+		expect(calls).not.toContain('/comments');
+	});
+
 	it('returns nonzero when label cleanup fails', () => {
 		const fixture = createApprovalShellFixture('label-delete-failure');
 
@@ -1139,8 +1173,13 @@ describe('Release Please workflow contracts', () => {
 		expect(approvalWorkflow).toContain('always()');
 		expect(approvalWorkflow).toContain('needs.evaluate.result');
 		expect(approvalWorkflow).toMatch(
-			/Checkout trusted base[\s\S]*?continue-on-error: true/,
+			/mutate:[\s\S]*?Checkout trusted base[\s\S]*?continue-on-error: true[\s\S]*?Create GitHub App token/,
 		);
+		expect(approvalWorkflow).toContain(
+			'READ_GH_TOKEN: ${{ github.token }}',
+		);
+		expect(approvalWorkflow).not.toContain('permission-checks: read');
+		expect(approvalWorkflow).not.toContain('permission-statuses: read');
 		for (const policyTerm of [
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',

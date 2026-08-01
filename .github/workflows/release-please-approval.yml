@@ -35,7 +35,6 @@ jobs:
               with:
                   ref: ${{ github.event.pull_request.base.sha }}
                   persist-credentials: false
-              continue-on-error: true
 
             - name: Evaluate approval policy
               id: policy
@@ -111,6 +110,7 @@ jobs:
               with:
                   ref: ${{ github.event.pull_request.base.sha }}
                   persist-credentials: false
+              continue-on-error: true
 
             - name: Create GitHub App token
               id: app-token
@@ -119,10 +119,8 @@ jobs:
                   app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
                   private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
                   permission-contents: write
-                  permission-checks: read
                   permission-issues: write
                   permission-pull-requests: write
-                  permission-statuses: read
 
             - name: Invalidate, reject, or merge
               env:
@@ -137,6 +135,7 @@ jobs:
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   RELEASE_PLEASE_APP_SLUG: ${{ vars.RELEASE_PLEASE_APP_SLUG }}
+                  READ_GH_TOKEN: ${{ github.token }}
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
               run: |
                   set -euo pipefail
@@ -200,7 +199,11 @@ jobs:
                       exit 1
                   fi
 
-                  if ! current_pull_request="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"; then
+                  read_gh_api() {
+                      GH_TOKEN="$READ_GH_TOKEN" gh api "$@"
+                  }
+
+                  if ! current_pull_request="$(read_gh_api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"; then
                       reject 'Could not retrieve the current pull request state before merging.' true
                       exit $?
                   fi
@@ -226,12 +229,12 @@ jobs:
                       exit $?
                   fi
 
-                  if ! current_check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
+                  if ! current_check_runs="$(read_gh_api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
                       reject 'Could not retrieve current check runs before merging.' true
                       exit $?
                   fi
 
-                  if ! current_statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
+                  if ! current_statuses="$(read_gh_api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
                       reject 'Could not retrieve current commit statuses before merging.' true
                       exit $?
                   fi
@@ -292,7 +295,13 @@ jobs:
                       exit $?
                   fi
 
-                  if ! gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${HEAD_REF}" >/dev/null; then
+                  branch_delete_error="$(mktemp)"
+                  if ! gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${HEAD_REF}" >/dev/null 2>"$branch_delete_error"; then
+                      branch_verify_error="$(mktemp)"
+                      if ! read_gh_api "repos/${REPOSITORY}/git/ref/heads/${HEAD_REF}" >/dev/null 2>"$branch_verify_error" && grep -Fq 'HTTP 404' "$branch_verify_error"; then
+                          exit 0
+                      fi
+
                       if ! gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" -f 'body=Release Please merged, but branch cleanup failed.' >/dev/null; then
                           echo 'Operational failure: branch cleanup and pull-request comment failed.'
                           exit 1
