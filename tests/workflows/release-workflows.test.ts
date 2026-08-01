@@ -762,6 +762,25 @@ describe('Release Please version sync shell steps', () => {
 		);
 	});
 
+	it('push exits without committing or pushing when no changes are needed', () => {
+		const { checkout, remote, headRef } = prepareReleaseBranch();
+		const checkoutHead = git(checkout, ['rev-parse', 'HEAD']);
+		const remoteHead = git(remote, ['rev-parse', 'refs/heads/' + headRef]);
+
+		expect(() =>
+			runBash(pushStep, checkout, {
+				PUSH_URL: join(checkout, 'missing-remote.git'),
+				EXPECTED_HEAD_SHA: checkoutHead,
+				HEAD_REF: headRef,
+			}),
+		).not.toThrow();
+
+		expect(git(checkout, ['rev-parse', 'HEAD'])).toBe(checkoutHead);
+		expect(git(remote, ['rev-parse', 'refs/heads/' + headRef])).toBe(
+			remoteHead,
+		);
+	});
+
 	it('push rejects a stale remote head without changing the remote', () => {
 		expect(pushStep).toContain('PUSH_URL');
 		const { checkout, remote, headRef } = prepareReleaseBranch();
