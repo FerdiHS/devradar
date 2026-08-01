@@ -5,10 +5,6 @@
 - Use a dedicated Obsidian test vault for all work. Do not use a personal vault or a production vault.
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
-- Use `feat:` for user-facing features and `fix:` for user-facing bug fixes.
-- Use `!` or `BREAKING CHANGE` to mark breaking changes.
-- Use `docs:`, `test:`, `ci:`, `refactor:`, and `chore:` for non-product work.
-- Release Please reads the commits that land on `main`, so squash-merged PR titles should use the intended Conventional Commit type.
 
 Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported version, and npm is the package manager.
 
