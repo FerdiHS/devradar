@@ -20,6 +20,13 @@ type CheckRun = {
 	started_at?: string;
 };
 
+type CommitStatus = {
+	context: string;
+	state: string;
+	created_at?: string;
+	updated_at?: string;
+};
+
 type ApprovalInput = {
 	action: string;
 	labelName: string;
@@ -34,7 +41,7 @@ type ApprovalInput = {
 	body: string;
 	releasePleaseAppSlug: string;
 	checkRuns: CheckRun[];
-	statuses: { state: string }[];
+	statuses: CommitStatus[];
 };
 
 type ApprovalDecision = {
@@ -192,7 +199,7 @@ case "$*" in
       echo 'HTTP 503' >&2
       exit 1
     fi
-    printf '%s\\n' '[[{"state":"success"}]]'
+	    printf '%s\\n' '[[{"context":"external-check","state":"success","updated_at":"2026-07-31T00:00:00Z"}]]'
     ;;
   *'/merge'*)
     case "$GH_SCENARIO" in
@@ -318,7 +325,13 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 				completed_at: '2026-07-31T00:00:00Z',
 			},
 		],
-		statuses: [{ state: 'success' }],
+		statuses: [
+			{
+				context: 'external-check',
+				state: 'success',
+				updated_at: '2026-07-31T00:00:00Z',
+			},
+		],
 		...override,
 	};
 }
@@ -516,11 +529,80 @@ describe('Release Please approval policy', () => {
 		(state) => {
 			expect(
 				evaluateReleaseApproval(
-					validApprovalInput({ statuses: [{ state }] }),
+					validApprovalInput({
+						statuses: [
+							{
+								context: 'external-check',
+								state,
+								updated_at: '2026-07-31T01:00:00Z',
+							},
+						],
+					}),
 				),
 			).toMatchObject({ decision: 'reject' });
 		},
 	);
+
+	it('uses the newest status for each context', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					statuses: [
+						{
+							context: 'external-check',
+							state: 'success',
+							updated_at: '2026-07-31T02:00:00Z',
+						},
+						{
+							context: 'external-check',
+							state: 'failure',
+							updated_at: '2026-07-31T01:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'approve' });
+
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					statuses: [
+						{
+							context: 'external-check',
+							state: 'failure',
+							updated_at: '2026-07-31T02:00:00Z',
+						},
+						{
+							context: 'external-check',
+							state: 'success',
+							updated_at: '2026-07-31T01:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'reject' });
+	});
+
+	it('requires every current status context to succeed', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					statuses: [
+						{
+							context: 'external-check',
+							state: 'success',
+							updated_at: '2026-07-31T01:00:00Z',
+						},
+						{
+							context: 'another-check',
+							state: 'success',
+							updated_at: '2026-07-31T01:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'approve' });
+	});
 
 	it('ignores its own pending check while gating every external check', () => {
 		expect(

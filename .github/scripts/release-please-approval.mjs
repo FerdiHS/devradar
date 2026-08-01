@@ -11,12 +11,17 @@ function isNonEmptyString(value) {
 	return typeof value === 'string' && value.trim().length > 0;
 }
 
+function parseTimestamp(timestamp) {
+	const milliseconds = Date.parse(timestamp ?? '');
+
+	return Number.isNaN(milliseconds) ? undefined : milliseconds;
+}
+
 function checkRunTimestamp(checkRun) {
 	const timestamp =
 		checkRun.completed_at ?? checkRun.started_at ?? checkRun.created_at;
-	const milliseconds = Date.parse(timestamp);
 
-	return Number.isNaN(milliseconds) ? undefined : milliseconds;
+	return parseTimestamp(timestamp);
 }
 
 function latestCheckRunsByName(checkRuns) {
@@ -39,6 +44,30 @@ function latestCheckRunsByName(checkRuns) {
 	}
 
 	return latestRuns;
+}
+
+function latestStatusesByContext(statuses) {
+	const latestStatuses = new Map();
+
+	for (const status of statuses) {
+		if (!isNonEmptyString(status?.context)) {
+			return undefined;
+		}
+
+		const timestamp = parseTimestamp(
+			status.updated_at ?? status.created_at,
+		);
+		if (timestamp === undefined) {
+			return undefined;
+		}
+
+		const latest = latestStatuses.get(status.context);
+		if (!latest || timestamp > latest.timestamp) {
+			latestStatuses.set(status.context, { status, timestamp });
+		}
+	}
+
+	return latestStatuses;
 }
 
 export function evaluateReleaseApproval({
@@ -118,6 +147,11 @@ export function evaluateReleaseApproval({
 		return reject('A check run is missing a name or timestamp.');
 	}
 
+	const latestStatuses = latestStatusesByContext(statuses);
+	if (!latestStatuses) {
+		return reject('A commit status is missing a context or timestamp.');
+	}
+
 	for (const name of REQUIRED_CHECK_NAMES) {
 		const latest = latestRuns.get(name)?.checkRun;
 		if (
@@ -142,7 +176,7 @@ export function evaluateReleaseApproval({
 		}
 	}
 
-	for (const status of statuses) {
+	for (const { status } of latestStatuses.values()) {
 		if (status?.state !== 'success') {
 			return reject('All commit statuses must succeed.');
 		}
