@@ -192,12 +192,20 @@ case "$*" in
       echo 'HTTP 503' >&2
       exit 1
     fi
+    if [ "$GH_SCENARIO" = 'current-check-failure' ]; then
+      printf '%s\\n' '[{\"check_runs\":[{\"name\":\"Quality checks - Node.js 22.x\",\"status\":\"completed\",\"conclusion\":\"failure\",\"completed_at\":\"2026-07-31T01:00:00Z\"},{\"name\":\"Quality checks - Node.js 24.x\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-07-31T01:00:00Z\"}]}]'
+      exit 0
+    fi
     printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
     ;;
   *statuses*)
     if [ "$GH_SCENARIO" = 'status-api-failure' ]; then
       echo 'HTTP 503' >&2
       exit 1
+    fi
+    if [ "$GH_SCENARIO" = 'current-status-failure' ]; then
+      printf '%s\\n' '[[{\"context\":\"external-check\",\"state\":\"failure\",\"updated_at\":\"2026-07-31T01:00:00Z\"}]]'
+      exit 0
     fi
 	    printf '%s\\n' '[[{"context":"external-check","state":"success","updated_at":"2026-07-31T00:00:00Z"}]]'
     ;;
@@ -213,6 +221,32 @@ case "$*" in
         ;;
     esac
     printf '%s\\n' '{"merged":true}'
+    ;;
+  *'/pulls/'*)
+    state='open'
+    draft='false'
+    base_ref='main'
+    head_sha='head-sha'
+    updated_at='2026-07-31T00:00:00Z'
+    labels='[{\"name\":\"release: ready\"}]'
+    case "$GH_SCENARIO" in
+      current-base-changed)
+        base_ref='release'
+        ;;
+      current-label-removed)
+        labels='[]'
+        ;;
+      current-reopened)
+        updated_at='2026-07-31T01:00:00Z'
+        ;;
+      current-draft)
+        draft='true'
+        ;;
+      current-head-changed)
+        head_sha='new-head-sha'
+        ;;
+    esac
+    printf '%s\\n' '{"state":"'"$state"'","draft":'"$draft"',"base":{"ref":"'"$base_ref"'"},"head":{"repo":{"full_name":"FerdiHS/devradar"},"ref":"release-please--branches--main--components--devradar","sha":"'"$head_sha"'"},"user":{"login":"release-please[bot]"},"body":"This PR was generated with Release Please.","updated_at":"'"$updated_at"'","labels":'"$labels"'}'
     ;;
   *'/labels/'*)
     if [ "$GH_SCENARIO" = 'missing-label' ]; then
@@ -260,6 +294,7 @@ esac
 				user: { login: 'release-please[bot]' },
 				draft: false,
 				body: 'This PR was generated with Release Please.',
+				updated_at: '2026-07-31T00:00:00Z',
 			},
 		}),
 	);
@@ -284,11 +319,13 @@ function approvalEnvironment(
 		GH_CALLS: fixture.callsPath,
 		GH_SCENARIO: fixture.scenario,
 		GH_TOKEN: 'sanitized-token',
+		EVALUATION_RESULT: 'success',
 		GITHUB_EVENT_PATH: fixture.eventPath,
 		GITHUB_OUTPUT: fixture.outputPath,
 		HEAD_REF: 'release-please--branches--main--components--devradar',
 		HEAD_SHA: 'head-sha',
 		LABEL_NAME: 'release: ready',
+		APPROVED_UPDATED_AT: '2026-07-31T00:00:00Z',
 		PATH: fixture.path,
 		PR_NUMBER: '123',
 		RELEASE_PLEASE_APP_SLUG: 'release-please',
@@ -797,6 +834,58 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('git/refs/heads/');
 	});
 
+	it.each([
+		'current-base-changed',
+		'current-label-removed',
+		'current-reopened',
+		'current-draft',
+		'current-head-changed',
+		'current-check-failure',
+		'current-status-failure',
+	])('does not merge when live approval state changes: %s', (scenario) => {
+		const fixture = createApprovalShellFixture(scenario);
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).not.toThrow();
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/pulls/');
+		expect(calls).not.toContain('/merge');
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+	});
+
+	it('cleans up when evaluation fails before producing outputs', () => {
+		const fixture = createApprovalShellFixture('evaluation-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: '',
+					EVALUATION_RESULT: 'failure',
+					OPERATIONAL_FAILURE: '',
+					REASON: '',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+		expect(calls).not.toContain('/merge');
+	});
+
 	it.each(['check-api-failure', 'status-api-failure'])(
 		'signals the %s after cleanup',
 		(scenario) => {
@@ -1028,9 +1117,8 @@ describe('Release Please workflow contracts', () => {
 		]) {
 			expect(approvalWorkflow).toContain(workflowTerm);
 		}
-		expect(approvalWorkflow).toMatch(
-			/if: "\$\{\{ needs\.evaluate\.outputs\.decision != 'ignore' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'release: ready'\) \}\}"/,
-		);
+		expect(approvalWorkflow).toContain('always()');
+		expect(approvalWorkflow).toContain('needs.evaluate.result');
 		for (const policyTerm of [
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',
