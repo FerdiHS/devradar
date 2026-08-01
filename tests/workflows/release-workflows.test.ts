@@ -1138,6 +1138,9 @@ describe('Release Please workflow contracts', () => {
 		}
 		expect(approvalWorkflow).toContain('always()');
 		expect(approvalWorkflow).toContain('needs.evaluate.result');
+		expect(approvalWorkflow).toMatch(
+			/Checkout trusted base[\s\S]*?continue-on-error: true/,
+		);
 		for (const policyTerm of [
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',

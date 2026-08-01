@@ -35,6 +35,7 @@ jobs:
               with:
                   ref: ${{ github.event.pull_request.base.sha }}
                   persist-credentials: false
+              continue-on-error: true
 
             - name: Evaluate approval policy
               id: policy
@@ -232,6 +233,11 @@ jobs:
 
                   if ! current_statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
                       reject 'Could not retrieve current commit statuses before merging.' true
+                      exit $?
+                  fi
+
+                  if [ ! -f .github/scripts/release-please-approval.mjs ]; then
+                      reject 'Could not load the trusted approval policy before merging.' true
                       exit $?
                   fi
 
