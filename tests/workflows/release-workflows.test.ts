@@ -196,6 +196,10 @@ case "$*" in
       printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"failure","completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
+    if [ "$GH_SCENARIO" = 'mutation-self-check' ]; then
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"started_at":"2026-07-31T01:00:00Z"}]}]'
+      exit 0
+    fi
     printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
     ;;
   *statuses*)
@@ -865,6 +869,30 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('git/refs/heads/');
 	});
 
+	it('ignores the active mutation job during live revalidation', () => {
+		const fixture = createApprovalShellFixture('mutation-self-check');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).not.toThrow();
+		const calls = readFileSync(fixture.callsPath, 'utf8')
+			.trim()
+			.split('\n');
+		const mergeCalls = calls.filter((call) => call.includes('/merge'));
+
+		expect(mergeCalls).toHaveLength(1);
+		expect(mergeCalls[0]).toContain('sha=head-sha');
+		expect(mergeCalls[0]).toContain('merge_method=squash');
+	});
+
 	it.each([
 		'current-base-changed',
 		'current-label-removed',
@@ -1192,6 +1220,9 @@ describe('Release Please workflow contracts', () => {
 		]) {
 			expect(approvalWorkflow).toContain(workflowTerm);
 		}
+		expect(approvalWorkflow).toContain(
+			'selfCheckName: "Apply Release Please approval decision"',
+		);
 		expect(approvalWorkflow).toContain('always()');
 		expect(approvalWorkflow).toContain('needs.evaluate.result');
 		expect(approvalWorkflow).toMatch(

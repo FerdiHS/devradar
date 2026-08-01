@@ -264,6 +264,7 @@ jobs:
                           draft: $pullRequest.draft,
                           body: $pullRequest.body,
                           releasePleaseAppSlug: $releasePleaseAppSlug,
+                          selfCheckName: "Apply Release Please approval decision",
                           checkRuns: $checkRuns,
                           statuses: $statuses
                       }' | node .github/scripts/release-please-approval.mjs)"; then
