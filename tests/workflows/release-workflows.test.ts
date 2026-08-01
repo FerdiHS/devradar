@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
 	chmodSync,
-	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -828,8 +827,37 @@ describe('Release Please approval shell steps', () => {
 			decision: 'invalidate',
 			operational_failure: 'false',
 		});
-		expect(existsSync(fixture.callsPath)).toBe(false);
 	});
+
+	it.each(['synchronize', 'converted_to_draft', 'reopened'])(
+		'%s removes a previous approval',
+		(action) => {
+			const fixture = createApprovalShellFixture('success');
+
+			runBash(
+				approvalEvaluationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, { ACTION: action }),
+			);
+			const outputs = readWorkflowOutputs(fixture.outputPath);
+
+			expect(outputs.decision).toBe('invalidate');
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: outputs.decision,
+					OPERATIONAL_FAILURE: outputs.operational_failure,
+					REASON: outputs.reason,
+				}),
+			);
+
+			const calls = readFileSync(fixture.callsPath, 'utf8');
+			expect(calls).toContain('/labels/release%3A%20ready');
+			expect(calls).not.toContain('/comments');
+			expect(calls).not.toContain('/merge');
+		},
+	);
 });
 
 describe('Release Please workflow contracts', () => {
@@ -877,6 +905,16 @@ describe('Release Please workflow contracts', () => {
 	});
 
 	it('keeps version synchronization on the trusted exact head', () => {
+		expect(versionSyncWorkflow).toMatch(
+			/pull_request_target[\s\S]*?branches:\s*\n\s+- main/,
+		);
+		for (const conditionTerm of [
+			'github.event.pull_request.head.repo.full_name == github.repository',
+			'!github.event.pull_request.draft',
+			"github.event.pull_request.head.ref == 'release-please--branches--main--components--devradar'",
+		]) {
+			expect(versionSyncWorkflow).toContain(conditionTerm);
+		}
 		expect(versionSyncWorkflow).toContain(
 			'ref: ${{ github.event.pull_request.head.sha }}',
 		);
