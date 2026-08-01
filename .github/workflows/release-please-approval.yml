@@ -295,8 +295,7 @@ jobs:
                       exit $?
                   fi
 
-                  branch_delete_error="$(mktemp)"
-                  if ! gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${HEAD_REF}" >/dev/null 2>"$branch_delete_error"; then
+                  if ! gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${HEAD_REF}" >/dev/null; then
                       branch_verify_error="$(mktemp)"
                       if ! read_gh_api "repos/${REPOSITORY}/git/ref/heads/${HEAD_REF}" >/dev/null 2>"$branch_verify_error" && grep -Fq 'HTTP 404' "$branch_verify_error"; then
                           exit 0
