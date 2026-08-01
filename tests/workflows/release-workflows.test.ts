@@ -917,6 +917,28 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).not.toContain('/merge');
 	});
 
+	it('cleans up when the mutation checkout lacks the trusted policy', () => {
+		const fixture = createApprovalShellFixture('mutation-checkout-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				fixture.directory,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/pulls/');
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+		expect(calls).not.toContain('/merge');
+	});
+
 	it.each(['check-api-failure', 'status-api-failure'])(
 		'signals the %s after cleanup',
 		(scenario) => {
