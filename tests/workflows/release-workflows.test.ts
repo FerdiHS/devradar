@@ -193,7 +193,7 @@ case "$*" in
       exit 1
     fi
     if [ "$GH_SCENARIO" = 'current-check-failure' ]; then
-      printf '%s\\n' '[{\"check_runs\":[{\"name\":\"Quality checks - Node.js 22.x\",\"status\":\"completed\",\"conclusion\":\"failure\",\"completed_at\":\"2026-07-31T01:00:00Z\"},{\"name\":\"Quality checks - Node.js 24.x\",\"status\":\"completed\",\"conclusion\":\"success\",\"completed_at\":\"2026-07-31T01:00:00Z\"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"failure","completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
@@ -204,7 +204,7 @@ case "$*" in
       exit 1
     fi
     if [ "$GH_SCENARIO" = 'current-status-failure' ]; then
-      printf '%s\\n' '[[{\"context\":\"external-check\",\"state\":\"failure\",\"updated_at\":\"2026-07-31T01:00:00Z\"}]]'
+      printf '%s\\n' '[[{"context":"external-check","state":"failure","updated_at":"2026-07-31T01:00:00Z"}]]'
       exit 0
     fi
 	    printf '%s\\n' '[[{"context":"external-check","state":"success","updated_at":"2026-07-31T00:00:00Z"}]]'
@@ -228,7 +228,7 @@ case "$*" in
     base_ref='main'
     head_sha='head-sha'
     updated_at='2026-07-31T00:00:00Z'
-    labels='[{\"name\":\"release: ready\"}]'
+    labels='[{"name":"release: ready"}]'
     case "$GH_SCENARIO" in
       current-base-changed)
         base_ref='release'
