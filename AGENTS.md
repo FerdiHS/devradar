@@ -61,7 +61,7 @@ The unauthenticated MVP must rely on `requestUrl()` plus GitHub REST endpoints o
 
 ## Pull requests
 
-Use a short Conventional Commit-style pull-request title, such as `feat: ...` or `fix: ...`.
+Pull requests must use a short Conventional Commit-style title; reserve `feat:` and `fix:` for shipped plugin behavior and use the pull-request body for issue-closing syntax.
 
 ## Completion rule
 

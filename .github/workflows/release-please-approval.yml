@@ -1,0 +1,311 @@
+name: Release Please approval
+
+on:
+    pull_request_target:
+        branches:
+            - main
+        types:
+            - labeled
+            - synchronize
+            - converted_to_draft
+            - reopened
+
+permissions:
+    contents: read
+    pull-requests: read
+    checks: read
+    statuses: read
+
+concurrency:
+    group: release-please-approval-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    evaluate:
+        name: Approve Release Please
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        outputs:
+            decision: ${{ steps.policy.outputs.decision }}
+            operational_failure: ${{ steps.policy.outputs.operational_failure }}
+            reason: ${{ steps.policy.outputs.reason }}
+        steps:
+            - name: Checkout trusted base
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.pull_request.base.sha }}
+                  persist-credentials: false
+
+            - name: Evaluate approval policy
+              id: policy
+              env:
+                  ACTION: ${{ github.event.action }}
+                  ACTOR_LOGIN: ${{ github.actor }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  LABEL_NAME: ${{ github.event.label.name }}
+                  RELEASE_PLEASE_APP_SLUG: ${{ vars.RELEASE_PLEASE_APP_SLUG }}
+                  REPOSITORY: ${{ github.repository }}
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  check_runs='[]'
+                  statuses='[]'
+                  api_failure=''
+
+                  if [ "$ACTION" = 'labeled' ] && [ "$LABEL_NAME" = 'release: ready' ]; then
+                      if ! check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
+                          api_failure='Could not retrieve check runs for the approved head.'
+                      elif ! statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
+                          api_failure='Could not retrieve commit statuses for the approved head.'
+                      fi
+                  fi
+
+                  pull_request="$(jq -c '.pull_request' "$GITHUB_EVENT_PATH")"
+                  if [ -n "$api_failure" ]; then
+                      result="$(jq -n --arg reason "$api_failure" '{ decision: "reject", operationalFailure: true, reason: $reason }')"
+                  else
+                      result="$(jq -n \
+                          --arg action "$ACTION" \
+                          --arg labelName "$LABEL_NAME" \
+                          --arg actorLogin "$ACTOR_LOGIN" \
+                          --arg repository "$REPOSITORY" \
+                          --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
+                          --argjson checkRuns "$check_runs" \
+                          --argjson statuses "$statuses" \
+                          --argjson pullRequest "$pull_request" \
+                          '{
+                              action: $action,
+                              labelName: $labelName,
+                              actorLogin: $actorLogin,
+                              repository: $repository,
+                              baseRef: $pullRequest.base.ref,
+                              headRepository: $pullRequest.head.repo.full_name,
+                              headRef: $pullRequest.head.ref,
+                              headSha: $pullRequest.head.sha,
+                              authorLogin: $pullRequest.user.login,
+                              draft: $pullRequest.draft,
+                              body: $pullRequest.body,
+                              releasePleaseAppSlug: $releasePleaseAppSlug,
+                              checkRuns: $checkRuns,
+                              statuses: $statuses
+                          }' | node .github/scripts/release-please-approval.mjs)"
+                  fi
+
+                  printf 'decision=%s\n' "$(jq -r '.decision' <<<"$result")" >> "$GITHUB_OUTPUT"
+                  printf 'operational_failure=%s\n' "$(jq -r '.operationalFailure // false' <<<"$result")" >> "$GITHUB_OUTPUT"
+                  printf 'reason=%s\n' "$(jq -r '.reason // ""' <<<"$result")" >> "$GITHUB_OUTPUT"
+
+    mutate:
+        needs: evaluate
+        if: >-
+            ${{ always() && contains(github.event.pull_request.labels.*.name, 'release: ready') &&
+            (needs.evaluate.result != 'success' || needs.evaluate.outputs.decision != 'ignore') }}
+        name: Apply Release Please approval decision
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - name: Checkout trusted base
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.pull_request.base.sha }}
+                  persist-credentials: false
+              continue-on-error: true
+
+            - name: Create GitHub App token
+              id: app-token
+              uses: actions/create-github-app-token@v3
+              with:
+                  app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+                  private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+                  permission-contents: write
+                  permission-issues: write
+                  permission-pull-requests: write
+
+            - name: Invalidate, reject, or merge
+              env:
+                  DECISION: ${{ needs.evaluate.outputs.decision }}
+                  EVALUATION_RESULT: ${{ needs.evaluate.result }}
+                  OPERATIONAL_FAILURE: ${{ needs.evaluate.outputs.operational_failure }}
+                  REASON: ${{ needs.evaluate.outputs.reason }}
+                  ACTOR_LOGIN: ${{ github.actor }}
+                  APPROVED_UPDATED_AT: ${{ github.event.pull_request.updated_at }}
+                  REPOSITORY: ${{ github.repository }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  RELEASE_PLEASE_APP_SLUG: ${{ vars.RELEASE_PLEASE_APP_SLUG }}
+                  READ_GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ steps.app-token.outputs.token }}
+              run: |
+                  set -euo pipefail
+
+                  remove_ready_label() {
+                      local label_error
+                      label_error="$(mktemp)"
+
+                      if gh api --method DELETE "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/release%3A%20ready" >/dev/null 2>"$label_error"; then
+                          return 0
+                      fi
+
+                      if grep -Fq 'HTTP 404' "$label_error"; then
+                          return 0
+                      fi
+
+                      cat "$label_error"
+                      return 1
+                  }
+
+                  reject() {
+                      local reason="$1"
+                      local operational_failure="${2:-false}"
+
+                      if ! remove_ready_label; then
+                          echo 'Operational failure: could not remove release: ready.'
+                          return 1
+                      fi
+
+                      if ! gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" -f "body=Release Please approval was not completed: ${reason}" >/dev/null; then
+                          echo 'Operational failure: could not comment on the pull request.'
+                          return 1
+                      fi
+
+                      if [ "$operational_failure" = 'true' ]; then
+                          echo "Operational failure: ${reason}"
+                          return 1
+                      fi
+                  }
+
+                  if [ "$EVALUATION_RESULT" != 'success' ] || [ -z "$DECISION" ]; then
+                      reject 'Release Please approval evaluation did not complete. Apply release: ready again.' true
+                      exit $?
+                  fi
+
+                  if [ "$DECISION" = 'invalidate' ]; then
+                      if ! remove_ready_label; then
+                          echo 'Operational failure: could not remove release: ready.'
+                          exit 1
+                      fi
+                      exit 0
+                  fi
+
+                  if [ "$DECISION" = 'reject' ]; then
+                      reject "$REASON" "$OPERATIONAL_FAILURE"
+                      exit $?
+                  fi
+
+                  if [ "$DECISION" != 'approve' ]; then
+                      echo "Operational failure: unknown approval decision: ${DECISION}"
+                      exit 1
+                  fi
+
+                  read_gh_api() {
+                      GH_TOKEN="$READ_GH_TOKEN" gh api "$@"
+                  }
+
+                  if ! current_pull_request="$(read_gh_api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"; then
+                      reject 'Could not retrieve the current pull request state before merging.' true
+                      exit $?
+                  fi
+
+                  if ! jq -e \
+                      --arg repository "$REPOSITORY" \
+                      --arg expectedAuthor "${RELEASE_PLEASE_APP_SLUG}[bot]" \
+                      --arg headSha "$HEAD_SHA" \
+                      --arg approvedUpdatedAt "$APPROVED_UPDATED_AT" \
+                      '(
+                          (.state == "open") and
+                          (.draft == false) and
+                          (.base.ref == "main") and
+                          (.head.repo.full_name == $repository) and
+                          (.head.ref == "release-please--branches--main--components--devradar") and
+                          (.head.sha == $headSha) and
+                          (.user.login == $expectedAuthor) and
+                          (.updated_at == $approvedUpdatedAt) and
+                          (.body | if type == "string" then contains("This PR was generated with Release Please.") else false end) and
+                          ((.labels // []) | any(.[]; .name == "release: ready"))
+                      )' <<<"$current_pull_request" >/dev/null; then
+                      reject 'The Release Please pull request changed after approval. Apply release: ready again.'
+                      exit $?
+                  fi
+
+                  if ! current_check_runs="$(read_gh_api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
+                      reject 'Could not retrieve current check runs before merging.' true
+                      exit $?
+                  fi
+
+                  if ! current_statuses="$(read_gh_api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
+                      reject 'Could not retrieve current commit statuses before merging.' true
+                      exit $?
+                  fi
+
+                  if [ ! -f .github/scripts/release-please-approval.mjs ]; then
+                      reject 'Could not load the trusted approval policy before merging.' true
+                      exit $?
+                  fi
+
+                  if ! current_result="$(jq -n \
+                      --arg actorLogin "$ACTOR_LOGIN" \
+                      --arg repository "$REPOSITORY" \
+                      --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
+                      --argjson checkRuns "$current_check_runs" \
+                      --argjson statuses "$current_statuses" \
+                      --argjson pullRequest "$current_pull_request" \
+                      '{
+                          action: "labeled",
+                          labelName: "release: ready",
+                          actorLogin: $actorLogin,
+                          repository: $repository,
+                          baseRef: $pullRequest.base.ref,
+                          headRepository: $pullRequest.head.repo.full_name,
+                          headRef: $pullRequest.head.ref,
+                          headSha: $pullRequest.head.sha,
+                          authorLogin: $pullRequest.user.login,
+                          draft: $pullRequest.draft,
+                          body: $pullRequest.body,
+                          releasePleaseAppSlug: $releasePleaseAppSlug,
+                          selfCheckName: "Apply Release Please approval decision",
+                          checkRuns: $checkRuns,
+                          statuses: $statuses
+                      }' | node .github/scripts/release-please-approval.mjs)"; then
+                      reject 'Could not revalidate the Release Please approval before merging.' true
+                      exit $?
+                  fi
+
+                  current_decision="$(jq -r '.decision // empty' <<<"$current_result")"
+                  if [ "$current_decision" != 'approve' ]; then
+                      current_reason="$(jq -r '.reason // "The current pull request state is no longer approved."' <<<"$current_result")"
+                      current_operational_failure="$(jq -r '.operationalFailure // false' <<<"$current_result")"
+                      reject "$current_reason" "$current_operational_failure"
+                      exit $?
+                  fi
+
+                  merge_error="$(mktemp)"
+                  if ! merge_response="$(gh api --method PUT "repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" -f sha="${HEAD_SHA}" -f merge_method=squash 2>"$merge_error")"; then
+                      if grep -Eq 'HTTP (405|409)' "$merge_error"; then
+                          reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
+                          exit $?
+                      fi
+
+                      reject 'Could not complete the Release Please merge. An operator must investigate.' true
+                      exit $?
+                  fi
+
+                  if [ "$(jq -r '.merged' <<<"$merge_response")" != 'true' ]; then
+                      reject 'The approved Release Please head changed or could not be merged. Apply release: ready again.'
+                      exit $?
+                  fi
+
+                  if ! gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${HEAD_REF}" >/dev/null; then
+                      branch_verify_error="$(mktemp)"
+                      if ! read_gh_api "repos/${REPOSITORY}/git/ref/heads/${HEAD_REF}" >/dev/null 2>"$branch_verify_error" && grep -Fq 'HTTP 404' "$branch_verify_error"; then
+                          exit 0
+                      fi
+
+                      if ! gh api --method POST "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" -f 'body=Release Please merged, but branch cleanup failed.' >/dev/null; then
+                          echo 'Operational failure: branch cleanup and pull-request comment failed.'
+                          exit 1
+                      fi
+                      echo 'Operational failure: Release Please branch cleanup failed.'
+                      exit 1
+                  fi

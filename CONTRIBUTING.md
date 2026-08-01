@@ -5,10 +5,6 @@
 - Use a dedicated Obsidian test vault for all work. Do not use a personal vault or a production vault.
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
-- Use `feat:` for user-facing features and `fix:` for user-facing bug fixes.
-- Use `!` or `BREAKING CHANGE` to mark breaking changes.
-- Use `docs:`, `test:`, `ci:`, `refactor:`, and `chore:` for non-product work.
-- Release Please reads the commits that land on `main`, so squash-merged PR titles should use the intended Conventional Commit type.
 
 Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported version, and npm is the package manager.
 
@@ -53,6 +49,38 @@ npm ci
 - Run `npm run version:check` to verify that the release metadata still matches.
 - Keep historical `versions.json` entries intact; only the current version entry should change.
 - Release Please metadata is synchronized automatically by the trusted workflow.
+
+## Pull requests
+
+Use this title format:
+
+```text
+<type>(optional-scope): <summary>
+
+feat: add followed GitHub users
+fix(sync): preserve successful updates after a failure
+docs: document release conventions
+test: cover version synchronisation
+ci: configure quality checks
+refactor: simplify sync orchestration
+chore(release): harden release automation
+```
+
+Types are lowercase, scopes are optional, summaries are concise and action-oriented, summaries have no trailing period, and issue numbers do not belong in titles. Reserve `feat:` and `fix:` for shipped plugin behavior; use `docs:`, `test:`, `ci:`, `refactor:`, `build:`, `chore:`, and `chore(release):` when shipped behavior is unchanged. Scopes do not override types. Using `!` or `BREAKING CHANGE` requires explicit discussion in the related issue.
+
+Normal pull requests are squash-merged after all required checks pass. Verify the final squash subject uses the intended Conventional Commit type, correct it in GitHub's merge form when needed, and delete the merged branch.
+
+Put `Closes #N` in the pull-request body, not the title; use `Related to #N` for additional issues that the pull request does not fully resolve. Classify mixed work by shipped behavior and split independent release meanings into separate pull requests.
+
+### Release Please approval
+
+1. Wait for version synchronisation.
+2. Review the latest Release Please head.
+3. Wait for all checks to pass.
+4. Apply `release: ready` as `FerdiHS`.
+5. Reapprove after any later head change.
+
+Normal pull requests are unaffected. Approval is tied to the exact head, and failed validation or merging requires the label to be applied again.
 
 ## Git hooks
 
