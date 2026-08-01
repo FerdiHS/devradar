@@ -212,6 +212,10 @@ case "$*" in
       echo 'HTTP 404' >&2
       exit 1
     fi
+    if [ "$GH_SCENARIO" = 'label-delete-failure' ]; then
+      echo 'HTTP 500' >&2
+      exit 1
+    fi
     printf '%s\\n' '{}'
     ;;
 	  *'git/refs/heads/'*)
@@ -221,8 +225,12 @@ case "$*" in
     fi
 	    printf '%s\\n' '{}'
 	    ;;
-	  *'/comments'*)
-	    printf '%s\\n' '{}'
+  *'/comments'*)
+    if [ "$GH_SCENARIO" = 'comment-failure' ]; then
+      echo 'HTTP 500' >&2
+      exit 1
+    fi
+    printf '%s\\n' '{}'
 	    ;;
 	  *)
 	    echo "Unexpected gh call: $*" >&2
@@ -816,6 +824,46 @@ describe('Release Please approval shell steps', () => {
 		expect(mergeIndex).toBeGreaterThanOrEqual(0);
 		expect(deleteIndex).toBeGreaterThan(mergeIndex);
 		expect(commentIndex).toBeGreaterThan(deleteIndex);
+	});
+
+	it('returns nonzero when label cleanup fails', () => {
+		const fixture = createApprovalShellFixture('label-delete-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'reject',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: 'The approval policy rejected this pull request.',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).not.toContain('/comments');
+	});
+
+	it('returns nonzero when rejection commenting fails', () => {
+		const fixture = createApprovalShellFixture('comment-failure');
+
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'reject',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: 'The approval policy rejected this pull request.',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
 	});
 
 	it('keeps invalidate for an ordinary pull request without a ready label', () => {
