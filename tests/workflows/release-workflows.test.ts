@@ -138,15 +138,27 @@ function runBash(
 ) {
 	return execFileSync('/bin/bash', ['-euo', 'pipefail', '-c', script], {
 		cwd,
-		env: { ...process.env, ...env },
+		env: testEnvironment(env),
 		encoding: 'utf8',
 		stdio: 'pipe',
 	});
 }
 
+function testEnvironment(overrides: Record<string, string | undefined> = {}) {
+	return {
+		...Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) => !key.startsWith('GIT_'),
+			),
+		),
+		...overrides,
+	};
+}
+
 function git(cwd: string, args: string[]) {
 	return execFileSync('git', args, {
 		cwd,
+		env: testEnvironment(),
 		encoding: 'utf8',
 		stdio: 'pipe',
 	}).trim();
