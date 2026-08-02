@@ -222,7 +222,7 @@ jobs:
                           (.head.sha == $headSha) and
                           (.user.login == $expectedAuthor) and
                           (.updated_at == $approvedUpdatedAt) and
-                          (.body | if type == "string" then contains("This PR was generated with [Release Please](https://github.com/googleapis/release-please).") else false end) and
+                          (.body | if type == "string" then ascii_downcase | contains("this pr was generated with [release please](https://github.com/googleapis/release-please).") else false end) and
                           ((.labels // []) | any(.[]; .name == "release: ready"))
                       )' <<<"$current_pull_request" >/dev/null; then
                       reject 'The Release Please pull request changed after approval. Apply release: ready again.'

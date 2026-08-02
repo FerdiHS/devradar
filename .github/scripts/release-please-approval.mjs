@@ -133,7 +133,10 @@ export function evaluateReleaseApproval({
 		return reject('The pull request must not be a draft.');
 	}
 
-	if (typeof body !== 'string' || !body.includes(RELEASE_PLEASE_MARKER)) {
+	if (
+		typeof body !== 'string' ||
+		!body.toLowerCase().includes(RELEASE_PLEASE_MARKER.toLowerCase())
+	) {
 		return reject('The pull request is missing the Release Please marker.');
 	}
 
