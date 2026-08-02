@@ -2,6 +2,8 @@ const REQUIRED_CHECK_NAMES = [
 	'Quality checks - Node.js 22.x',
 	'Quality checks - Node.js 24.x',
 ];
+const RELEASE_PLEASE_MARKER =
+	'This PR was generated with [Release Please](https://github.com/googleapis/release-please).';
 
 function reject(reason) {
 	return { decision: 'reject', reason };
@@ -131,10 +133,7 @@ export function evaluateReleaseApproval({
 		return reject('The pull request must not be a draft.');
 	}
 
-	if (
-		typeof body !== 'string' ||
-		!body.includes('This PR was generated with Release Please.')
-	) {
+	if (typeof body !== 'string' || !body.includes(RELEASE_PLEASE_MARKER)) {
 		return reject('The pull request is missing the Release Please marker.');
 	}
 
