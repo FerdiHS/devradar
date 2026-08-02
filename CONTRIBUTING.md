@@ -50,6 +50,28 @@ npm ci
 - Keep historical `versions.json` entries intact; only the current version entry should change.
 - Release Please metadata is synchronized automatically by the trusted workflow.
 
+### Initial Release Please bootstrap
+
+Release Please normally creates or updates a release pull request when `main` receives a releasable Conventional Commit, such as:
+
+- `feat:` for a shipped user-facing feature;
+- `fix:` for a correction to shipped behaviour;
+- a commit containing an intentional breaking-change marker.
+
+Repository-only changes such as `docs:`, `test:`, `ci:`, `refactor:`, and `chore:` should retain their accurate type even when they do not trigger a release.
+
+The initial `0.1.0` release pull request is bootstrapped once by adding this footer to the final squash commit body:
+
+```text
+Release-As: 0.1.0
+```
+
+The footer must appear in the resulting commit body on `main`. Adding it only to a pull-request description, review comment, or branch commit does not guarantee that it will be preserved by the final squash merge.
+
+After the initial release pull request has been created, later versions should normally be determined from genuine releasable changes rather than forced with `Release-As:`.
+
+Creating a Release Please pull request does not publish a release. The release is created only after the guarded release pull request is reviewed, approved, and merged.
+
 ## Pull requests
 
 Use this title format:
