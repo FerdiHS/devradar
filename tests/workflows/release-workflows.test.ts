@@ -237,6 +237,7 @@ case "$*" in
     updated_at='2026-07-31T00:00:00Z'
     labels='[{"name":"release: ready"}]'
     body='This PR was generated with [Release Please](https://github.com/googleapis/release-please). See [documentation](https://github.com/googleapis/release-please).'
+    body_field='"body":"'"$body"'",'
     case "$GH_SCENARIO" in
       current-base-changed)
         base_ref='release'
@@ -255,9 +256,16 @@ case "$*" in
         ;;
       case-variant-body)
         body='THIS PR WAS GENERATED WITH [RELEASE PLEASE](HTTPS://GITHUB.COM/GOOGLEAPIS/RELEASE-PLEASE). SEE [DOCUMENTATION](HTTPS://GITHUB.COM/GOOGLEAPIS/RELEASE-PLEASE).'
+        body_field='"body":"'"$body"'",'
+        ;;
+      current-null-body)
+        body_field='"body":null,'
+        ;;
+      current-omitted-body)
+        body_field=''
         ;;
     esac
-    printf '%s\\n' '{"state":"'"$state"'","draft":'"$draft"',"base":{"ref":"'"$base_ref"'"},"head":{"repo":{"full_name":"FerdiHS/devradar"},"ref":"release-please--branches--main--components--devradar","sha":"'"$head_sha"'"},"user":{"login":"release-please[bot]"},"body":"'"$body"'","updated_at":"'"$updated_at"'","labels":'"$labels"'}'
+    printf '%s\\n' '{"state":"'"$state"'","draft":'"$draft"',"base":{"ref":"'"$base_ref"'"},"head":{"repo":{"full_name":"FerdiHS/devradar"},"ref":"release-please--branches--main--components--devradar","sha":"'"$head_sha"'"},"user":{"login":"release-please[bot]"},'"$body_field"'"updated_at":"'"$updated_at"'","labels":'"$labels"'}'
     ;;
   *'/labels/'*)
     if [ "$GH_SCENARIO" = 'missing-label' ]; then
@@ -968,6 +976,8 @@ describe('Release Please approval shell steps', () => {
 		'current-reopened',
 		'current-draft',
 		'current-head-changed',
+		'current-null-body',
+		'current-omitted-body',
 		'current-check-failure',
 		'current-status-failure',
 	])('does not merge when live approval state changes: %s', (scenario) => {
