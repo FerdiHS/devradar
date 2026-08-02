@@ -354,7 +354,7 @@ function approvalEnvironment(
 }
 
 function validApprovalInput(override: Partial<ApprovalInput> = {}) {
-	const input = {
+	const input: ApprovalInput = {
 		action: 'labeled',
 		labelName: 'release: ready',
 		actorLogin: 'FerdiHS',
