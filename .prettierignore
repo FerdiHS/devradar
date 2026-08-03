@@ -2,3 +2,4 @@ node_modules
 main.js
 package-lock.json
 CHANGELOG.md
+.release-please-manifest.json
