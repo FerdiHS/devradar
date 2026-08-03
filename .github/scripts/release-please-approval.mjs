@@ -150,7 +150,11 @@ export function evaluateReleaseApproval({
 		);
 	}
 
-	const latestRuns = latestCheckRunsByName(checkRuns);
+	const latestRuns = latestCheckRunsByName(
+		checkRuns.filter(
+			(checkRun) => checkRun?.check_suite?.id !== currentCheckSuiteId,
+		),
+	);
 	if (!latestRuns) {
 		return reject('A check run is missing a name or timestamp.');
 	}
@@ -173,10 +177,6 @@ export function evaluateReleaseApproval({
 	}
 
 	for (const [name, { checkRun }] of latestRuns) {
-		if (checkRun.check_suite?.id === currentCheckSuiteId) {
-			continue;
-		}
-
 		if (
 			checkRun.status !== 'completed' ||
 			checkRun.conclusion !== 'success'
