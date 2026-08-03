@@ -85,9 +85,9 @@ export function evaluateReleaseApproval({
 	draft,
 	body,
 	releasePleaseAppSlug,
+	currentCheckSuiteId,
 	checkRuns,
 	statuses,
-	selfCheckName = 'Approve Release Please',
 }) {
 	if (action !== 'labeled') {
 		return { decision: 'invalidate' };
@@ -144,7 +144,17 @@ export function evaluateReleaseApproval({
 		return reject('The pull request checks could not be read.');
 	}
 
-	const latestRuns = latestCheckRunsByName(checkRuns);
+	if (!Number.isSafeInteger(currentCheckSuiteId) || currentCheckSuiteId < 0) {
+		return reject(
+			'The current approval workflow identity could not be verified.',
+		);
+	}
+
+	const latestRuns = latestCheckRunsByName(
+		checkRuns.filter(
+			(checkRun) => checkRun?.check_suite?.id !== currentCheckSuiteId,
+		),
+	);
 	if (!latestRuns) {
 		return reject('A check run is missing a name or timestamp.');
 	}
@@ -158,6 +168,7 @@ export function evaluateReleaseApproval({
 		const latest = latestRuns.get(name)?.checkRun;
 		if (
 			!latest ||
+			latest.check_suite?.id === currentCheckSuiteId ||
 			latest.status !== 'completed' ||
 			latest.conclusion !== 'success'
 		) {
@@ -166,10 +177,6 @@ export function evaluateReleaseApproval({
 	}
 
 	for (const [name, { checkRun }] of latestRuns) {
-		if (name === selfCheckName) {
-			continue;
-		}
-
 		if (
 			checkRun.status !== 'completed' ||
 			checkRun.conclusion !== 'success'
