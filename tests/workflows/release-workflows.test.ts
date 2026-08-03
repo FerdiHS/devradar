@@ -38,7 +38,7 @@ type ApprovalInput = {
 	headSha: string;
 	authorLogin: string;
 	draft: boolean;
-	body: string;
+	body?: string | null;
 	releasePleaseAppSlug: string;
 	checkRuns: CheckRun[];
 	statuses: CommitStatus[];
@@ -76,6 +76,9 @@ const approvalPolicy = readFileSync(
 	join(repositoryRoot, '.github/scripts/release-please-approval.mjs'),
 	'utf8',
 );
+const RELEASE_PLEASE_MARKER =
+	'This PR was generated with [Release Please](https://github.com/googleapis/release-please).';
+const RELEASE_PLEASE_BODY = `${RELEASE_PLEASE_MARKER} See [documentation](https://github.com/googleapis/release-please).`;
 
 function extractRunStep(workflow: string, stepName: string) {
 	const lines = workflow.split('\n');
@@ -135,15 +138,27 @@ function runBash(
 ) {
 	return execFileSync('/bin/bash', ['-euo', 'pipefail', '-c', script], {
 		cwd,
-		env: { ...process.env, ...env },
+		env: testEnvironment(env),
 		encoding: 'utf8',
 		stdio: 'pipe',
 	});
 }
 
+function testEnvironment(overrides: Record<string, string | undefined> = {}) {
+	return {
+		...Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) => !key.startsWith('GIT_'),
+			),
+		),
+		...overrides,
+	};
+}
+
 function git(cwd: string, args: string[]) {
 	return execFileSync('git', args, {
 		cwd,
+		env: testEnvironment(),
 		encoding: 'utf8',
 		stdio: 'pipe',
 	}).trim();
@@ -233,6 +248,8 @@ case "$*" in
     head_sha='head-sha'
     updated_at='2026-07-31T00:00:00Z'
     labels='[{"name":"release: ready"}]'
+    body='This PR was generated with [Release Please](https://github.com/googleapis/release-please). See [documentation](https://github.com/googleapis/release-please).'
+    body_field='"body":"'"$body"'",'
     case "$GH_SCENARIO" in
       current-base-changed)
         base_ref='release'
@@ -249,8 +266,18 @@ case "$*" in
       current-head-changed)
         head_sha='new-head-sha'
         ;;
+      case-variant-body)
+        body='THIS PR WAS GENERATED WITH [RELEASE PLEASE](HTTPS://GITHUB.COM/GOOGLEAPIS/RELEASE-PLEASE). SEE [DOCUMENTATION](HTTPS://GITHUB.COM/GOOGLEAPIS/RELEASE-PLEASE).'
+        body_field='"body":"'"$body"'",'
+        ;;
+      current-null-body)
+        body_field='"body":null,'
+        ;;
+      current-omitted-body)
+        body_field=''
+        ;;
     esac
-    printf '%s\\n' '{"state":"'"$state"'","draft":'"$draft"',"base":{"ref":"'"$base_ref"'"},"head":{"repo":{"full_name":"FerdiHS/devradar"},"ref":"release-please--branches--main--components--devradar","sha":"'"$head_sha"'"},"user":{"login":"release-please[bot]"},"body":"This PR was generated with Release Please.","updated_at":"'"$updated_at"'","labels":'"$labels"'}'
+    printf '%s\\n' '{"state":"'"$state"'","draft":'"$draft"',"base":{"ref":"'"$base_ref"'"},"head":{"repo":{"full_name":"FerdiHS/devradar"},"ref":"release-please--branches--main--components--devradar","sha":"'"$head_sha"'"},"user":{"login":"release-please[bot]"},'"$body_field"'"updated_at":"'"$updated_at"'","labels":'"$labels"'}'
     ;;
   *'/labels/'*)
     if [ "$GH_SCENARIO" = 'missing-label' ]; then
@@ -308,7 +335,7 @@ esac
 				},
 				user: { login: 'release-please[bot]' },
 				draft: false,
-				body: 'This PR was generated with Release Please.',
+				body: RELEASE_PLEASE_BODY,
 				updated_at: '2026-07-31T00:00:00Z',
 			},
 		}),
@@ -351,7 +378,7 @@ function approvalEnvironment(
 }
 
 function validApprovalInput(override: Partial<ApprovalInput> = {}) {
-	return {
+	const input: ApprovalInput = {
 		action: 'labeled',
 		labelName: 'release: ready',
 		actorLogin: 'FerdiHS',
@@ -362,7 +389,7 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 		headSha: '0123456789abcdef',
 		authorLogin: 'release-please[bot]',
 		draft: false,
-		body: 'This PR was generated with Release Please.',
+		body: RELEASE_PLEASE_BODY,
 		releasePleaseAppSlug: 'release-please',
 		checkRuns: [
 			{
@@ -387,6 +414,12 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 		],
 		...override,
 	};
+
+	if ('body' in override && override.body === undefined) {
+		delete input.body;
+	}
+
+	return input;
 }
 
 function writeFixtureFiles(cwd: string) {
@@ -479,7 +512,19 @@ describe('Release Please approval policy', () => {
 			},
 		],
 		['wrong bot', { authorLogin: 'human' }],
-		['missing marker', { body: 'ordinary body' }],
+		[
+			'old plain-text marker',
+			{ body: 'This PR was generated with Release Please.' },
+		],
+		[
+			'different Release Please URL',
+			{
+				body: 'This PR was generated with [Release Please](https://github.com/googleapis/release-please-cli).',
+			},
+		],
+		['unrelated body', { body: 'ordinary body' }],
+		['null body', { body: null }],
+		['omitted body', { body: undefined }],
 		['missing repository', { repository: '' }],
 		['missing head SHA', { headSha: '' }],
 		['missing app slug', { releasePleaseAppSlug: '' }],
@@ -489,6 +534,14 @@ describe('Release Please approval policy', () => {
 		).toMatchObject({
 			decision: 'reject',
 		});
+	});
+
+	it('accepts a case-variant Release Please marker', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({ body: RELEASE_PLEASE_BODY.toUpperCase() }),
+			),
+		).toMatchObject({ decision: 'approve' });
 	});
 
 	it.each(['synchronize', 'converted_to_draft', 'reopened'])(
@@ -725,6 +778,15 @@ describe('Release Please version sync shell steps', () => {
 		expect(readFileSync(join(checkout, 'manifest.json'), 'utf8')).toContain(
 			'"version": "0.0.2"',
 		);
+		expect(readFileSync(join(checkout, 'versions.json'), 'utf8')).toContain(
+			'"0.0.2": "1.0.0"',
+		);
+		expect(() =>
+			runBash(
+				`node "${join(trustedDirectory, 'version-bump.mjs')}" check`,
+				checkout,
+			),
+		).not.toThrow();
 	});
 
 	it('guard succeeds when no files changed', () => {
@@ -869,6 +931,33 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('git/refs/heads/');
 	});
 
+	it('evaluates and merges a case-variant Release Please marker', () => {
+		const fixture = createApprovalShellFixture('case-variant-body');
+
+		runBash(
+			approvalEvaluationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture),
+		);
+		const outputs = readWorkflowOutputs(fixture.outputPath);
+
+		expect(outputs).toMatchObject({
+			decision: 'approve',
+			operational_failure: 'false',
+		});
+		runBash(
+			approvalMutationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture, {
+				DECISION: outputs.decision,
+				OPERATIONAL_FAILURE: outputs.operational_failure,
+				REASON: outputs.reason,
+			}),
+		);
+
+		expect(readFileSync(fixture.callsPath, 'utf8')).toContain('/merge');
+	});
+
 	it('ignores the active mutation job during live revalidation', () => {
 		const fixture = createApprovalShellFixture('mutation-self-check');
 
@@ -899,6 +988,8 @@ describe('Release Please approval shell steps', () => {
 		'current-reopened',
 		'current-draft',
 		'current-head-changed',
+		'current-null-body',
+		'current-omitted-body',
 		'current-check-failure',
 		'current-status-failure',
 	])('does not merge when live approval state changes: %s', (scenario) => {
@@ -1236,12 +1327,22 @@ describe('Release Please workflow contracts', () => {
 		for (const policyTerm of [
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',
-			'This PR was generated with Release Please.',
+			RELEASE_PLEASE_MARKER,
 			'Quality checks - Node.js 22.x',
 			'Quality checks - Node.js 24.x',
 		]) {
 			expect(approvalPolicy).toContain(policyTerm);
 		}
+		expect(approvalWorkflow).toContain(RELEASE_PLEASE_MARKER.toLowerCase());
+		expect(approvalPolicy).toContain(RELEASE_PLEASE_MARKER);
+		expect(approvalWorkflow).toContain('ascii_downcase');
+		expect(approvalPolicy).toContain('.toLowerCase()');
+		expect(approvalWorkflow).not.toContain(
+			'This PR was generated with Release Please.',
+		);
+		expect(approvalPolicy).not.toContain(
+			'This PR was generated with Release Please.',
+		);
 		expect(approvalWorkflow).not.toMatch(/auto-merge|admin|--force/);
 	});
 
@@ -1275,7 +1376,10 @@ describe('Release Please workflow contracts', () => {
 			"github.event.pull_request.user.login == format('{0}[bot]', vars.RELEASE_PLEASE_APP_SLUG)",
 		);
 		expect(versionSyncWorkflow).toContain(
-			"contains(github.event.pull_request.body, 'This PR was generated with Release Please.')",
+			`contains(github.event.pull_request.body || '', '${RELEASE_PLEASE_MARKER}')`,
+		);
+		expect(versionSyncWorkflow).not.toContain(
+			'This PR was generated with Release Please.',
 		);
 		expect(versionSyncWorkflow).toContain('git ls-remote');
 		expect(versionSyncWorkflow).not.toContain('--force-with-lease');

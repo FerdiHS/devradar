@@ -27,7 +27,7 @@ jobs:
             !github.event.pull_request.draft &&
             github.event.pull_request.head.ref == 'release-please--branches--main--components--devradar' &&
             github.event.pull_request.user.login == format('{0}[bot]', vars.RELEASE_PLEASE_APP_SLUG) &&
-            contains(github.event.pull_request.body, 'This PR was generated with Release Please.')
+            contains(github.event.pull_request.body || '', 'This PR was generated with [Release Please](https://github.com/googleapis/release-please).')
 
         steps:
             - name: Checkout Release Please PR
