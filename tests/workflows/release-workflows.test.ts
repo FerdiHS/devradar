@@ -234,7 +234,11 @@ case "$*" in
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'mutation-self-check' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"success","check_suite":{"id":123},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      exit 0
+    fi
+    if [ "$GH_SCENARIO" = 'same-name-collision' ]; then
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
       exit 0
     fi
     printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
@@ -838,6 +842,35 @@ describe('Release Please approval policy', () => {
 			),
 		).toMatchObject({ decision: 'reject' });
 	});
+
+	it.each([
+		'Approve Release Please',
+		'Apply Release Please approval decision',
+	])('does not hide an older failed same-name external check: %s', (name) => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					checkRuns: [
+						...validApprovalInput().checkRuns,
+						{
+							name,
+							status: 'completed',
+							conclusion: 'failure',
+							check_suite: { id: 456 },
+							completed_at: '2026-07-31T01:00:00Z',
+						},
+						{
+							name,
+							status: 'in_progress',
+							conclusion: null,
+							check_suite: { id: 123 },
+							started_at: '2026-07-31T02:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'reject' });
+	});
 });
 
 describe('Release Please version sync shell steps', () => {
@@ -1092,7 +1125,7 @@ describe('Release Please approval shell steps', () => {
 		expect(mergeCalls[0]).toContain('merge_method=squash');
 	});
 
-	it('does not let the queued mutation job block initial evaluation', () => {
+	it('does not let current evaluation or queued mutation jobs block approval', () => {
 		const fixture = createApprovalShellFixture('mutation-self-check');
 
 		runBash(
@@ -1118,6 +1151,7 @@ describe('Release Please approval shell steps', () => {
 		'external-check-pending',
 		'external-check-failure',
 		'current-status-failure',
+		'same-name-collision',
 	])('does not merge when live approval state changes: %s', (scenario) => {
 		const fixture = createApprovalShellFixture(scenario);
 
