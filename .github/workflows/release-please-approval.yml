@@ -11,6 +11,7 @@ on:
             - reopened
 
 permissions:
+    actions: read
     contents: read
     pull-requests: read
     checks: read
@@ -46,15 +47,21 @@ jobs:
                   RELEASE_PLEASE_APP_SLUG: ${{ vars.RELEASE_PLEASE_APP_SLUG }}
                   REPOSITORY: ${{ github.repository }}
                   GH_TOKEN: ${{ github.token }}
+                  GITHUB_RUN_ID: ${{ github.run_id }}
               run: |
                   set -euo pipefail
 
                   check_runs='[]'
                   statuses='[]'
+                  current_check_suite_id='null'
                   api_failure=''
 
                   if [ "$ACTION" = 'labeled' ] && [ "$LABEL_NAME" = 'release: ready' ]; then
-                      if ! check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
+                      if ! current_workflow_run="$(gh api "repos/${REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")"; then
+                          api_failure='Could not retrieve the current approval workflow run.'
+                      elif ! current_check_suite_id="$(jq -er '.check_suite_id | select(type == "number" and floor == . and . >= 0)' <<<"$current_workflow_run")"; then
+                          api_failure='The current approval workflow run has no valid check suite identity.'
+                      elif ! check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
                           api_failure='Could not retrieve check runs for the approved head.'
                       elif ! statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
                           api_failure='Could not retrieve commit statuses for the approved head.'
@@ -71,6 +78,7 @@ jobs:
                           --arg actorLogin "$ACTOR_LOGIN" \
                           --arg repository "$REPOSITORY" \
                           --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
+                          --argjson currentCheckSuiteId "$current_check_suite_id" \
                           --argjson checkRuns "$check_runs" \
                           --argjson statuses "$statuses" \
                           --argjson pullRequest "$pull_request" \
@@ -87,6 +95,7 @@ jobs:
                               draft: $pullRequest.draft,
                               body: $pullRequest.body,
                               releasePleaseAppSlug: $releasePleaseAppSlug,
+                              currentCheckSuiteId: $currentCheckSuiteId,
                               checkRuns: $checkRuns,
                               statuses: $statuses
                           }' | node .github/scripts/release-please-approval.mjs)"
@@ -239,6 +248,16 @@ jobs:
                       exit $?
                   fi
 
+                  if ! current_workflow_run="$(read_gh_api "repos/${REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")"; then
+                      reject 'Could not retrieve the current approval workflow run before merging.' true
+                      exit $?
+                  fi
+
+                  if ! current_check_suite_id="$(jq -er '.check_suite_id | select(type == "number" and floor == . and . >= 0)' <<<"$current_workflow_run")"; then
+                      reject 'The current approval workflow run has no valid check suite identity.' true
+                      exit $?
+                  fi
+
                   if [ ! -f .github/scripts/release-please-approval.mjs ]; then
                       reject 'Could not load the trusted approval policy before merging.' true
                       exit $?
@@ -248,6 +267,7 @@ jobs:
                       --arg actorLogin "$ACTOR_LOGIN" \
                       --arg repository "$REPOSITORY" \
                       --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
+                      --argjson currentCheckSuiteId "$current_check_suite_id" \
                       --argjson checkRuns "$current_check_runs" \
                       --argjson statuses "$current_statuses" \
                       --argjson pullRequest "$current_pull_request" \
@@ -264,7 +284,7 @@ jobs:
                           draft: $pullRequest.draft,
                           body: $pullRequest.body,
                           releasePleaseAppSlug: $releasePleaseAppSlug,
-                          selfCheckName: "Apply Release Please approval decision",
+                          currentCheckSuiteId: $currentCheckSuiteId,
                           checkRuns: $checkRuns,
                           statuses: $statuses
                       }' | node .github/scripts/release-please-approval.mjs)"; then
