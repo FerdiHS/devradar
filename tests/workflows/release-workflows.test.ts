@@ -1375,12 +1375,11 @@ describe('Release Please workflow contracts', () => {
 		expect(versionSyncWorkflow).toContain(
 			"github.event.pull_request.user.login == format('{0}[bot]', vars.RELEASE_PLEASE_APP_SLUG)",
 		);
-		expect(versionSyncWorkflow).toContain(RELEASE_PLEASE_MARKER);
+		expect(versionSyncWorkflow).toContain(
+			`contains(github.event.pull_request.body || '', '${RELEASE_PLEASE_MARKER}')`,
+		);
 		expect(versionSyncWorkflow).not.toContain(
 			'This PR was generated with Release Please.',
-		);
-		expect(versionSyncWorkflow).toContain(
-			"github.event.pull_request.body || ''",
 		);
 		expect(versionSyncWorkflow).toContain('git ls-remote');
 		expect(versionSyncWorkflow).not.toContain('--force-with-lease');
