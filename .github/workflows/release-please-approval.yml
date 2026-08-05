@@ -53,14 +53,28 @@ jobs:
 
                   check_runs='[]'
                   statuses='[]'
-                  current_check_suite_id='null'
+                  current_workflow_run='{}'
+                  workflow_runs='[]'
                   api_failure=''
 
                   if [ "$ACTION" = 'labeled' ] && [ "$LABEL_NAME" = 'release: ready' ]; then
                       if ! current_workflow_run="$(gh api "repos/${REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")"; then
                           api_failure='Could not retrieve the current approval workflow run.'
-                      elif ! current_check_suite_id="$(jq -er '.check_suite_id | select(type == "number" and floor == . and . >= 0)' <<<"$current_workflow_run")"; then
-                          api_failure='The current approval workflow run has no valid check suite identity.'
+                      elif ! jq -e '(
+                          (.id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991) and
+                          (.workflow_id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991) and
+                          (.check_suite_id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991)
+                      )' <<<"$current_workflow_run" >/dev/null; then
+                          api_failure='The current approval workflow run has incomplete identity metadata.'
+                      elif ! workflow_id="$(jq -er '.workflow_id' <<<"$current_workflow_run")"; then
+                          api_failure='The current approval workflow run has no valid workflow identity.'
+                      elif ! workflow_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/actions/workflows/${workflow_id}/runs?head_sha=${HEAD_SHA}&event=pull_request_target&per_page=100" | jq -e '
+                          if type != "array" or any(.[]; if type != "object" then true else (.workflow_runs | type) != "array" end)
+                          then error("The workflow-run response did not contain paginated workflow_runs arrays.")
+                          else [.[] | .workflow_runs[]]
+                          end
+                      ' )"; then
+                          api_failure='Could not retrieve the approval workflow runs for the approved head.'
                       elif ! check_runs="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq '[.[] | .check_runs[]?]')"; then
                           api_failure='Could not retrieve check runs for the approved head.'
                       elif ! statuses="$(gh api --paginate --slurp "repos/${REPOSITORY}/commits/${HEAD_SHA}/statuses?per_page=100" | jq '[.[][]?]')"; then
@@ -78,7 +92,8 @@ jobs:
                           --arg actorLogin "$ACTOR_LOGIN" \
                           --arg repository "$REPOSITORY" \
                           --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
-                          --argjson currentCheckSuiteId "$current_check_suite_id" \
+                          --argjson currentWorkflowRun "$current_workflow_run" \
+                          --argjson workflowRuns "$workflow_runs" \
                           --argjson checkRuns "$check_runs" \
                           --argjson statuses "$statuses" \
                           --argjson pullRequest "$pull_request" \
@@ -95,7 +110,8 @@ jobs:
                               draft: $pullRequest.draft,
                               body: $pullRequest.body,
                               releasePleaseAppSlug: $releasePleaseAppSlug,
-                              currentCheckSuiteId: $currentCheckSuiteId,
+                              currentWorkflowRun: $currentWorkflowRun,
+                              workflowRuns: $workflowRuns,
                               checkRuns: $checkRuns,
                               statuses: $statuses
                           }' | node .github/scripts/release-please-approval.mjs)"
@@ -144,6 +160,7 @@ jobs:
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   RELEASE_PLEASE_APP_SLUG: ${{ vars.RELEASE_PLEASE_APP_SLUG }}
+                  GITHUB_RUN_ID: ${{ github.run_id }}
                   READ_GH_TOKEN: ${{ github.token }}
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
               run: |
@@ -253,8 +270,27 @@ jobs:
                       exit $?
                   fi
 
-                  if ! current_check_suite_id="$(jq -er '.check_suite_id | select(type == "number" and floor == . and . >= 0)' <<<"$current_workflow_run")"; then
-                      reject 'The current approval workflow run has no valid check suite identity.' true
+                  if ! jq -e '(
+                      (.id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991) and
+                      (.workflow_id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991) and
+                      (.check_suite_id | type == "number" and floor == . and . >= 0 and . <= 9007199254740991)
+                  )' <<<"$current_workflow_run" >/dev/null; then
+                      reject 'The current approval workflow run has incomplete identity metadata.' true
+                      exit $?
+                  fi
+
+                  if ! workflow_id="$(jq -er '.workflow_id' <<<"$current_workflow_run")"; then
+                      reject 'The current approval workflow run has no valid workflow identity.' true
+                      exit $?
+                  fi
+
+                  if ! workflow_runs="$(read_gh_api --paginate --slurp "repos/${REPOSITORY}/actions/workflows/${workflow_id}/runs?head_sha=${HEAD_SHA}&event=pull_request_target&per_page=100" | jq -e '
+                      if type != "array" or any(.[]; if type != "object" then true else (.workflow_runs | type) != "array" end)
+                      then error("The workflow-run response did not contain paginated workflow_runs arrays.")
+                      else [.[] | .workflow_runs[]]
+                      end
+                  ' )"; then
+                      reject 'Could not retrieve the approval workflow runs for the approved head before merging.' true
                       exit $?
                   fi
 
@@ -267,7 +303,8 @@ jobs:
                       --arg actorLogin "$ACTOR_LOGIN" \
                       --arg repository "$REPOSITORY" \
                       --arg releasePleaseAppSlug "$RELEASE_PLEASE_APP_SLUG" \
-                      --argjson currentCheckSuiteId "$current_check_suite_id" \
+                      --argjson currentWorkflowRun "$current_workflow_run" \
+                      --argjson workflowRuns "$workflow_runs" \
                       --argjson checkRuns "$current_check_runs" \
                       --argjson statuses "$current_statuses" \
                       --argjson pullRequest "$current_pull_request" \
@@ -284,7 +321,8 @@ jobs:
                           draft: $pullRequest.draft,
                           body: $pullRequest.body,
                           releasePleaseAppSlug: $releasePleaseAppSlug,
-                          currentCheckSuiteId: $currentCheckSuiteId,
+                          currentWorkflowRun: $currentWorkflowRun,
+                          workflowRuns: $workflowRuns,
                           checkRuns: $checkRuns,
                           statuses: $statuses
                       }' | node .github/scripts/release-please-approval.mjs)"; then

@@ -2,6 +2,9 @@ const REQUIRED_CHECK_NAMES = [
 	'Quality checks - Node.js 22.x',
 	'Quality checks - Node.js 24.x',
 ];
+const APPROVAL_WORKFLOW_PATH = '.github/workflows/release-please-approval.yml';
+const APPROVAL_WORKFLOW_NAME = 'Release Please approval';
+const APPROVAL_WORKFLOW_EVENT = 'pull_request_target';
 const RELEASE_PLEASE_MARKER =
 	'This PR was generated with [Release Please](https://github.com/googleapis/release-please).';
 
@@ -11,6 +14,94 @@ function reject(reason) {
 
 function isNonEmptyString(value) {
 	return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isValidId(value) {
+	return Number.isSafeInteger(value) && value >= 0;
+}
+
+function isWorkflowRunShape(workflowRun) {
+	return (
+		workflowRun !== null &&
+		typeof workflowRun === 'object' &&
+		!Array.isArray(workflowRun) &&
+		isValidId(workflowRun.id) &&
+		isValidId(workflowRun.workflow_id) &&
+		isNonEmptyString(workflowRun.path) &&
+		isNonEmptyString(workflowRun.name) &&
+		isNonEmptyString(workflowRun.event) &&
+		isNonEmptyString(workflowRun.head_sha) &&
+		workflowRun.repository !== null &&
+		typeof workflowRun.repository === 'object' &&
+		!Array.isArray(workflowRun.repository) &&
+		isNonEmptyString(workflowRun.repository.full_name) &&
+		isValidId(workflowRun.check_suite_id)
+	);
+}
+
+function isTrustedWorkflowRun(
+	workflowRun,
+	{ repository, headSha, workflowId },
+) {
+	return (
+		isWorkflowRunShape(workflowRun) &&
+		workflowRun.repository.full_name === repository &&
+		workflowRun.workflow_id === workflowId &&
+		workflowRun.path === APPROVAL_WORKFLOW_PATH &&
+		workflowRun.name === APPROVAL_WORKFLOW_NAME &&
+		workflowRun.event === APPROVAL_WORKFLOW_EVENT &&
+		workflowRun.head_sha === headSha
+	);
+}
+
+function trustedCheckSuiteIds({
+	repository,
+	headSha,
+	currentWorkflowRun,
+	workflowRuns,
+}) {
+	if (
+		!isWorkflowRunShape(currentWorkflowRun) ||
+		!Array.isArray(workflowRuns)
+	) {
+		return undefined;
+	}
+
+	const workflowId = currentWorkflowRun.workflow_id;
+	if (
+		!isTrustedWorkflowRun(currentWorkflowRun, {
+			repository,
+			headSha,
+			workflowId,
+		})
+	) {
+		return undefined;
+	}
+
+	if (workflowRuns.length === 0) {
+		return undefined;
+	}
+
+	if (!workflowRuns.every(isWorkflowRunShape)) {
+		return undefined;
+	}
+
+	const matchingRuns = workflowRuns.filter((workflowRun) =>
+		isTrustedWorkflowRun(workflowRun, { repository, headSha, workflowId }),
+	);
+	const currentRunIsPresent = matchingRuns.some(
+		(workflowRun) =>
+			workflowRun.id === currentWorkflowRun.id &&
+			workflowRun.check_suite_id === currentWorkflowRun.check_suite_id,
+	);
+
+	if (!currentRunIsPresent) {
+		return undefined;
+	}
+
+	return new Set(
+		matchingRuns.map((workflowRun) => workflowRun.check_suite_id),
+	);
 }
 
 function parseTimestamp(timestamp) {
@@ -85,7 +176,8 @@ export function evaluateReleaseApproval({
 	draft,
 	body,
 	releasePleaseAppSlug,
-	currentCheckSuiteId,
+	currentWorkflowRun,
+	workflowRuns,
 	checkRuns,
 	statuses,
 }) {
@@ -144,15 +236,27 @@ export function evaluateReleaseApproval({
 		return reject('The pull request checks could not be read.');
 	}
 
-	if (!Number.isSafeInteger(currentCheckSuiteId) || currentCheckSuiteId < 0) {
+	const trustedSuiteIds = trustedCheckSuiteIds({
+		repository,
+		headSha,
+		currentWorkflowRun,
+		workflowRuns,
+	});
+	if (!trustedSuiteIds) {
 		return reject(
 			'The current approval workflow identity could not be verified.',
 		);
 	}
 
+	for (const checkRun of checkRuns) {
+		if (!isValidId(checkRun?.check_suite?.id)) {
+			return reject('A check run has no valid check suite identity.');
+		}
+	}
+
 	const latestRuns = latestCheckRunsByName(
 		checkRuns.filter(
-			(checkRun) => checkRun?.check_suite?.id !== currentCheckSuiteId,
+			(checkRun) => !trustedSuiteIds.has(checkRun.check_suite.id),
 		),
 	);
 	if (!latestRuns) {
@@ -168,7 +272,6 @@ export function evaluateReleaseApproval({
 		const latest = latestRuns.get(name)?.checkRun;
 		if (
 			!latest ||
-			latest.check_suite?.id === currentCheckSuiteId ||
 			latest.status !== 'completed' ||
 			latest.conclusion !== 'success'
 		) {

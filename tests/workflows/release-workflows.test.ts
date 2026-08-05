@@ -16,9 +16,21 @@ type CheckRun = {
 	name: string;
 	status: string;
 	conclusion: string | null;
-	check_suite?: { id?: number | null } | null;
+	check_suite?: { id?: unknown } | null;
+	app?: { id?: number | null; slug?: string | null } | null;
 	completed_at?: string;
 	started_at?: string;
+};
+
+type WorkflowRun = {
+	id?: unknown;
+	workflow_id?: unknown;
+	path?: unknown;
+	name?: unknown;
+	event?: unknown;
+	head_sha?: unknown;
+	check_suite_id?: unknown;
+	repository?: { full_name?: unknown } | null;
 };
 
 type CommitStatus = {
@@ -43,7 +55,8 @@ type ApprovalInput = {
 	releasePleaseAppSlug: string;
 	checkRuns: CheckRun[];
 	statuses: CommitStatus[];
-	currentCheckSuiteId?: number;
+	currentWorkflowRun?: WorkflowRun | null;
+	workflowRuns?: WorkflowRun[];
 };
 
 type ApprovalDecision = {
@@ -81,6 +94,23 @@ const approvalPolicy = readFileSync(
 const RELEASE_PLEASE_MARKER =
 	'This PR was generated with [Release Please](https://github.com/googleapis/release-please).';
 const RELEASE_PLEASE_BODY = `${RELEASE_PLEASE_MARKER} See [documentation](https://github.com/googleapis/release-please).`;
+const APPROVAL_WORKFLOW_PATH = '.github/workflows/release-please-approval.yml';
+const APPROVAL_WORKFLOW_NAME = 'Release Please approval';
+const APPROVAL_WORKFLOW_EVENT = 'pull_request_target';
+
+function validWorkflowRun(override: Partial<WorkflowRun> = {}): WorkflowRun {
+	return {
+		id: 100,
+		workflow_id: 200,
+		path: APPROVAL_WORKFLOW_PATH,
+		name: APPROVAL_WORKFLOW_NAME,
+		event: APPROVAL_WORKFLOW_EVENT,
+		head_sha: '0123456789abcdef',
+		check_suite_id: 123,
+		repository: { full_name: 'FerdiHS/devradar' },
+		...override,
+	};
+}
 
 function extractRunStep(workflow: string, stepName: string) {
 	const lines = workflow.split('\n');
@@ -204,6 +234,18 @@ set -euo pipefail
 printf '%s\\n' "$*" >> "$GH_CALLS"
 
 case "$*" in
+  *actions/workflows/*/runs*)
+    if [ "$GH_SCENARIO" = 'workflow-runs-api-failure' ]; then
+      echo 'HTTP 503' >&2
+      exit 1
+    fi
+    if [ "$GH_SCENARIO" = 'malformed-workflow-runs-page' ]; then
+      printf '%s\n' '[{"total_count":3}]'
+      exit 0
+    fi
+    printf '%s\n' '[{"total_count":3,"workflow_runs":[{"id":123456,"workflow_id":789,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":123,"repository":{"full_name":"FerdiHS/devradar"}},{"id":123457,"workflow_id":789,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":124,"repository":{"full_name":"FerdiHS/devradar"}}]},{"total_count":3,"workflow_runs":[{"id":123458,"workflow_id":789,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":125,"repository":{"full_name":"FerdiHS/devradar"}}]}]'
+    exit 0
+    ;;
   *actions/runs*)
     if [ "$GH_SCENARIO" = 'missing-workflow-run' ]; then
       echo 'HTTP 404' >&2
@@ -213,7 +255,19 @@ case "$*" in
       printf '%s\n' '{"check_suite_id":null}'
       exit 0
     fi
-    printf '%s\n' '{"check_suite_id":123}'
+    if [ "$GH_SCENARIO" = 'malformed-workflow-id' ]; then
+      printf '%s\n' '{"id":123456,"workflow_id":"bad","path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":123,"repository":{"full_name":"FerdiHS/devradar"}}'
+      exit 0
+    fi
+    if [ "$GH_SCENARIO" = 'unsafe-workflow-id' ]; then
+      printf '%s\n' '{"id":123456,"workflow_id":9007199254740992,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":123,"repository":{"full_name":"FerdiHS/devradar"}}'
+      exit 0
+    fi
+    if [ "$GH_SCENARIO" = 'malformed-workflow-suite' ]; then
+      printf '%s\n' '{"id":123456,"workflow_id":789,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":"bad","repository":{"full_name":"FerdiHS/devradar"}}'
+      exit 0
+    fi
+    printf '%s\n' '{"id":123456,"workflow_id":789,"path":".github/workflows/release-please-approval.yml","name":"Release Please approval","event":"pull_request_target","head_sha":"head-sha","check_suite_id":123,"repository":{"full_name":"FerdiHS/devradar"}}'
     exit 0
     ;;
   *check-runs*)
@@ -222,26 +276,30 @@ case "$*" in
       exit 1
     fi
     if [ "$GH_SCENARIO" = 'current-check-failure' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"failure","completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"failure","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'external-check-failure' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'external-check-pending' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"in_progress","conclusion":null,"check_suite":{"id":456},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"in_progress","conclusion":null,"check_suite":{"id":456},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'mutation-self-check' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      exit 0
+    fi
+    if [ "$GH_SCENARIO" = 'mutation-historical-self-check' ]; then
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":124},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'same-name-collision' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
       exit 0
     fi
-    printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","completed_at":"2026-07-31T00:00:00Z"}]}]'
+    printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"}]}]'
     ;;
   *statuses*)
     if [ "$GH_SCENARIO" = 'status-api-failure' ]; then
@@ -423,12 +481,14 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 				name: 'Quality checks - Node.js 22.x',
 				status: 'completed',
 				conclusion: 'success',
+				check_suite: { id: 900 },
 				completed_at: '2026-07-31T00:00:00Z',
 			},
 			{
 				name: 'Quality checks - Node.js 24.x',
 				status: 'completed',
 				conclusion: 'success',
+				check_suite: { id: 900 },
 				completed_at: '2026-07-31T00:00:00Z',
 			},
 		],
@@ -439,7 +499,12 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 				updated_at: '2026-07-31T00:00:00Z',
 			},
 		],
-		currentCheckSuiteId: 123,
+		currentWorkflowRun: validWorkflowRun(),
+		workflowRuns: [
+			validWorkflowRun(),
+			validWorkflowRun({ id: 101, check_suite_id: 124 }),
+			validWorkflowRun({ id: 102, check_suite_id: 125 }),
+		],
 		...override,
 	};
 
@@ -757,6 +822,39 @@ describe('Release Please approval policy', () => {
 		).toMatchObject({ decision: 'approve' });
 	});
 
+	it('ignores current and multiple historical runs of the verified workflow', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					checkRuns: [
+						...validApprovalInput().checkRuns,
+						{
+							name: 'Approve Release Please',
+							status: 'in_progress',
+							conclusion: null,
+							check_suite: { id: 123 },
+							started_at: '2026-07-31T01:00:00Z',
+						},
+						{
+							name: 'Apply Release Please approval decision',
+							status: 'in_progress',
+							conclusion: null,
+							check_suite: { id: 124 },
+							started_at: '2026-07-31T02:00:00Z',
+						},
+						{
+							name: 'Apply Release Please approval decision',
+							status: 'in_progress',
+							conclusion: null,
+							check_suite: { id: 125 },
+							started_at: '2026-07-31T03:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'approve' });
+	});
+
 	it('rejects a pending same-name check from another workflow run', () => {
 		expect(
 			evaluateReleaseApproval(
@@ -795,13 +893,134 @@ describe('Release Please approval policy', () => {
 		).toMatchObject({ decision: 'reject' });
 	});
 
-	it.each([
-		['missing workflow-run identity', undefined],
-		['malformed workflow-run identity', Number.NaN],
-	])('%s fails closed', (_name, currentCheckSuiteId) => {
+	it('rejects a same-name check from another app', () => {
 		expect(
 			evaluateReleaseApproval(
-				validApprovalInput({ currentCheckSuiteId }),
+				validApprovalInput({
+					checkRuns: [
+						...validApprovalInput().checkRuns,
+						{
+							name: 'Apply Release Please approval decision',
+							status: 'completed',
+							conclusion: 'failure',
+							check_suite: { id: 456 },
+							app: { id: 999, slug: 'unrelated-app' },
+							completed_at: '2026-07-31T01:00:00Z',
+						},
+					],
+				}),
+			),
+		).toMatchObject({ decision: 'reject' });
+	});
+
+	it.each([
+		['another head', { head_sha: 'fedcba9876543210' }],
+		['another event', { event: 'push' }],
+		['another workflow ID', { workflow_id: 201 }],
+		['another workflow path', { path: '.github/workflows/unrelated.yml' }],
+		['another workflow name', { name: 'Unrelated workflow' }],
+		[
+			'another repository',
+			{ repository: { full_name: 'someone-else/devradar' } },
+		],
+	])(
+		'%s workflow run cannot establish trusted ownership',
+		(_name, override) => {
+			expect(
+				evaluateReleaseApproval(
+					validApprovalInput({
+						checkRuns: [
+							...validApprovalInput().checkRuns,
+							{
+								name: 'Apply Release Please approval decision',
+								status: 'in_progress',
+								conclusion: null,
+								check_suite: { id: 456 },
+								started_at: '2026-07-31T01:00:00Z',
+							},
+						],
+						workflowRuns: [
+							validWorkflowRun(),
+							validWorkflowRun({
+								id: 103,
+								check_suite_id: 456,
+								...override,
+							}),
+						],
+					}),
+				),
+			).toMatchObject({ decision: 'reject' });
+		},
+	);
+
+	it('missing workflow-run identity fails closed', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({ currentWorkflowRun: undefined }),
+			),
+		).toMatchObject({ decision: 'reject' });
+	});
+
+	it.each([
+		[
+			'malformed current workflow ID',
+			{ currentWorkflowRun: validWorkflowRun({ workflow_id: 'bad' }) },
+		],
+		[
+			'malformed current check-suite ID',
+			{ currentWorkflowRun: validWorkflowRun({ check_suite_id: 'bad' }) },
+		],
+		[
+			'malformed historical workflow ID',
+			{
+				workflowRuns: [
+					validWorkflowRun(),
+					validWorkflowRun({
+						workflow_id: 'bad',
+						check_suite_id: 124,
+					}),
+				],
+			},
+		],
+		[
+			'malformed historical check-suite ID',
+			{
+				workflowRuns: [
+					validWorkflowRun(),
+					validWorkflowRun({ check_suite_id: 'bad' }),
+				],
+			},
+		],
+		[
+			'missing current run from workflow-run list',
+			{
+				workflowRuns: [
+					validWorkflowRun({ id: 101, check_suite_id: 124 }),
+					validWorkflowRun({ id: 102, check_suite_id: 125 }),
+				],
+			},
+		],
+	])('%s fails closed', (_name, override) => {
+		expect(
+			evaluateReleaseApproval(validApprovalInput(override)),
+		).toMatchObject({ decision: 'reject' });
+	});
+
+	it('rejects a malformed check-suite ID instead of trusting the check name', () => {
+		expect(
+			evaluateReleaseApproval(
+				validApprovalInput({
+					checkRuns: [
+						...validApprovalInput().checkRuns,
+						{
+							name: 'Apply Release Please approval decision',
+							status: 'completed',
+							conclusion: 'success',
+							check_suite: { id: 'bad' },
+							completed_at: '2026-07-31T01:00:00Z',
+						},
+					],
+				}),
 			),
 		).toMatchObject({ decision: 'reject' });
 	});
@@ -816,12 +1035,16 @@ describe('Release Please approval policy', () => {
 							name: 'Security scan',
 							status: 'completed',
 							conclusion: 'failure',
+							check_suite: { id: 456 },
 							completed_at: '2026-07-31T01:00:00Z',
 						},
 					],
 				}),
 			),
-		).toMatchObject({ decision: 'reject' });
+		).toEqual({
+			decision: 'reject',
+			reason: 'Check run Security scan must complete successfully.',
+		});
 	});
 
 	it('rejects a failed external check copying a required CI name', () => {
@@ -1055,24 +1278,39 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('/merge');
 		expect(calls).toContain('merge_method=squash');
 		expect(calls).toContain('git/refs/heads/');
+		const workflowRunCalls = calls
+			.split('\n')
+			.filter((call) => call.includes('actions/workflows/'));
+		expect(workflowRunCalls).toHaveLength(2);
+		expect(workflowRunCalls[0]).toContain(
+			'head_sha=head-sha&event=pull_request_target&per_page=100',
+		);
+		expect(workflowRunCalls[1]).toContain(
+			'head_sha=head-sha&event=pull_request_target&per_page=100',
+		);
 	});
 
-	it.each(['missing-workflow-run', 'malformed-workflow-run'])(
-		'fails closed when the current workflow identity is %s',
-		(scenario) => {
-			const fixture = createApprovalShellFixture(scenario);
+	it.each([
+		'missing-workflow-run',
+		'malformed-workflow-run',
+		'malformed-workflow-id',
+		'unsafe-workflow-id',
+		'malformed-workflow-suite',
+		'malformed-workflow-runs-page',
+		'workflow-runs-api-failure',
+	])('fails closed when the current workflow identity is %s', (scenario) => {
+		const fixture = createApprovalShellFixture(scenario);
 
-			runBash(
-				approvalEvaluationStep,
-				repositoryRoot,
-				approvalEnvironment(fixture),
-			);
-			expect(readWorkflowOutputs(fixture.outputPath)).toMatchObject({
-				decision: 'reject',
-				operational_failure: 'true',
-			});
-		},
-	);
+		runBash(
+			approvalEvaluationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture),
+		);
+		expect(readWorkflowOutputs(fixture.outputPath)).toMatchObject({
+			decision: 'reject',
+			operational_failure: 'true',
+		});
+	});
 
 	it('evaluates and merges a case-variant Release Please marker', () => {
 		const fixture = createApprovalShellFixture('case-variant-body');
@@ -1125,6 +1363,26 @@ describe('Release Please approval shell steps', () => {
 		expect(mergeCalls[0]).toContain('merge_method=squash');
 	});
 
+	it('ignores a pending check from a historical approval run during live revalidation', () => {
+		const fixture = createApprovalShellFixture(
+			'mutation-historical-self-check',
+		);
+
+		runBash(
+			approvalMutationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture, {
+				DECISION: 'approve',
+				OPERATIONAL_FAILURE: 'false',
+				REASON: '',
+			}),
+		);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('sha=head-sha');
+	});
+
 	it('does not let current evaluation or queued mutation jobs block approval', () => {
 		const fixture = createApprovalShellFixture('mutation-self-check');
 
@@ -1174,29 +1432,31 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).toContain('/comments');
 	});
 
-	it.each(['missing-workflow-run', 'malformed-workflow-run'])(
-		'fails operationally when final workflow identity is %s',
-		(scenario) => {
-			const fixture = createApprovalShellFixture(scenario);
+	it.each([
+		'missing-workflow-run',
+		'malformed-workflow-run',
+		'unsafe-workflow-id',
+		'malformed-workflow-runs-page',
+	])('fails operationally when final workflow identity is %s', (scenario) => {
+		const fixture = createApprovalShellFixture(scenario);
 
-			expect(() =>
-				runBash(
-					approvalMutationStep,
-					repositoryRoot,
-					approvalEnvironment(fixture, {
-						DECISION: 'approve',
-						OPERATIONAL_FAILURE: 'false',
-						REASON: '',
-					}),
-				),
-			).toThrow(/Operational failure/);
-			const calls = readFileSync(fixture.callsPath, 'utf8');
+		expect(() =>
+			runBash(
+				approvalMutationStep,
+				repositoryRoot,
+				approvalEnvironment(fixture, {
+					DECISION: 'approve',
+					OPERATIONAL_FAILURE: 'false',
+					REASON: '',
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
 
-			expect(calls).toContain('/labels/release%3A%20ready');
-			expect(calls).toContain('/comments');
-			expect(calls).not.toContain('/merge');
-		},
-	);
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+		expect(calls).not.toContain('/merge');
+	});
 
 	it('cleans up when evaluation fails before producing outputs', () => {
 		const fixture = createApprovalShellFixture('evaluation-failure');
@@ -1242,39 +1502,40 @@ describe('Release Please approval shell steps', () => {
 		expect(calls).not.toContain('/merge');
 	});
 
-	it.each(['check-api-failure', 'status-api-failure'])(
-		'signals the %s after cleanup',
-		(scenario) => {
-			const fixture = createApprovalShellFixture(scenario);
+	it.each([
+		'check-api-failure',
+		'status-api-failure',
+		'workflow-runs-api-failure',
+	])('signals the %s after cleanup', (scenario) => {
+		const fixture = createApprovalShellFixture(scenario);
 
+		runBash(
+			approvalEvaluationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture),
+		);
+		const outputs = readWorkflowOutputs(fixture.outputPath);
+
+		expect(outputs).toMatchObject({
+			decision: 'reject',
+			operational_failure: 'true',
+		});
+		expect(() =>
 			runBash(
-				approvalEvaluationStep,
+				approvalMutationStep,
 				repositoryRoot,
-				approvalEnvironment(fixture),
-			);
-			const outputs = readWorkflowOutputs(fixture.outputPath);
+				approvalEnvironment(fixture, {
+					DECISION: outputs.decision,
+					OPERATIONAL_FAILURE: outputs.operational_failure,
+					REASON: outputs.reason,
+				}),
+			),
+		).toThrow(/Operational failure/);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
 
-			expect(outputs).toMatchObject({
-				decision: 'reject',
-				operational_failure: 'true',
-			});
-			expect(() =>
-				runBash(
-					approvalMutationStep,
-					repositoryRoot,
-					approvalEnvironment(fixture, {
-						DECISION: outputs.decision,
-						OPERATIONAL_FAILURE: outputs.operational_failure,
-						REASON: outputs.reason,
-					}),
-				),
-			).toThrow(/Operational failure/);
-			const calls = readFileSync(fixture.callsPath, 'utf8');
-
-			expect(calls).toContain('/labels/release%3A%20ready');
-			expect(calls).toContain('/comments');
-		},
-	);
+		expect(calls).toContain('/labels/release%3A%20ready');
+		expect(calls).toContain('/comments');
+	});
 
 	it('treats an exact-head merge conflict as an expected rejection', () => {
 		const fixture = createApprovalShellFixture('stale-head');
@@ -1483,6 +1744,8 @@ describe('Release Please workflow contracts', () => {
 		for (const workflowTerm of [
 			'actions: read',
 			'actions/runs/${GITHUB_RUN_ID}',
+			'actions/workflows/${workflow_id}/runs?head_sha=${HEAD_SHA}&event=pull_request_target&per_page=100',
+			'gh api --paginate --slurp',
 			'GITHUB_RUN_ID: ${{ github.run_id }}',
 			'node .github/scripts/release-please-approval.mjs',
 			'head.repo.full_name',
@@ -1499,8 +1762,9 @@ describe('Release Please workflow contracts', () => {
 			expect(approvalWorkflow).toContain(workflowTerm);
 		}
 		expect(approvalWorkflow).toContain(
-			'currentCheckSuiteId: $currentCheckSuiteId',
+			'currentWorkflowRun: $currentWorkflowRun',
 		);
+		expect(approvalWorkflow).toContain('workflowRuns: $workflowRuns');
 		expect(approvalWorkflow).toContain('always()');
 		expect(approvalWorkflow).toContain('needs.evaluate.result');
 		expect(approvalWorkflow).toMatch(
