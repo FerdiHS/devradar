@@ -291,6 +291,10 @@ case "$*" in
       printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
+    if [ "$GH_SCENARIO" = 'mutation-historical-self-check' ]; then
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":124},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      exit 0
+    fi
     if [ "$GH_SCENARIO" = 'same-name-collision' ]; then
       printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
       exit 0
@@ -1350,6 +1354,26 @@ describe('Release Please approval shell steps', () => {
 		expect(mergeCalls).toHaveLength(1);
 		expect(mergeCalls[0]).toContain('sha=head-sha');
 		expect(mergeCalls[0]).toContain('merge_method=squash');
+	});
+
+	it('ignores a pending check from a historical approval run during live revalidation', () => {
+		const fixture = createApprovalShellFixture(
+			'mutation-historical-self-check',
+		);
+
+		runBash(
+			approvalMutationStep,
+			repositoryRoot,
+			approvalEnvironment(fixture, {
+				DECISION: 'approve',
+				OPERATIONAL_FAILURE: 'false',
+				REASON: '',
+			}),
+		);
+		const calls = readFileSync(fixture.callsPath, 'utf8');
+
+		expect(calls).toContain('/merge');
+		expect(calls).toContain('sha=head-sha');
 	});
 
 	it('does not let current evaluation or queued mutation jobs block approval', () => {
