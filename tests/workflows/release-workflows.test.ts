@@ -1035,12 +1035,16 @@ describe('Release Please approval policy', () => {
 							name: 'Security scan',
 							status: 'completed',
 							conclusion: 'failure',
+							check_suite: { id: 456 },
 							completed_at: '2026-07-31T01:00:00Z',
 						},
 					],
 				}),
 			),
-		).toMatchObject({ decision: 'reject' });
+		).toEqual({
+			decision: 'reject',
+			reason: 'Check run Security scan must complete successfully.',
+		});
 	});
 
 	it('rejects a failed external check copying a required CI name', () => {
