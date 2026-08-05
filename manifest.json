@@ -1,7 +1,7 @@
 {
 	"id": "devradar",
 	"name": "DevRadar",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"minAppVersion": "1.0.0",
 	"description": "Follow selected GitHub users and record public activity in connected Markdown notes.",
 	"author": "FerdiHS",
