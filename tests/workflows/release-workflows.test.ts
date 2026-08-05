@@ -916,6 +916,9 @@ describe('Release Please approval policy', () => {
 	it.each([
 		['another head', { head_sha: 'fedcba9876543210' }],
 		['another event', { event: 'push' }],
+		['another workflow ID', { workflow_id: 201 }],
+		['another workflow path', { path: '.github/workflows/unrelated.yml' }],
+		['another workflow name', { name: 'Unrelated workflow' }],
 		[
 			'another repository',
 			{ repository: { full_name: 'someone-else/devradar' } },
