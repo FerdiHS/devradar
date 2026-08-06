@@ -116,6 +116,8 @@ that exact minimum as well as Node.js `24.x`.
 - A separate `npm run build` followed by a search of `main.js` found no
   `brace-expansion`, `fast-uri`, `js-yaml`, `ajv`, `eslint`, or
   `typescript-eslint` package content; `obsidian` remained an external import.
+  An esbuild metafile input inspection independently listed only
+  `src/settings.ts` and `src/main.ts`, with no affected dependency inputs.
 
 Node.js 24 was not installed in the local environment; the CI matrix remains
 the validation source for Node.js `24.x`.
