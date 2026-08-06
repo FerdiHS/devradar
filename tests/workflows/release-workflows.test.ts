@@ -276,30 +276,30 @@ case "$*" in
       exit 1
     fi
     if [ "$GH_SCENARIO" = 'current-check-failure' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"failure","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"failure","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'external-check-failure' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'external-check-pending' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"in_progress","conclusion":null,"check_suite":{"id":456},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Security scan","status":"in_progress","conclusion":null,"check_suite":{"id":456},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'mutation-self-check' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'mutation-historical-self-check' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":124},"started_at":"2026-07-31T01:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":124},"started_at":"2026-07-31T01:00:00Z"}]}]'
       exit 0
     fi
     if [ "$GH_SCENARIO" = 'same-name-collision' ]; then
-      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
+      printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Approve Release Please","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Approve Release Please","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"},{"name":"Apply Release Please approval decision","status":"completed","conclusion":"failure","check_suite":{"id":456},"completed_at":"2026-07-31T01:00:00Z"},{"name":"Apply Release Please approval decision","status":"in_progress","conclusion":null,"check_suite":{"id":123},"started_at":"2026-07-31T02:00:00Z"}]}]'
       exit 0
     fi
-    printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"}]}]'
+    printf '%s\\n' '[{"check_runs":[{"name":"Quality checks - Node.js 22.13.0","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"},{"name":"Quality checks - Node.js 24.x","status":"completed","conclusion":"success","check_suite":{"id":900},"completed_at":"2026-07-31T00:00:00Z"}]}]'
     ;;
   *statuses*)
     if [ "$GH_SCENARIO" = 'status-api-failure' ]; then
@@ -478,7 +478,7 @@ function validApprovalInput(override: Partial<ApprovalInput> = {}) {
 		releasePleaseAppSlug: 'release-please',
 		checkRuns: [
 			{
-				name: 'Quality checks - Node.js 22.x',
+				name: 'Quality checks - Node.js 22.13.0',
 				status: 'completed',
 				conclusion: 'success',
 				check_suite: { id: 900 },
@@ -660,7 +660,7 @@ describe('Release Please approval policy', () => {
 			'Node 24 is missing',
 			[
 				{
-					name: 'Quality checks - Node.js 22.x',
+					name: 'Quality checks - Node.js 22.13.0',
 					status: 'completed',
 					conclusion: 'success',
 					completed_at: '2026-07-31T00:00:00Z',
@@ -672,7 +672,7 @@ describe('Release Please approval policy', () => {
 			[
 				...validApprovalInput().checkRuns,
 				{
-					name: 'Quality checks - Node.js 22.x',
+					name: 'Quality checks - Node.js 22.13.0',
 					status: 'in_progress',
 					conclusion: null,
 					started_at: '2026-07-31T01:00:00Z',
@@ -708,7 +708,7 @@ describe('Release Please approval policy', () => {
 			[
 				...validApprovalInput().checkRuns,
 				{
-					name: 'Quality checks - Node.js 22.x',
+					name: 'Quality checks - Node.js 22.13.0',
 					status: 'completed',
 					conclusion: 'failure',
 					completed_at: '2026-07-31T01:00:00Z',
@@ -1054,7 +1054,7 @@ describe('Release Please approval policy', () => {
 					checkRuns: [
 						...validApprovalInput().checkRuns,
 						{
-							name: 'Quality checks - Node.js 22.x',
+							name: 'Quality checks - Node.js 22.13.0',
 							status: 'completed',
 							conclusion: 'failure',
 							check_suite: { id: 456 },
@@ -1779,7 +1779,7 @@ describe('Release Please workflow contracts', () => {
 			'FerdiHS',
 			'release-please--branches--main--components--devradar',
 			RELEASE_PLEASE_MARKER,
-			'Quality checks - Node.js 22.x',
+			'Quality checks - Node.js 22.13.0',
 			'Quality checks - Node.js 24.x',
 		]) {
 			expect(approvalPolicy).toContain(policyTerm);

@@ -6,7 +6,7 @@
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
 
-Prefer Node.js 24 LTS for local development. Node.js 22 is the minimum supported version, and npm is the package manager.
+Prefer Node.js 24 LTS for local development. Node.js 22.13.0 is the minimum supported version, and npm is the package manager.
 
 1. Create and open an empty Obsidian test vault.
 2. Locate or create the `.obsidian/plugins/` folder inside that vault.
@@ -41,6 +41,14 @@ npm ci
 - `npm run test:watch`: watch the test suite
 - `npm run typecheck`: run TypeScript type checking
 - `npm run check`: full validation for the repo
+
+## Dependency maintenance
+
+Dependabot checks npm dependencies weekly. Review dependency paths, runtime
+relevance, bundle impact, compatibility, and audit exceptions according to
+the [dependency security policy](docs/dependency-security.md). Run the full
+quality gate on Node.js 22.13.0 and Node.js 24 for dependency updates; do not use
+`npm audit fix --force`.
 
 ## Release metadata
 

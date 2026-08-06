@@ -1,5 +1,5 @@
 const REQUIRED_CHECK_NAMES = [
-	'Quality checks - Node.js 22.x',
+	'Quality checks - Node.js 22.13.0',
 	'Quality checks - Node.js 24.x',
 ];
 const APPROVAL_WORKFLOW_PATH = '.github/workflows/release-please-approval.yml';
