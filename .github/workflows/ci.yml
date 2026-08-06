@@ -37,7 +37,13 @@ jobs:
                   node-version: ${{ matrix.node-version }}
                   cache: npm
 
-            - run: corepack npm --version
-            - run: corepack npm ci
-            - run: corepack npm run version:check
-            - run: corepack npm run check
+            - name: Install npm baseline
+              run: npm install --global --prefix "$RUNNER_TEMP/npm-baseline" --no-audit --no-fund npm@10.9.2
+
+            - name: Activate npm baseline
+              run: echo "$RUNNER_TEMP/npm-baseline/bin" >> "$GITHUB_PATH"
+
+            - run: npm --version
+            - run: npm ci
+            - run: npm run version:check
+            - run: npm run check

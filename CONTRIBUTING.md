@@ -6,19 +6,20 @@
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
 
-Prefer Node.js 24 LTS for local development. Node.js 22.13.0 is the minimum supported version. Use npm 10.9.2 through Corepack when installing dependencies or generating a lockfile.
+Prefer Node.js 24 LTS for local development. Node.js 22.13.0 is the minimum supported version. Use npm 10.9.2 when installing dependencies or generating a lockfile; run `npm install --global npm@10.9.2` once for each active Node.js installation first.
 
 1. Create and open an empty Obsidian test vault.
 2. Locate or create the `.obsidian/plugins/` folder inside that vault.
 3. Clone or check out this repository directly into `<Test Vault>/.obsidian/plugins/devradar/`.
-4. Run `corepack npm install`.
-5. Run `corepack npm run dev` and confirm that `main.js` appears in the plugin folder. Leave the watch build running during development.
-6. Open Obsidian Desktop, enable **DevRadar** under **Settings → Community plugins**, and then reload manually after rebuilds.
+4. Run `npm install --global npm@10.9.2`.
+5. Run `npm install`.
+6. Run `npm run dev` and confirm that `main.js` appears in the plugin folder. Leave the watch build running during development.
+7. Open Obsidian Desktop, enable **DevRadar** under **Settings → Community plugins**, and then reload manually after rebuilds.
 
 If you need a clean reinstall from a clean working tree, use:
 
 ```bash
-corepack npm ci
+npm ci
 ```
 
 ## Desktop and mobile
@@ -30,17 +31,17 @@ corepack npm ci
 
 ## Commands
 
-- `corepack npm install`: normal dependency setup
-- `corepack npm ci`: clean reinstall from the lockfile
-- `corepack npm run dev`: build in watch mode
-- `corepack npm run build`: type-check and build the production bundle
-- `corepack npm run format`: format the repository
-- `corepack npm run format:check`: check formatting only
-- `corepack npm run lint`: lint the codebase
-- `corepack npm run test`: run the test suite
-- `corepack npm run test:watch`: watch the test suite
-- `corepack npm run typecheck`: run TypeScript type checking
-- `corepack npm run check`: full validation for the repo
+- `npm install`: normal dependency setup
+- `npm ci`: clean reinstall from the lockfile
+- `npm run dev`: build in watch mode
+- `npm run build`: type-check and build the production bundle
+- `npm run format`: format the repository
+- `npm run format:check`: check formatting only
+- `npm run lint`: lint the codebase
+- `npm run test`: run the test suite
+- `npm run test:watch`: watch the test suite
+- `npm run typecheck`: run TypeScript type checking
+- `npm run check`: full validation for the repo
 
 ## Dependency maintenance
 
@@ -53,8 +54,8 @@ npm 10.9.2; do not use `npm audit fix --force`.
 ## Release metadata
 
 - `package.json.version` is the source of truth for release metadata.
-- Run `corepack npm run version:sync` to update `manifest.json` and `versions.json`.
-- Run `corepack npm run version:check` to verify that the release metadata still matches.
+- Run `npm run version:sync` to update `manifest.json` and `versions.json`.
+- Run `npm run version:check` to verify that the release metadata still matches.
 - Keep historical `versions.json` entries intact; only the current version entry should change.
 - Release Please metadata is synchronized automatically by the trusted workflow.
 
@@ -116,12 +117,12 @@ Normal pull requests are unaffected. Approval is tied to the exact head, and fai
 
 Husky owns the local Git hooks for this repository.
 
-- Normal `corepack npm install` and `corepack npm ci` install the hooks automatically.
+- Normal `npm install` and `npm ci` install the hooks automatically.
 - `pre-commit` runs `lint-staged` on staged files for formatting and lint fixes.
 - `pre-push` runs `npm run test && npm run build`.
-- `corepack npm run prepare` restores the hooks after a fresh install or clean checkout.
+- `npm run prepare` restores the hooks after a fresh install or clean checkout.
 - The hooks intentionally run a narrower set of checks to provide fast local feedback.
-- They are optional local safeguards, not a replacement for `corepack npm run check` or the required GitHub Actions checks.
+- They are optional local safeguards, not a replacement for `npm run check` or the required GitHub Actions checks.
 
 ## Workflow
 
@@ -129,7 +130,7 @@ Husky owns the local Git hooks for this repository.
 - Work on an issue-scoped branch.
 - Keep changes small and focused.
 - Add or update tests when behavior changes.
-- Run `corepack npm run check` before opening or updating a pull request.
+- Run `npm run check` before opening or updating a pull request.
 - Use a Conventional Commit-style pull-request title.
 - Expect normal pull requests to be squash merged.
 - GitHub Actions uses the same canonical quality gate on pull requests and `main`.
@@ -139,6 +140,6 @@ Preserve user data and never overwrite vault content outside the plugin-managed 
 ## Troubleshooting
 
 - Missing plugin: confirm the repository is checked out into `<Test Vault>/.obsidian/plugins/devradar/`, that **DevRadar** is enabled under **Settings → Community plugins**, and reload Obsidian.
-- Missing `main.js`: run `corepack npm run dev` or `corepack npm run build` again, then reload Obsidian.
+- Missing `main.js`: run `npm run dev` or `npm run build` again, then reload Obsidian.
 - Stale build output: rerun the build, then reload Obsidian manually.
-- Broken dependency state: from a clean working tree, run `corepack npm ci` to recreate `node_modules/` from the lockfile.
+- Broken dependency state: from a clean working tree, run `npm ci` to recreate `node_modules/` from the lockfile.
