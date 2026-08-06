@@ -97,6 +97,12 @@ The selected combination is:
 The selected baseline was validated from a clean install with Node.js
 `22.14.0` and npm `10.9.2`:
 
+The repository minimum of Node.js `22.13.0` is intentional: the locked
+development dependency `eslint-visitor-keys@5.0.1` supports Node.js 22 from
+`22.13.0`, while `rolldown@1.1.5` requires at least `22.12.0`. The former is
+the highest Node.js 22 floor imposed by the current toolchain, so CI tests
+that exact minimum as well as Node.js `24.x`.
+
 - `npm ci` completed successfully.
 - `npm audit --json` reported zero vulnerabilities, and `npm audit` reported
   `found 0 vulnerabilities`.
