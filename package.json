@@ -7,12 +7,14 @@
 	"engines": {
 		"node": ">=22.13.0"
 	},
+	"packageManager": "npm@10.9.2",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"format": "prettier . --write",
 		"format:check": "prettier . --check",
 		"build": "npm run typecheck && node esbuild.config.mjs production",
-		"check": "npm run format:check && npm run lint && npm run test && npm run build",
+		"check:npm": "node -e \"if (!process.env.npm_config_user_agent?.includes('npm/10.9.2')) { console.error('Use npm 10.9.2 via Corepack.'); process.exit(1); }\"",
+		"check": "npm run check:npm && npm run format:check && npm run lint && npm run test && npm run build",
 		"prepare": "husky",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
