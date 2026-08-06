@@ -53,6 +53,10 @@ baseline reproducible while leaving future Obsidian updates to an explicit
 dependency review. It does not change plugin runtime behavior because the
 module remains external to the production bundle.
 
+The development type-package version is separate from the runtime
+`manifest.json` `minAppVersion`; new Obsidian API usage must be checked against
+the declared runtime minimum, which must be raised when required.
+
 The lockfile also records an upstream metadata inconsistency: the plugin's
 regular dependency is `obsidian: "1.12.3"`, while its exact peer dependency is
 `obsidian: "1.8.7"`. `npm ls obsidian eslint-plugin-obsidianmd` exits
