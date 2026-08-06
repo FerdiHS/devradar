@@ -1,0 +1,83 @@
+# Dependency security and maintenance
+
+This repository uses npm development dependencies to type-check, lint, test,
+and bundle DevRadar. The plugin runtime has no npm production dependencies;
+`obsidian` is external to the generated bundle.
+
+## Baseline review
+
+Issue [#29](https://github.com/FerdiHS/devradar/issues/29) recorded the audit
+snapshot from 2026-08-05. npm reported three high-severity package findings:
+`brace-expansion`, `fast-uri`, and `js-yaml`. npm severity identifies an
+advisory classification; it does not by itself establish exploitability in
+the plugin runtime.
+
+All affected packages were non-direct development dependencies and were not
+included in `main.js`. The original dependency paths and decisions were:
+
+| Package and original node                                                                                   | Complete dependency path                                                                                                                                                                                                                             | Decision                                 |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `brace-expansion@1.1.14` at `node_modules/brace-expansion`                                                  | `eslint@9.39.4` → `minimatch@3.1.5` → `brace-expansion`                                                                                                                                                                                              | Lockfile resolves to `1.1.18`.           |
+| `brace-expansion@2.1.0` at `node_modules/eslint-plugin-json-schema-validator/node_modules/brace-expansion`  | `eslint-plugin-obsidianmd@0.4.0` → `eslint-plugin-json-schema-validator@5.1.0` → `minimatch@8.0.7` → `brace-expansion`                                                                                                                               | Lockfile resolves to `2.1.4`.            |
+| `brace-expansion@2.1.0` at `node_modules/eslint-plugin-n/node_modules/brace-expansion`                      | `eslint-plugin-obsidianmd@0.4.0` → `@microsoft/eslint-plugin-sdl@1.1.0` → `eslint-plugin-n@17.10.3` → `minimatch@9.0.9` → `brace-expansion`                                                                                                          | Lockfile resolves to `2.1.4`.            |
+| `brace-expansion@5.0.5` at `node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion` | `typescript-eslint@8.59.2` → `@typescript-eslint/typescript-estree@8.59.2` → `minimatch@10.2.5` → `brace-expansion`                                                                                                                                  | Lockfile resolves to `5.0.9`.            |
+| `fast-uri@3.1.2` at `node_modules/fast-uri`                                                                 | `eslint-plugin-obsidianmd@0.4.0` → `eslint-plugin-json-schema-validator@5.1.0` → `ajv@8.20.0` → `fast-uri`; `eslint-plugin-obsidianmd@0.4.0` → `eslint-plugin-json-schema-validator@5.1.0` → `json-schema-migrate@2.0.0` → `ajv@8.20.0` → `fast-uri` | Lockfile resolves to compatible `3.1.5`. |
+| `js-yaml@4.1.1` at `node_modules/js-yaml`                                                                   | `eslint@9.39.4` → `@eslint/eslintrc@3.3.5` → `js-yaml`                                                                                                                                                                                               | Lockfile resolves to compatible `4.3.1`. |
+
+The detailed advisory table below records every identifier from the baseline
+audit, including severity, affected range, and selected patched version:
+
+| Advisory                                                                 | npm severity | Affected range(s)                             | Patched version selected   |
+| ------------------------------------------------------------------------ | ------------ | --------------------------------------------- | -------------------------- |
+| [GHSA-jxxr-4gwj-5jf2](https://github.com/advisories/GHSA-jxxr-4gwj-5jf2) | moderate     | `>=5.0.0 <5.0.6`                              | `brace-expansion@5.0.9`    |
+| [GHSA-3jxr-9vmj-r5cp](https://github.com/advisories/GHSA-3jxr-9vmj-r5cp) | high         | `<1.1.16`, `>=2.0.0 <2.1.2`, `>=3.0.0 <5.0.7` | `1.1.18`, `2.1.4`, `5.0.9` |
+| [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) | high         | `<1.1.17`, `>=2.0.0 <2.1.3`, `>=4.0.0 <5.0.8` | `1.1.18`, `2.1.4`, `5.0.9` |
+| [GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895) | high         | `<1.1.18`, `>=2.0.0 <2.1.4`, `>=4.0.0 <5.0.9` | `1.1.18`, `2.1.4`, `5.0.9` |
+| [GHSA-v2hh-gcrm-f6hx](https://github.com/advisories/GHSA-v2hh-gcrm-f6hx) | high         | `>=3.0.0 <=3.1.3`                             | `fast-uri@3.1.5`           |
+| [GHSA-7p8r-x3mc-p8w7](https://github.com/advisories/GHSA-7p8r-x3mc-p8w7) | high         | `>=3.0.0 <3.1.5`                              | `fast-uri@3.1.5`           |
+| [GHSA-4c8g-83qw-93j6](https://github.com/advisories/GHSA-4c8g-83qw-93j6) | high         | `>=3.0.0 <3.1.3`                              | `fast-uri@3.1.5`           |
+| [GHSA-h67p-54hq-rp68](https://github.com/advisories/GHSA-h67p-54hq-rp68) | moderate     | `>=4.0.0 <=4.1.1`                             | `js-yaml@4.3.1`            |
+| [GHSA-52cp-r559-cp3m](https://github.com/advisories/GHSA-52cp-r559-cp3m) | high         | `>=4.0.0 <4.3.0`                              | `js-yaml@4.3.1`            |
+
+The selected versions remain within their parent dependency ranges. No
+forced major upgrade or `npm audit fix` operation is used. If a later audit
+reports a new finding, it requires the same path, compatibility, and bundle
+review before remediation or exception approval.
+
+## Obsidian development baseline
+
+The direct `obsidian` development dependency is pinned to exact version
+`1.12.3`. `eslint-plugin-obsidianmd@0.4.0` declares `obsidian: "1.12.3"`, so
+the pin matches the current lint-tooling baseline and makes the type/API
+baseline reproducible while leaving future Obsidian updates to an explicit
+dependency review. It does not change plugin runtime behavior because the
+module remains external to the production bundle.
+
+## Ongoing maintenance policy
+
+The policy options considered were:
+
+- A hard `npm audit` CI gate gives immediate enforcement, but registry
+  outages, development-only findings, and false positives can block unrelated
+  changes. npm severity is also a review signal, not proof of runtime
+  exploitability.
+- Dependabot alone provides update proposals but not the path, bundle, and
+  compatibility review required for this plugin.
+- Scheduled or manual review alone reduces automation but can delay awareness
+  of newly published advisories.
+
+The selected combination is:
+
+- Dependabot checks npm dependencies weekly through `.github/dependabot.yml`.
+- Dependency update pull requests use the existing Node.js 22.13.0 and Node.js 24
+  quality checks, including `npm ci`, version validation, tests, lint,
+  formatting, type-checking, and build validation.
+- Maintainers review dependency paths, direct versus development-only use,
+  production-bundle inclusion, compatibility, and any residual risk.
+- Run `npm audit --json` and `npm audit` when a security update is proposed,
+  before a release, and at least quarterly.
+- `npm audit` is a review input rather than a hard CI gate. Registry outages,
+  development-only findings, and false positives must be recorded and
+  reviewed rather than causing unconditional build failure.
+- Do not use `npm audit fix --force`. Major upgrades require a separate
+  compatibility decision.
