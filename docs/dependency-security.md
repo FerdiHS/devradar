@@ -91,3 +91,25 @@ The selected combination is:
   reviewed rather than causing unconditional build failure.
 - Do not use `npm audit fix --force`. Major upgrades require a separate
   compatibility decision.
+
+## Baseline validation
+
+The selected baseline was validated from a clean install with Node.js
+`22.14.0` and npm `10.9.2`:
+
+- `npm ci` completed successfully.
+- `npm audit --json` reported zero vulnerabilities, and `npm audit` reported
+  `found 0 vulnerabilities`.
+- `npm ls brace-expansion fast-uri js-yaml --all` resolved only patched
+  versions: `brace-expansion` `1.1.18`, `2.1.4`, and `5.0.9`; `fast-uri`
+  `3.1.5`; and `js-yaml` `4.3.1`.
+- `npm ls obsidian eslint-plugin-obsidianmd` and `npm explain obsidian`
+  confirmed the documented Obsidian resolution and dependency paths.
+- `npm run version:check` and `npm run check` passed. The quality check covered
+  formatting, linting, 119 tests, type-checking, and the production build.
+- A separate `npm run build` followed by a search of `main.js` found no
+  `brace-expansion`, `fast-uri`, `js-yaml`, `ajv`, `eslint`, or
+  `typescript-eslint` package content; `obsidian` remained an external import.
+
+Node.js 24 was not installed in the local environment; the CI matrix remains
+the validation source for Node.js `24.x`.
