@@ -53,6 +53,16 @@ baseline reproducible while leaving future Obsidian updates to an explicit
 dependency review. It does not change plugin runtime behavior because the
 module remains external to the production bundle.
 
+The lockfile also records an upstream metadata inconsistency: the plugin's
+regular dependency is `obsidian: "1.12.3"`, while its exact peer dependency is
+`obsidian: "1.8.7"`. `npm ls obsidian eslint-plugin-obsidianmd` exits
+successfully without reporting an invalid dependency and resolves both through
+`obsidian@1.12.3`; `npm explain obsidian` confirms the root and plugin regular
+dependency paths. The selected baseline is therefore accepted as the
+compatible direct and regular dependency, with the full quality gate passing.
+Future Obsidian or lint-plugin updates must re-check both declarations rather
+than silently inheriting this inconsistency.
+
 ## Ongoing maintenance policy
 
 The policy options considered were:
