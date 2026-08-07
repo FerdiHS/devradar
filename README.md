@@ -4,7 +4,7 @@ DevRadar is a local-first Obsidian plugin for following selected GitHub users an
 
 ## Status
 
-Version `0.1.0` is a foundation/pre-MVP release. It establishes the local-first plugin structure for following selected GitHub users and recording supported public developer activity. The MVP is still under development; DevRadar does not promise exhaustive history or real-time collection.
+Version `0.1.0` is a foundation/pre-MVP release. It establishes the plugin, repository, quality, and release foundations; the MVP workflow for following selected GitHub users and recording supported public developer activity is still under development. DevRadar does not promise exhaustive history or real-time collection.
 
 ## Development
 
