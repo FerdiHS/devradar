@@ -6,7 +6,23 @@
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
 
-Prefer Node.js 24 LTS for local development. Node.js 22.13.0 is the minimum supported version, and npm is the package manager.
+Prefer Node.js 24 LTS for ordinary local development. Node.js 22.13.0 is the
+minimum supported version. Ordinary development commands do not require a
+specific npm version, provided the active npm version is compatible with the
+supported repository and toolchain.
+
+When authoring or repairing `package-lock.json`, use the reviewed Node.js
+22.13.0 + npm 10.9.2 baseline. Select that pair through an existing version
+manager or a temporary standalone installation, then verify the tools before
+editing dependency state:
+
+```bash
+node --version  # v22.13.0
+npm --version   # 10.9.2
+```
+
+This lockfile-authoring baseline does not require replacing npm globally for
+ordinary development.
 
 1. Create and open an empty Obsidian test vault.
 2. Locate or create the `.obsidian/plugins/` folder inside that vault.
@@ -46,9 +62,11 @@ npm ci
 
 Dependabot checks npm dependencies weekly. Review dependency paths, runtime
 relevance, bundle impact, compatibility, and audit exceptions according to
-the [dependency security policy](docs/dependency-security.md). Run the full
-quality gate on Node.js 22.13.0 and Node.js 24 for dependency updates; do not use
-`npm audit fix --force`.
+the [dependency security policy](docs/dependency-security.md). For dependency
+updates, run the full quality gate on Node.js 22.13.0 and Node.js 24 while
+recording the effective Node.js and npm versions. Use the Node.js 22.13.0 + npm
+10.9.2 baseline when authoring or repairing the lockfile; do not use `npm audit
+fix --force`.
 
 ## Release metadata
 
