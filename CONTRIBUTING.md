@@ -8,7 +8,8 @@
 
 Prefer Node.js 24 LTS for ordinary local development. Node.js 22.13.0 is the
 minimum supported version. Ordinary development commands do not require a
-specific npm version.
+specific npm version, provided the active npm version is compatible with the
+supported repository and toolchain.
 
 When authoring or repairing `package-lock.json`, use the reviewed Node.js
 22.13.0 + npm 10.9.2 baseline. Select that pair through an existing version
