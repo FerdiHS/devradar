@@ -1767,7 +1767,7 @@ describe('Release Please workflow contracts', () => {
 		expect(approvalWorkflow).toContain('always()');
 		expect(approvalWorkflow).toContain('needs.evaluate.result');
 		expect(approvalWorkflow).toMatch(
-			/mutate:[\s\S]*?Checkout trusted base[\s\S]*?continue-on-error: true[\s\S]*?Create GitHub App token/,
+			/mutate:[\s\S]*?Checkout trusted base[\s\S]*?continue-on-error: true[\s\S]*?Create GitHub App token[\s\S]*?uses: actions\/create-github-app-token@/,
 		);
 		expect(approvalWorkflow).toContain(
 			'READ_GH_TOKEN: ${{ github.token }}',
