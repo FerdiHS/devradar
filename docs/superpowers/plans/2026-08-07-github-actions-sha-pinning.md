@@ -37,21 +37,25 @@
 
 **Interfaces:**
 
+<!-- prettier-ignore-start -->
+
 - `tests/workflows/action-pinning.test.ts` provides test-local helpers:
 
     ```ts
     type ActionInvocation = {
-    	filePath: string;
-    	reference: string;
-    	line: number;
-    	comment: string;
+        filePath: string;
+        reference: string;
+        line: number;
+        comment: string;
     };
 
     function collectStepActionInvocations(
-    	source: string,
-    	filePath: string,
+        source: string,
+        filePath: string,
     ): ActionInvocation[];
     ```
+
+<!-- prettier-ignore-end -->
 
 - The helper parses YAML with `parseDocument` from `yaml`, traverses only
   `document.jobs[*].steps[*].uses`, ignores values beginning with `./`, and

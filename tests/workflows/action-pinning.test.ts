@@ -1,6 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isMap, isScalar, isSeq, parseDocument, type YAMLMap } from 'yaml';
+import {
+	isAlias,
+	isMap,
+	isScalar,
+	isSeq,
+	parseDocument,
+	type YAMLMap,
+} from 'yaml';
 import { describe, expect, it } from 'vitest';
 
 type ActionInvocation = {
@@ -51,20 +58,25 @@ function collectStepActionInvocations(
 			}
 
 			const uses = mapValue(step, 'uses');
-			if (!isScalar(uses) || typeof uses.value !== 'string') {
+			if (!isAlias(uses) && !isScalar(uses)) {
 				continue;
 			}
 
-			if (uses.value.startsWith('./')) {
+			const action = isAlias(uses) ? uses.resolve(document) : uses;
+			if (!isScalar(action) || typeof action.value !== 'string') {
+				continue;
+			}
+
+			if (action.value.startsWith('./')) {
 				continue;
 			}
 
 			const offset = uses.range?.[0] ?? 0;
 			invocations.push({
 				filePath,
-				reference: uses.value,
+				reference: action.value,
 				line: source.slice(0, offset).split('\n').length,
-				comment: uses.comment?.trim() ?? '',
+				comment: action.comment?.trim() ?? '',
 			});
 		}
 	}
@@ -104,6 +116,40 @@ describe('workflow action pinning', () => {
 				comment: 'v1.2.3',
 			},
 		]);
+	});
+
+	it('collects aliased external actions while excluding local and reusable uses', () => {
+		const invocations = collectStepActionInvocations(
+			`jobs:
+    external:
+        steps:
+            - uses: &mutable-action owner/action@v6 # v6.0.0
+            - uses: *mutable-action
+    local:
+        steps:
+            - uses: &local-action ./.github/actions/local
+            - uses: *local-action
+    reusable:
+        uses: &reusable-workflow owner/repo/.github/workflows/reuse.yml@v1
+`,
+			'fixture.yml',
+		);
+
+		expect(invocations).toEqual([
+			{
+				filePath: 'fixture.yml',
+				reference: 'owner/action@v6',
+				line: 4,
+				comment: 'v6.0.0',
+			},
+			{
+				filePath: 'fixture.yml',
+				reference: 'owner/action@v6',
+				line: 5,
+				comment: 'v6.0.0',
+			},
+		]);
+		expect(invocations.every(isPinnedAction)).toBe(false);
 	});
 
 	it.each([
