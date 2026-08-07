@@ -169,7 +169,7 @@ describe('workflow action pinning', () => {
 			},
 		]);
 		expect(invocations.slice(0, 2).every(isPinnedAction)).toBe(true);
-		expect(isPinnedAction(invocations[2])).toBe(false);
+		expect(isPinnedAction(invocations[2]!)).toBe(false);
 	});
 
 	it.each([
