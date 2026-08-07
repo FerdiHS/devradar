@@ -18,7 +18,7 @@ type ActionInvocation = {
 };
 
 const actionReferencePattern =
-	/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/;
+	/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$/;
 const releaseCommentPattern = /^v\d+\.\d+\.\d+$/;
 
 function mapValue(map: YAMLMap, key: string) {
@@ -166,6 +166,11 @@ describe('workflow action pinning', () => {
 	it.each([
 		[
 			'owner/action@0123456789012345678901234567890123456789',
+			'v1.2.3',
+			true,
+		],
+		[
+			'owner/action/path@0123456789012345678901234567890123456789',
 			'v1.2.3',
 			true,
 		],
