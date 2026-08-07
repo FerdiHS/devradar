@@ -4,7 +4,10 @@ DevRadar is a local-first Obsidian plugin for following selected GitHub users an
 
 ## Development
 
-DevRadar supports Node.js 24 LTS for local development, with Node.js 22.13.0 as the minimum supported version. Dependency work uses npm 10.9.2 for reproducible lockfiles. Run `npm install --global npm@10.9.2` once for each active Node.js installation before dependency work.
+DevRadar supports Node.js 24 LTS for ordinary development, with Node.js
+22.13.0 as the minimum supported version. Dependency and lockfile authoring
+uses the reviewed Node.js 22.13.0 + npm 10.9.2 baseline; see the contributor
+guide.
 
 ## Common commands
 
