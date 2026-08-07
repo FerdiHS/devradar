@@ -87,9 +87,10 @@ For every dependency update that changes `package-lock.json`:
 1. Inspect the exact bot head and the complete manifest/lockfile diff.
 2. Reproduce `npm ci` with the supported Node.js matrix and record the
    effective Node.js and npm versions.
-3. If the lockfile is malformed or incomplete, regenerate from clean `main`
-   using Node.js 22.13.0 and npm 10.9.2, inspect the complete replacement diff,
-   and rerun validation.
+3. If the lockfile is malformed or incomplete, start from a clean `main`
+   checkout and apply only the intended manifest changes from the exact bot
+   head. Regenerate `package-lock.json` using Node.js 22.13.0 and npm 10.9.2,
+   inspect the complete manifest and lockfile diff, and rerun validation.
 4. If it cannot be repaired safely, prepare a reviewed human-owned replacement
    with a clear cross-reference. Do not close the bot pull request before the
    replacement is approved and exists; close or supersede it afterward while
