@@ -32,13 +32,16 @@ function collectStepActionInvocations(
 	filePath: string,
 ): ActionInvocation[] {
 	const document = parseDocument(source);
+	if (document.errors.length > 0) {
+		throw new Error(`${filePath}: invalid YAML`);
+	}
 	if (!isMap(document.contents)) {
-		return [];
+		throw new Error(`${filePath}: expected a workflow mapping`);
 	}
 
 	const jobs = mapValue(document.contents, 'jobs');
 	if (!isMap(jobs)) {
-		return [];
+		throw new Error(`${filePath}: expected a jobs mapping`);
 	}
 
 	const invocations: ActionInvocation[] = [];
@@ -116,6 +119,12 @@ describe('workflow action pinning', () => {
 				comment: 'v1.2.3',
 			},
 		]);
+	});
+
+	it('rejects malformed workflow YAML', () => {
+		expect(() =>
+			collectStepActionInvocations('jobs: [', 'fixture.yml'),
+		).toThrow('fixture.yml: invalid YAML');
 	});
 
 	it('collects aliased external actions while excluding local and reusable uses', () => {
