@@ -98,6 +98,10 @@ For every dependency update that changes `package-lock.json`:
 5. Do not claim an unsupported Dependabot root cause. Record only evidence
    established by the exact-head reproduction and diff review.
 
+A successful lockfile repair does not establish dependency compatibility;
+independently review peer dependencies, engine requirements, and other
+update-specific constraints.
+
 The policy options considered were:
 
 - A hard `npm audit` CI gate gives immediate enforcement, but registry
