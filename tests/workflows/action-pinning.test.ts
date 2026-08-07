@@ -76,7 +76,7 @@ function collectStepActionInvocations(
 				filePath,
 				reference: action.value,
 				line: source.slice(0, offset).split('\n').length,
-				comment: action.comment?.trim() ?? '',
+				comment: uses.comment?.trim() ?? '',
 			});
 		}
 	}
@@ -123,8 +123,9 @@ describe('workflow action pinning', () => {
 			`jobs:
     external:
         steps:
-            - uses: &mutable-action owner/action@v6 # v6.0.0
-            - uses: *mutable-action
+            - uses: &pinned-action owner/action@0123456789012345678901234567890123456789 # v1.2.3
+            - uses: *pinned-action # v1.2.3
+            - uses: *pinned-action
     local:
         steps:
             - uses: &local-action ./.github/actions/local
@@ -138,18 +139,28 @@ describe('workflow action pinning', () => {
 		expect(invocations).toEqual([
 			{
 				filePath: 'fixture.yml',
-				reference: 'owner/action@v6',
+				reference:
+					'owner/action@0123456789012345678901234567890123456789',
 				line: 4,
-				comment: 'v6.0.0',
+				comment: 'v1.2.3',
 			},
 			{
 				filePath: 'fixture.yml',
-				reference: 'owner/action@v6',
+				reference:
+					'owner/action@0123456789012345678901234567890123456789',
 				line: 5,
-				comment: 'v6.0.0',
+				comment: 'v1.2.3',
+			},
+			{
+				filePath: 'fixture.yml',
+				reference:
+					'owner/action@0123456789012345678901234567890123456789',
+				line: 6,
+				comment: '',
 			},
 		]);
-		expect(invocations.every(isPinnedAction)).toBe(false);
+		expect(invocations.slice(0, 2).every(isPinnedAction)).toBe(true);
+		expect(isPinnedAction(invocations[2])).toBe(false);
 	});
 
 	it.each([
