@@ -1756,7 +1756,6 @@ describe('Release Please workflow contracts', () => {
 			'-f sha="${HEAD_SHA}"',
 			'merge_method=squash',
 			'git/refs/heads/${HEAD_REF}',
-			'actions/create-github-app-token@v3',
 			'private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}',
 		]) {
 			expect(approvalWorkflow).toContain(workflowTerm);
