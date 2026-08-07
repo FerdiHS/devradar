@@ -88,13 +88,18 @@ For every dependency update that changes `package-lock.json`:
 2. Reproduce `npm ci` with the supported Node.js matrix and record the
    effective Node.js and npm versions.
 3. If the lockfile is malformed or incomplete, start from a clean `main`
-   checkout and apply only the intended manifest changes from the exact bot
-   head. Regenerate `package-lock.json` using Node.js 22.13.0 and npm 10.9.2,
-   inspect the complete manifest and lockfile diff, and rerun validation.
-4. If it cannot be repaired safely, prepare a reviewed human-owned replacement
-   with a clear cross-reference. Do not close the bot pull request before the
-   replacement is approved and exists; close or supersede it afterward while
-   preserving the cross-reference.
+   checkout and reproduce only the intended dependency update using Node.js
+   22.13.0 and npm 10.9.2. For an update that changes `package.json`, apply
+   only the intended manifest changes from the exact bot head. For a
+   lockfile-only or transitive update, use the `main` manifest and reproduce
+   the equivalent targeted dependency update without copying the malformed
+   bot-generated lockfile. Regenerate `package-lock.json`, inspect the
+   complete resulting manifest and lockfile diff, and rerun validation.
+4. If the intended update cannot be reproduced safely without unrelated
+   dependency changes, or otherwise cannot be repaired safely, prepare a
+   reviewed human-owned replacement with a clear cross-reference. Do not close
+   the bot pull request before the replacement is approved and exists; close
+   or supersede it afterward while preserving the cross-reference.
 5. Do not claim an unsupported Dependabot root cause. Record only evidence
    established by the exact-head reproduction and diff review.
 
