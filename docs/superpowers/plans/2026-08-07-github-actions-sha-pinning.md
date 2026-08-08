@@ -99,9 +99,9 @@
     - an abbreviated SHA;
     - a missing or major-only version comment.
 
-    Read the inline comment from the parsed scalar node, trim it, and require
-    the exact release-version shape `v<major>.<minor>.<patch>` when a release
-    version is available.
+    Read each invocation's inline comment, trim it, and require the exact
+    release-version shape `v<major>.<minor>.<patch>` when a release version is
+    available. Resolve aliases only for their action value.
 
 - [ ] **Step 3: Add dynamic validation for repository workflows.**
 
@@ -110,7 +110,7 @@
     discovered external action reference matches:
 
     ```regex
-    ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$
+    ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$
     ```
 
     Do not hardcode the current four action names or scan every `uses:` line.
