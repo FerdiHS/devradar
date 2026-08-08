@@ -101,7 +101,7 @@
 
     Read each invocation's inline comment, trim it, and require the exact
     release-version shape `v<major>.<minor>.<patch>` when a release version is
-    available. Resolve aliases only for their action value.
+    available. Resolve aliases before validating jobs, steps, and action values.
 
 - [ ] **Step 3: Add dynamic validation for repository workflows.**
 

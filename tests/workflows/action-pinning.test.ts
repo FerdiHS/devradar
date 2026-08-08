@@ -35,37 +35,51 @@ function collectStepActionInvocations(
 	if (document.errors.length > 0) {
 		throw new Error(`${filePath}: invalid YAML`);
 	}
-	if (!isMap(document.contents)) {
+	const resolve = (value: unknown) => {
+		let resolved = value;
+		while (isAlias(resolved)) {
+			resolved = resolved.resolve(document);
+		}
+		return resolved;
+	};
+
+	const contents = resolve(document.contents);
+	if (!isMap(contents)) {
 		throw new Error(`${filePath}: expected a workflow mapping`);
 	}
 
-	const jobs = mapValue(document.contents, 'jobs');
+	const jobs = resolve(mapValue(contents, 'jobs'));
 	if (!isMap(jobs)) {
 		throw new Error(`${filePath}: expected a jobs mapping`);
 	}
 
 	const invocations: ActionInvocation[] = [];
 	for (const job of jobs.items) {
-		if (!isMap(job.value)) {
-			continue;
+		const jobValue = resolve(job.value);
+		if (!isMap(jobValue)) {
+			throw new Error(`${filePath}: expected a job mapping`);
 		}
 
-		const steps = mapValue(job.value, 'steps');
-		if (!isSeq(steps)) {
+		const steps = resolve(mapValue(jobValue, 'steps'));
+		if (steps === undefined) {
 			continue;
+		}
+		if (!isSeq(steps)) {
+			throw new Error(`${filePath}: expected a steps sequence`);
 		}
 
 		for (const step of steps.items) {
-			if (!isMap(step)) {
+			const stepValue = resolve(step);
+			if (!isMap(stepValue)) {
+				throw new Error(`${filePath}: expected a step mapping`);
+			}
+
+			const uses = mapValue(stepValue, 'uses');
+			if (uses === undefined) {
 				continue;
 			}
 
-			const uses = mapValue(step, 'uses');
-			if (!isAlias(uses) && !isScalar(uses)) {
-				continue;
-			}
-
-			const action = isAlias(uses) ? uses.resolve(document) : uses;
+			const action = resolve(uses);
 			if (!isScalar(action) || typeof action.value !== 'string') {
 				continue;
 			}
@@ -170,6 +184,38 @@ describe('workflow action pinning', () => {
 		]);
 		expect(invocations.slice(0, 2).every(isPinnedAction)).toBe(true);
 		expect(isPinnedAction(invocations[2]!)).toBe(false);
+	});
+
+	it('validates aliases around jobs, steps, and step mappings', () => {
+		const invocations = collectStepActionInvocations(
+			`jobs:
+    template: &template
+        steps:
+            - uses: owner/action@v1 # v1.0.0
+    copied: *template
+    shared:
+        steps: &shared-steps
+            - uses: owner/action@v1 # v1.0.0
+    copied-steps:
+        steps: *shared-steps
+    whole-step:
+        steps:
+            - &whole-step
+              uses: owner/action@v1 # v1.0.0
+            - *whole-step
+`,
+			'fixture.yml',
+		);
+
+		expect(invocations).toHaveLength(6);
+		expect(
+			invocations.every(
+				({ reference }) => reference === 'owner/action@v1',
+			),
+		).toBe(true);
+		expect(
+			invocations.every((invocation) => !isPinnedAction(invocation)),
+		).toBe(true);
 	});
 
 	it.each([
