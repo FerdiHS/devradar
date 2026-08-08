@@ -75,7 +75,7 @@ function collectStepActionInvocations(
 			}
 
 			const uses = mapValue(stepValue, 'uses');
-			if (uses === undefined) {
+			if (!isAlias(uses) && !isScalar(uses)) {
 				continue;
 			}
 
