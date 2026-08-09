@@ -4,3 +4,15 @@ updates:
       directory: /
       schedule:
           interval: weekly
+      # Coordinated ESLint 10 deferral: see #37 and #39; remove these @eslint/js and eslint major ignores when DevRadar intentionally completes the migration.
+      ignore:
+          - dependency-name: '@eslint/js'
+            update-types:
+                - version-update:semver-major
+          - dependency-name: eslint
+            update-types:
+                - version-update:semver-major
+          # Defer until the supported Node.js baseline supports lint-staged 17+; see #38 and #39.
+          - dependency-name: lint-staged
+            update-types:
+                - version-update:semver-major
