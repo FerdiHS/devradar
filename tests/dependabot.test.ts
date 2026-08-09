@@ -30,7 +30,13 @@ describe('Dependabot configuration', () => {
 		});
 
 		const ignoredDependencies = dependabotConfig.updates[0]?.ignore ?? [];
-		for (const dependencyName of ['eslint', '@eslint/js', 'lint-staged']) {
+		const expectedDependencyNames = ['eslint', '@eslint/js', 'lint-staged'];
+		expect(
+			ignoredDependencies
+				.map((ignore) => ignore['dependency-name'])
+				.sort(),
+		).toEqual([...expectedDependencyNames].sort());
+		for (const dependencyName of expectedDependencyNames) {
 			const ignoredDependency = ignoredDependencies.find(
 				(ignore) => ignore['dependency-name'] === dependencyName,
 			);
