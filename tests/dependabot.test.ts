@@ -22,14 +22,18 @@ const dependabotConfig = parse(
 describe('Dependabot configuration', () => {
 	it('defers only incompatible major dependency updates', () => {
 		expect(dependabotConfig.version).toBe(2);
-		expect(dependabotConfig.updates).toHaveLength(1);
-		expect(dependabotConfig.updates[0]).toMatchObject({
+		const npmUpdater = dependabotConfig.updates.find(
+			(update) =>
+				update['package-ecosystem'] === 'npm' &&
+				update.directory === '/',
+		);
+		expect(npmUpdater).toMatchObject({
 			'package-ecosystem': 'npm',
 			directory: '/',
 			schedule: { interval: 'weekly' },
 		});
 
-		const ignoredDependencies = dependabotConfig.updates[0]?.ignore ?? [];
+		const ignoredDependencies = npmUpdater?.ignore ?? [];
 		const expectedDependencyNames = ['eslint', '@eslint/js', 'lint-staged'];
 		expect(
 			ignoredDependencies
