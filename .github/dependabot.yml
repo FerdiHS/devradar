@@ -4,6 +4,7 @@ updates:
       directory: /
       schedule:
           interval: weekly
+      # Narrow compatibility deferrals: baseline #39, precedent #43/#44, triggering updates #48/#50, tracked by #51.
       # Coordinated ESLint 10 deferral: see #37 and #39; remove these @eslint/js and eslint major ignores when DevRadar intentionally completes the migration.
       ignore:
           - dependency-name: '@eslint/js'
@@ -16,3 +17,11 @@ updates:
           - dependency-name: lint-staged
             update-types:
                 - version-update:semver-major
+          # Remove only after intentionally raising the Node.js minimum and updating CI, development, and compatibility documentation; see #48 and #51.
+          - dependency-name: '@types/node'
+            update-types:
+                - version-update:semver-major
+          # Remove only after a coordinated TypeScript 7+ compiler, linting, build, and configuration migration; see #50 and #51.
+          - dependency-name: typescript
+            versions:
+                - '>=7.0.0'
