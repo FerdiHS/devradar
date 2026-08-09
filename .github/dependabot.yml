@@ -4,7 +4,7 @@ updates:
       directory: /
       schedule:
           interval: weekly
-      # Coordinated ESLint 10 deferral: see #37 and #39.
+      # Coordinated ESLint 10 deferral: see #37 and #39; remove these @eslint/js and eslint major ignores when DevRadar intentionally completes the migration.
       ignore:
           - dependency-name: '@eslint/js'
             update-types:
