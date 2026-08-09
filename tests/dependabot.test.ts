@@ -22,11 +22,13 @@ const dependabotConfig = parse(
 describe('Dependabot configuration', () => {
 	it('defers only incompatible major dependency updates', () => {
 		expect(dependabotConfig.version).toBe(2);
-		const npmUpdater = dependabotConfig.updates.find(
+		const npmUpdaters = dependabotConfig.updates.filter(
 			(update) =>
 				update['package-ecosystem'] === 'npm' &&
 				update.directory === '/',
 		);
+		expect(npmUpdaters).toHaveLength(1);
+		const [npmUpdater] = npmUpdaters;
 		expect(npmUpdater).toMatchObject({
 			'package-ecosystem': 'npm',
 			directory: '/',
