@@ -4,3 +4,15 @@ updates:
       directory: /
       schedule:
           interval: weekly
+      # Coordinated ESLint 10 deferral: see #37 and #39.
+      ignore:
+          - dependency-name: '@eslint/js'
+            update-types:
+                - version-update:semver-major
+          - dependency-name: eslint
+            update-types:
+                - version-update:semver-major
+          # Defer until #38 and #39 are resolved; remove when the Node.js baseline permits it.
+          - dependency-name: lint-staged
+            update-types:
+                - version-update:semver-major
