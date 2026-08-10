@@ -44,6 +44,23 @@ forced major upgrade or `npm audit fix` operation is used. If a later audit
 reports a new finding, it requires the same path, compatibility, and bundle
 review before remediation or exception approval.
 
+## Issue #45 follow-up
+
+The #45 follow-up confirmed that dependency audit results require path,
+development-versus-runtime, bundle, compatibility, and remediation review. The
+current lockfile is audit-clean after a compatible development-tool dependency
+repair within the existing parent version range. No forced upgrade or
+`npm audit fix` operation was used.
+
+Dependency Graph is available, Dependabot Alerts are enabled, and Dependabot
+Security Updates are enabled. The TypeScript `>=7.0.0` Dependabot ignore
+remains a narrow, development-only exception. Its owner is the repository
+maintainers; manual coverage is the documented audit before releases and at
+least quarterly, plus review when a TypeScript 7+ advisory appears. Revisit it
+when a compatible TypeScript 7+ migration or other security trigger is ready.
+Issue #45 does not require that migration and does not change issue #57's
+scope.
+
 ## Obsidian development baseline
 
 The direct `obsidian` development dependency is pinned to exact version
@@ -156,9 +173,11 @@ than assuming Dependabot will propose it automatically.
 
 ## Baseline validation
 
-The reviewed npm baseline was validated from a clean install with npm
-`10.9.2` on Node.js `22.14.0`; the exact Node.js `22.13.0` minimum and
-Node.js `24.x` are validated by the CI matrix:
+The reviewed npm baseline was validated from clean installs with npm `10.9.2`
+on Node.js `22.14.0`. The issue #45 lockfile repair was authored and validated
+with the exact Node.js `22.13.0` and npm `10.9.2` baseline, and local
+validation also covered Node.js `24.x`; hosted CI remains the repository's
+matrix validation for pull requests:
 
 The repository minimum of Node.js `22.13.0` is intentional: the locked
 development dependency `eslint-visitor-keys@5.0.1` supports Node.js 22 from
@@ -174,8 +193,7 @@ that exact minimum as well as Node.js `24.x`.
   `3.1.5`; and `js-yaml` `4.3.1`.
 - `npm ls obsidian eslint-plugin-obsidianmd` and `npm explain obsidian`
   confirmed the documented Obsidian resolution and dependency paths.
-- `npm run version:check` and `npm run check` passed. The quality check covered
-  formatting, linting, 119 tests, type-checking, and the production build.
+- `npm run version:check` and `npm run check` passed.
 - A separate `npm run build` followed by a search of `main.js` found no
   `brace-expansion`, `fast-uri`, `js-yaml`, `ajv`, `eslint`, or
   `typescript-eslint` package content; `obsidian` remained an external import.
