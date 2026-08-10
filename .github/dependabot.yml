@@ -17,12 +17,15 @@ updates:
           - dependency-name: lint-staged
             update-types:
                 - version-update:semver-major
-          # Remove only after intentionally raising the Node.js minimum and updating CI, development, and compatibility documentation; see #48 and #51.
+          # Re-evaluate this deferral whenever the minimum supported Node.js major changes.
+          # Keep @types/node aligned with that minimum; when raising the baseline, update
+          # @types/node to the matching major before deciding whether this major-update
+          # deferral can be removed or must be retained. See #48 and #51.
           - dependency-name: '@types/node'
             update-types:
                 - version-update:semver-major
           # This version-range ignore also suppresses TypeScript 7+ security updates; keep it visible and revisit with #45.
-          # Remove only after the #45 security review and a coordinated TypeScript 7+ compiler, linting, build, and configuration migration; see #50 and #51.
+          # Remove or narrow only after the #45 security review and a coordinated TypeScript 7+ compiler, linting, build, and configuration migration; see #50 and #51.
           - dependency-name: typescript
             versions:
                 - '>=7.0.0'

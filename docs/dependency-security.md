@@ -149,10 +149,10 @@ pull requests.
 This is a deliberate, narrow exception for the development-only TypeScript
 toolchain, not evidence that TypeScript 7+ is safe to ignore indefinitely. The
 exception must be re-evaluated under issue [#45](https://github.com/FerdiHS/devradar/issues/45)
-and removed when the TypeScript 7+ migration is compatible and its security
-coverage has been verified. Until then, maintainers must treat a TypeScript
-7+ advisory as an explicit manual review item rather than assuming Dependabot
-will propose it automatically.
+and removed or narrowed as appropriate when the TypeScript 7+ migration is
+compatible and its security coverage has been verified. Until then, maintainers
+must treat a TypeScript 7+ advisory as an explicit manual review item rather
+than assuming Dependabot will propose it automatically.
 
 ## Baseline validation
 
