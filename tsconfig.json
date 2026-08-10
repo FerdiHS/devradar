@@ -8,12 +8,13 @@
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"isolatedModules": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
 		"allowSyntheticDefaultImports": true,
+		"types": ["node"],
 		"lib": ["ES2021", "DOM"]
 	},
-	"include": ["src/**/*.ts", "tests/**/*.ts", "version-bump-core.mjs.d.ts"]
+	"include": ["src/**/*.ts", "tests/**/*.ts", "version-bump-core.d.mts"]
 }
