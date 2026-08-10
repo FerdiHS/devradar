@@ -44,28 +44,37 @@ forced major upgrade or `npm audit fix` operation is used. If a later audit
 reports a new finding, it requires the same path, compatibility, and bundle
 review before remediation or exception approval.
 
+## Issue #45 follow-up
+
+The #45 follow-up confirmed that dependency audit results require path,
+development-versus-runtime, bundle, compatibility, and remediation review. A
+compatible development-tool repair should remain within the existing parent
+range without a forced upgrade or `npm audit fix` operation.
+
+Issue #45 re-evaluated and retained the documented TypeScript `>=7.0.0`
+exception. Issue #45 does not require that migration and does not change issue
+#57's scope.
+
 ## Obsidian development baseline
 
 The direct `obsidian` development dependency is pinned to exact version
-`1.12.3`. `eslint-plugin-obsidianmd@0.4.0` declares `obsidian: "1.12.3"`, so
-the pin matches the current lint-tooling baseline and makes the type/API
-baseline reproducible while leaving future Obsidian updates to an explicit
-dependency review. It does not change plugin runtime behavior because the
-module remains external to the production bundle.
+`1.13.1`. `eslint-plugin-obsidianmd@0.4.1` declares the regular dependency
+`obsidian: "1.12.3"` and peer dependency `obsidian: "1.8.7"`, so npm resolves
+the root project through `obsidian@1.13.1` and installs a nested
+`eslint-plugin-obsidianmd/node_modules/obsidian@1.12.3` for the plugin's exact
+regular dependency. This split is development-only and does not change plugin
+runtime behavior because Obsidian remains external to the production bundle.
 
 The development type-package version is separate from the runtime
 `manifest.json` `minAppVersion`; new Obsidian API usage must be checked against
 the declared runtime minimum, which must be raised when required.
 
-The lockfile also records an upstream metadata inconsistency: the plugin's
-regular dependency is `obsidian: "1.12.3"`, while its exact peer dependency is
-`obsidian: "1.8.7"`. `npm ls obsidian eslint-plugin-obsidianmd` exits
-successfully without reporting an invalid dependency and resolves both through
-`obsidian@1.12.3`; `npm explain obsidian` confirms the root and plugin regular
-dependency paths. The selected baseline is therefore accepted as the
-compatible direct and regular dependency, with the full quality gate passing.
-Future Obsidian or lint-plugin updates must re-check both declarations rather
-than silently inheriting this inconsistency.
+`npm ls obsidian eslint-plugin-obsidianmd` exits successfully with the root
+`obsidian@1.13.1` and nested plugin `obsidian@1.12.3`; `npm explain obsidian`
+confirms both paths. The peer declaration remains `obsidian: "1.8.7"` and is
+accepted as upstream metadata for this lint plugin. Future Obsidian or
+lint-plugin updates must re-check both declarations rather than silently
+inheriting this split.
 
 ## Lockfile authoring and repair baseline
 
@@ -148,17 +157,21 @@ pull requests.
 
 This is a deliberate, narrow exception for the development-only TypeScript
 toolchain, not evidence that TypeScript 7+ is safe to ignore indefinitely. The
-exception must be re-evaluated under issue [#45](https://github.com/FerdiHS/devradar/issues/45)
-and removed or narrowed as appropriate when the TypeScript 7+ migration is
-compatible and its security coverage has been verified. Until then, maintainers
-must treat a TypeScript 7+ advisory as an explicit manual review item rather
-than assuming Dependabot will propose it automatically.
+exception was re-evaluated under issue [#45](https://github.com/FerdiHS/devradar/issues/45)
+and remains temporarily accepted. Repository maintainers own this exception.
+Revisit it when a compatible TypeScript 7+ migration is available, when a
+TypeScript 7+ security advisory is published, or when the surrounding toolchain
+or security coverage materially changes. Until then, maintainers must treat a
+TypeScript 7+ advisory as an explicit manual review item rather than assuming
+Dependabot will propose it automatically.
 
 ## Baseline validation
 
-The reviewed npm baseline was validated from a clean install with npm
-`10.9.2` on Node.js `22.14.0`; the exact Node.js `22.13.0` minimum and
-Node.js `24.x` are validated by the CI matrix:
+The reviewed npm baseline was validated from clean installs with npm `10.9.2`
+on Node.js `22.14.0`. The issue #45 lockfile repair was authored and validated
+with the exact Node.js `22.13.0` and npm `10.9.2` baseline, and local
+validation also covered Node.js `24.x`; hosted CI remains the repository's
+matrix validation for pull requests:
 
 The repository minimum of Node.js `22.13.0` is intentional: the locked
 development dependency `eslint-visitor-keys@5.0.1` supports Node.js 22 from
@@ -174,8 +187,7 @@ that exact minimum as well as Node.js `24.x`.
   `3.1.5`; and `js-yaml` `4.3.1`.
 - `npm ls obsidian eslint-plugin-obsidianmd` and `npm explain obsidian`
   confirmed the documented Obsidian resolution and dependency paths.
-- `npm run version:check` and `npm run check` passed. The quality check covered
-  formatting, linting, 119 tests, type-checking, and the production build.
+- `npm run version:check` and `npm run check` passed.
 - A separate `npm run build` followed by a search of `main.js` found no
   `brace-expansion`, `fast-uri`, `js-yaml`, `ajv`, `eslint`, or
   `typescript-eslint` package content; `obsidian` remained an external import.
