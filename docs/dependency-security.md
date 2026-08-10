@@ -64,25 +64,23 @@ scope.
 ## Obsidian development baseline
 
 The direct `obsidian` development dependency is pinned to exact version
-`1.12.3`. `eslint-plugin-obsidianmd@0.4.0` declares `obsidian: "1.12.3"`, so
-the pin matches the current lint-tooling baseline and makes the type/API
-baseline reproducible while leaving future Obsidian updates to an explicit
-dependency review. It does not change plugin runtime behavior because the
-module remains external to the production bundle.
+`1.13.1`. `eslint-plugin-obsidianmd@0.4.1` declares the regular dependency
+`obsidian: "1.12.3"` and peer dependency `obsidian: "1.8.7"`, so npm resolves
+the root project through `obsidian@1.13.1` and installs a nested
+`eslint-plugin-obsidianmd/node_modules/obsidian@1.12.3` for the plugin's exact
+regular dependency. This split is development-only and does not change plugin
+runtime behavior because Obsidian remains external to the production bundle.
 
 The development type-package version is separate from the runtime
 `manifest.json` `minAppVersion`; new Obsidian API usage must be checked against
 the declared runtime minimum, which must be raised when required.
 
-The lockfile also records an upstream metadata inconsistency: the plugin's
-regular dependency is `obsidian: "1.12.3"`, while its exact peer dependency is
-`obsidian: "1.8.7"`. `npm ls obsidian eslint-plugin-obsidianmd` exits
-successfully without reporting an invalid dependency and resolves both through
-`obsidian@1.12.3`; `npm explain obsidian` confirms the root and plugin regular
-dependency paths. The selected baseline is therefore accepted as the
-compatible direct and regular dependency, with the full quality gate passing.
-Future Obsidian or lint-plugin updates must re-check both declarations rather
-than silently inheriting this inconsistency.
+`npm ls obsidian eslint-plugin-obsidianmd` exits successfully with the root
+`obsidian@1.13.1` and nested plugin `obsidian@1.12.3`; `npm explain obsidian`
+confirms both paths. The peer declaration remains `obsidian: "1.8.7"` and is
+accepted as upstream metadata for this lint plugin. Future Obsidian or
+lint-plugin updates must re-check both declarations rather than silently
+inheriting this split.
 
 ## Lockfile authoring and repair baseline
 
