@@ -24,8 +24,8 @@ updates:
           - dependency-name: '@types/node'
             update-types:
                 - version-update:semver-major
-          # This version-range ignore also suppresses TypeScript 7+ security updates; keep it visible and revisit with #45.
-          # Remove or narrow only after the #45 security review and a coordinated TypeScript 7+ compiler, linting, build, and configuration migration; see #50 and #51.
+          # This version-range ignore also suppresses TypeScript 7+ security updates; #45 re-evaluated and temporarily retained this exception.
+          # Revisit when TypeScript 7+ migration is compatible, a TypeScript 7+ advisory appears, or toolchain/security coverage materially changes; see #45, #50, and #51.
           - dependency-name: typescript
             versions:
                 - '>=7.0.0'
