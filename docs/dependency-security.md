@@ -47,19 +47,13 @@ review before remediation or exception approval.
 ## Issue #45 follow-up
 
 The #45 follow-up confirmed that dependency audit results require path,
-development-versus-runtime, bundle, compatibility, and remediation review. The
-current lockfile is audit-clean after a compatible development-tool dependency
-repair within the existing parent version range. No forced upgrade or
-`npm audit fix` operation was used.
+development-versus-runtime, bundle, compatibility, and remediation review. A
+compatible development-tool repair should remain within the existing parent
+range without a forced upgrade or `npm audit fix` operation.
 
-Dependency Graph is available, Dependabot Alerts are enabled, and Dependabot
-Security Updates are enabled. The TypeScript `>=7.0.0` Dependabot ignore
-remains a narrow, development-only exception. Its owner is the repository
-maintainers; manual coverage is the documented audit before releases and at
-least quarterly, plus review when a TypeScript 7+ advisory appears. Revisit it
-when a compatible TypeScript 7+ migration or other security trigger is ready.
-Issue #45 does not require that migration and does not change issue #57's
-scope.
+Issue #45 re-evaluated and retained the documented TypeScript `>=7.0.0`
+exception. Issue #45 does not require that migration and does not change issue
+#57's scope.
 
 ## Obsidian development baseline
 
@@ -164,12 +158,12 @@ pull requests.
 This is a deliberate, narrow exception for the development-only TypeScript
 toolchain, not evidence that TypeScript 7+ is safe to ignore indefinitely. The
 exception was re-evaluated under issue [#45](https://github.com/FerdiHS/devradar/issues/45)
-and remains temporarily accepted. Revisit it when a compatible TypeScript 7+
-migration is available, when a TypeScript 7+ security advisory is published,
-or when the surrounding toolchain or security coverage materially changes.
-Until then, maintainers must treat a TypeScript 7+ advisory as an explicit
-manual review item rather than assuming Dependabot will propose it
-automatically.
+and remains temporarily accepted. Repository maintainers own this exception.
+Revisit it when a compatible TypeScript 7+ migration is available, when a
+TypeScript 7+ security advisory is published, or when the surrounding toolchain
+or security coverage materially changes. Until then, maintainers must treat a
+TypeScript 7+ advisory as an explicit manual review item rather than assuming
+Dependabot will propose it automatically.
 
 ## Baseline validation
 
