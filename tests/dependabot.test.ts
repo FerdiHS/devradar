@@ -13,7 +13,7 @@ const dependabotConfig = parse(
 		schedule: { interval: string };
 		ignore?: Array<{
 			'dependency-name': string;
-			'update-types': string[];
+			'update-types'?: string[];
 			versions?: string[];
 		}>;
 	}>;
@@ -36,13 +36,24 @@ describe('Dependabot configuration', () => {
 		});
 
 		const ignoredDependencies = npmUpdater?.ignore ?? [];
-		const expectedDependencyNames = ['eslint', '@eslint/js', 'lint-staged'];
+		const expectedDependencyNames = [
+			'eslint',
+			'@eslint/js',
+			'lint-staged',
+			'@types/node',
+			'typescript',
+		];
 		expect(
 			ignoredDependencies
 				.map((ignore) => ignore['dependency-name'])
 				.sort(),
 		).toEqual([...expectedDependencyNames].sort());
-		for (const dependencyName of expectedDependencyNames) {
+		for (const dependencyName of [
+			'eslint',
+			'@eslint/js',
+			'lint-staged',
+			'@types/node',
+		]) {
 			const ignoredDependency = ignoredDependencies.find(
 				(ignore) => ignore['dependency-name'] === dependencyName,
 			);
@@ -53,5 +64,12 @@ describe('Dependabot configuration', () => {
 			]);
 			expect(ignoredDependency?.versions).toBeUndefined();
 		}
+
+		const typescriptIgnore = ignoredDependencies.find(
+			(ignore) => ignore['dependency-name'] === 'typescript',
+		);
+		expect(typescriptIgnore).toBeDefined();
+		expect(typescriptIgnore?.versions).toEqual(['>=7.0.0']);
+		expect(typescriptIgnore?.['update-types']).toBeUndefined();
 	});
 });

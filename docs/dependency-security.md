@@ -136,6 +136,24 @@ The selected combination is:
 - Do not use `npm audit fix --force`. Major upgrades require a separate
   compatibility decision.
 
+## Temporary TypeScript 7+ security exception
+
+The TypeScript 7+ rule in `.github/dependabot.yml` uses an ignored version
+range because the repository must continue evaluating compatible TypeScript 6
+updates while the current compiler, TypeScript ESLint stack, build, and
+configuration remain incompatible with TypeScript 7. GitHub documents that
+ignored versions apply to both version and security updates, so this rule also
+temporarily prevents Dependabot from opening TypeScript 7+ security-update
+pull requests.
+
+This is a deliberate, narrow exception for the development-only TypeScript
+toolchain, not evidence that TypeScript 7+ is safe to ignore indefinitely. The
+exception must be re-evaluated under issue [#45](https://github.com/FerdiHS/devradar/issues/45)
+and removed or narrowed as appropriate when the TypeScript 7+ migration is
+compatible and its security coverage has been verified. Until then, maintainers
+must treat a TypeScript 7+ advisory as an explicit manual review item rather
+than assuming Dependabot will propose it automatically.
+
 ## Baseline validation
 
 The reviewed npm baseline was validated from a clean install with npm
