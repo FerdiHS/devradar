@@ -87,6 +87,10 @@ UTC RFC 3339 form:
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
 ```
 
+Sort entries by provider activity timestamp descending. When timestamps are
+equal, sort by the provider event ID ascending in lexicographic string order.
+This tie-breaker is an internal ordering key and is never rendered in the note.
+
 Do not group by date, repository, activity family, or inferred importance. Do
 not place last-sync times, rate-limit state, completeness claims, retry data,
 hidden provider IDs, or other operational metadata in the note.

@@ -189,6 +189,7 @@ requests, and must cover:
 - an unseen event whose canonical entry already exists;
 - reconstruction after missing state;
 - re-follow with retained canonical history;
+- equal timestamps ordered by ascending provider event ID;
 - rewritten or deleted entries while the person remains followed;
 - retention of seen IDs for the active follow;
 - pruning only IDs safely beyond the provider retrieval horizon without
