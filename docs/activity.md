@@ -172,31 +172,45 @@ The person-note contract supplies the entry envelope:
 The activity fragment is exactly one of these forms. There is no alternate
 wording, punctuation, field order, or link placement:
 
-| Family        | Canonical activity fragment                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Pushes        | `Push to [REPOSITORY](REPOSITORY_URL) at \`REF\``or`Push to [REPOSITORY](REPOSITORY_URL) at [\`REF\`](SOURCE_URL)` |
-| Pull requests | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                           |
-| Issues        | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                         |
+| Family        | Canonical activity fragment                                                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pushes        | `Push to [REPOSITORY](REPOSITORY_URL) at REF` when no source link is available, or `Push to [REPOSITORY](REPOSITORY_URL) at [REF](SOURCE_URL)` when one is available |
+| Pull requests | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                             |
+| Issues        | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                                           |
 
 `REPOSITORY` is the canonical `owner/name` identity and `REPOSITORY_URL` is
 `https://github.com/{REPOSITORY}`. `ACTION` is the lowercase action in the
 mapping table. `NUMBER` is the positive decimal object number. `TITLE` is the
 required provider title after single-line normalization and Markdown escaping.
-`REF` is the required validated push ref after single-line normalization and
-Markdown escaping.
+`REF` is the required validated push ref after the exact text-normalization
+algorithm below. It is never rendered as an inline code span, so a valid ref
+containing a backtick cannot terminate or alter the Markdown structure.
 
 For a push, `REF` is rendered as a Markdown link when the optional canonical
 commit or ref source link can be derived and validated; otherwise it is plain
-escaped code text. The display text remains the same in either case. Optional
+escaped text. The display text remains the same in either case. Optional
 branch, head, merge, and other metadata never changes the serialization and is
 omitted when absent.
 
-The complete entry is compared byte-for-byte after applying the note's existing
-line-ending convention. Provider text is normalized to one line before
-escaping Markdown punctuation, backslashes, and backticks; no provider text
-may introduce a link, marker, or additional Markdown structure. The canonical
-timestamp, repository identity, action, number, title, ref, and links are
-rendered in the exact order shown above.
+The exact provider-text normalization algorithm is:
+
+1. Replace every ASCII control character, including carriage return, line feed,
+   tab, and delete, with `U+FFFD`.
+2. Replace Unicode line and paragraph separators (`U+2028` and `U+2029`) with
+   `U+FFFD`.
+3. Prefix a backslash to every ASCII punctuation character in the CommonMark
+   escapable set, using the same fixed set for titles and refs. The set is
+   exactly:
+
+    ```text
+    !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+    ```
+
+The algorithm is applied once, in order, and never uses inline code formatting
+for provider text. Repository identities and action words use their validated
+canonical values. The complete entry is compared byte-for-byte after applying
+the note's existing line-ending convention. No provider text may introduce a
+link, marker, or additional Markdown structure.
 
 ## Pull-request and issue rules
 
@@ -210,6 +224,11 @@ activity.
 
 Repository stars and other events not explicitly listed in the mapping table
 are outside this catalogue.
+
+Future implementation tests must include a valid ref containing a backtick, a
+backslash, Markdown punctuation, and ordinary branch names; titles containing
+the same values; and ASCII control, newline, `U+2028`, and `U+2029` input. Each
+vector must produce exactly one expected serialized line.
 
 ## Rendering boundary
 

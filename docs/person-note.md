@@ -102,10 +102,8 @@ is compared byte-for-byte for canonical reconciliation.
 GitHub-provided display text is untrusted. Before rendering it inside the
 managed section:
 
-- reduce it to a single line;
-- remove or replace newline and control content;
-- escape Markdown-significant characters for its exact output context;
-- escape text that could otherwise create a marker line;
+- apply the exact single-line normalization and ASCII punctuation escaping
+  algorithm in [`activity.md`](activity.md);
 - derive links from validated canonical GitHub identifiers or accept only URLs
   that are absolute HTTPS URLs on `github.com`, contain no credentials, and
   match the expected repository/object path from the activity contract;
