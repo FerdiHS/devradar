@@ -55,14 +55,24 @@ future activity eligibility, or a valid unsupported event/action remain
 unrecorded. A supported mapping with invalid required data fails the person's
 sync under [`github.md`](github.md) and does not advance successful state.
 
-For an eligible event absent from `seenEvents`:
+For eligible events absent from `seenEvents`:
 
-1. normalize it using [`activity.md`](activity.md);
-2. construct its canonical activity representation;
-3. inspect the valid managed section from [`person-note.md`](person-note.md);
-4. if the exact canonical entry exists, do not append it and record its event ID
-   only after state persistence succeeds;
-5. otherwise include it as new activity.
+1. normalize each event using [`activity.md`](activity.md);
+2. construct each canonical activity representation;
+3. inspect the valid managed section from [`person-note.md`](person-note.md)
+   as a multiset of exact entry occurrences;
+4. process the unseen events in the final rendering order: provider activity
+   timestamp descending, then provider event ID ascending in lexicographic
+   string order;
+5. for each event, consume at most one unused matching canonical entry
+   occurrence. If one is available, do not append another line and record its
+   event ID only after state persistence succeeds. If none is available,
+   include the event as new activity.
+
+One existing canonical line can therefore reconcile only one provider event.
+Two distinct unseen events with identical canonical rendering and one existing
+occurrence produce one reconciled event and one newly rendered occurrence. This
+preserves multiplicity without placing provider IDs in Markdown.
 
 This supports re-follow and state-save recovery without adding provider IDs to
 Markdown. If a user deletes or rewrites an already-seen entry while the follow
@@ -187,6 +197,8 @@ requests, and must cover:
 - distinct events with similar rendered facts;
 - eligible versus filtered events entering `seenEvents`;
 - an unseen event whose canonical entry already exists;
+- two distinct unseen event IDs with identical rendering and only one existing
+  canonical occurrence;
 - reconstruction after missing state;
 - re-follow with retained canonical history;
 - equal timestamps ordered by ascending provider event ID;
