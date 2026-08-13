@@ -94,9 +94,11 @@ URLs. Use these rules:
   `payload.release.html_url`, validated respectively as
   `/{repo}/discussions/{discussion.number}` and
   `/{repo}/releases/tag/{release.tag_name}`.
-- Push links may be derived from the canonical repository and ref. Branch/tag
-  create and delete mappings need only the canonical repository link because a
-  deleted ref may no longer have a resolving page.
+- Push links use `/{repo}/commit/{payload.head}` when `payload.head` is a
+  valid commit ID. Otherwise, a `refs/heads/{name}` or `refs/tags/{name}` ref
+  uses `/{repo}/tree/{name}`; an unrecognized ref omits this optional link.
+  Branch/tag create and delete mappings need only the canonical repository
+  link because a deleted ref may no longer have a resolving page.
 
 For every provider URL, require HTTPS, the exact host `github.com`, no
 credentials or query string, and an exact repository/object path after URL
