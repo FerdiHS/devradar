@@ -126,8 +126,8 @@ as DevRadar-owned quota.
 
 ## Rate-limit and retry behavior
 
-A recognized primary or secondary rate-limit response is provider-wide for the
-current Sync All run:
+A recognized primary or secondary rate-limit response, normally returned as
+HTTP `403` or `429`, is provider-wide for the current Sync All run:
 
 1. honor `Retry-After` when present;
 2. otherwise, when `x-ratelimit-remaining` is zero, honor

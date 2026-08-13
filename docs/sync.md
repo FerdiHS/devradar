@@ -135,9 +135,9 @@ Changing a future global activity eligibility configuration likewise invalidates
 affected provider cache state while preserving notes and deduplication state.
 Schema v1 has no such user-facing activity configuration.
 
-Changing a note path preserves all sync and deduplication continuity and does
-not migrate or rewrite the old note. Only future unseen activity is written to
-the new destination.
+Changing a note path preserves all sync, deduplication, successful-sync, and
+provider-cache continuity and does not migrate or rewrite the old note. Only
+future unseen activity is written to the new destination.
 
 ## Overlap and Sync All
 
