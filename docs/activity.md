@@ -110,8 +110,14 @@ decoding. Locally derived links must percent-encode ref and tag components;
 raw provider text must never be interpolated into a URL.
 
 Before constructing any link, validate each repository identity as exactly two
-non-empty slash-separated segments, with no backslash, extra slash, control
-character, or segment equal to `.` or `..`. Encoded separators are invalid.
+canonical GitHub namespace segments. The owner segment must satisfy the
+canonical GitHub login character and length rules: ASCII letters, digits, and
+hyphens only, with no leading or trailing hyphen and no more than 39
+characters. The repository-name segment must contain only ASCII letters,
+digits, `.`, `-`, or `_`, and must be no more than 100 characters. Both
+segments must be non-empty; backslashes, extra slashes, control characters,
+segments equal to `.` or `..`, and encoded separators are invalid. Do not
+normalize or repair a malformed `repo.name`; fail the supported mapping.
 Validate numeric object IDs and issue/pull-request numbers as positive decimal
 integers, commit IDs as 40-character hexadecimal strings, and refs/tags as
 non-empty Git ref names without control characters, backslashes, `..`, or
@@ -229,6 +235,8 @@ Future implementation tests must include a valid ref containing a backtick, a
 backslash, Markdown punctuation, and ordinary branch names; titles containing
 the same values; and ASCII control, newline, `U+2028`, and `U+2029` input. Each
 vector must produce exactly one expected serialized line.
+Repository fixtures must also reject malformed identities containing `]`, `?`,
+`#`, `%`, invalid owner characters, or overlong components.
 
 ## Rendering boundary
 
