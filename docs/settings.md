@@ -122,11 +122,12 @@ Creating an association follows this order:
 
 1. Validate draft username, path, and tracking start.
 2. Resolve the GitHub identity and use its canonical `login`.
-3. Validate username and effective note-path uniqueness.
-4. Inspect and prepare the destination according to
+3. Require a supported user account type and persist its durable account ID.
+4. Validate username, account-ID, and effective note-path uniqueness.
+5. Inspect and prepare the destination according to
    [`person-note.md`](person-note.md).
-5. Initialize or reuse the correct same-person managed section.
-6. Persist the followed-person configuration with empty internal sync state.
+6. Initialize or reuse the correct same-person managed section.
+7. Persist the followed-person configuration with empty internal sync state.
 
 The association is not active until it can be safely persisted. If note
 initialization succeeds but settings persistence fails, do not destructively
