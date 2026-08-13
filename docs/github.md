@@ -76,6 +76,9 @@ Before requesting a next link, validate that it:
 - has host `api.github.com`;
 - targets the public user-events endpoint;
 - refers to the canonical followed username;
+- contains only the documented `page` and `per_page` query parameters, with
+  positive page numbers and `per_page` between 1 and 100;
+- contains no fragment, credentials, or other query parameters;
 - contains no unexpected origin, path, or identity.
 
 An invalid next link is a safe retrieval failure. It must not mutate the note,
