@@ -218,6 +218,8 @@ requests, and must cover:
 - reconstruction after missing state;
 - re-follow with retained canonical history;
 - equal timestamps ordered by ascending provider event ID;
+- equivalent ISO-8601 timestamps with offsets or trailing fractional zeroes
+  producing one canonical UTC RFC 3339 representation;
 - rewritten or deleted entries while the person remains followed;
 - retention of seen IDs for the active follow;
 - pruning only IDs safely beyond the provider retrieval horizon without

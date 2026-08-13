@@ -81,7 +81,7 @@ user-owned and are not maintained automatically.
 
 The managed region contains the `## DevRadar activity` heading and one flat
 Markdown list. Entries are newest-first and use the provider activity time in
-UTC RFC 3339 form:
+canonical UTC RFC 3339 form:
 
 ```md
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
@@ -90,6 +90,15 @@ UTC RFC 3339 form:
 Sort entries by provider activity timestamp descending. When timestamps are
 equal, sort by the provider event ID ascending in lexicographic string order.
 This tie-breaker is an internal ordering key and is never rendered in the note.
+
+Normalize each valid provider ISO-8601 timestamp by parsing its instant,
+converting it to UTC, and emitting `YYYY-MM-DDTHH:mm:ssZ` when the instant has
+no fractional second. When it has a fractional second, emit the same form with
+`.` followed by the significant fractional digits and a trailing `Z`; remove
+trailing fractional zeroes and never round. Thus offset forms, `.100Z`, and
+`.1Z` for the same instant serialize identically, while sub-second precision is
+preserved. Invalid timestamps are required mapping data and fail the person's
+sync.
 
 Do not group by date, repository, activity family, or inferred importance. Do
 not place last-sync times, rate-limit state, completeness claims, retry data,
