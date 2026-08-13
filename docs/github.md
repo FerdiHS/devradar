@@ -23,6 +23,14 @@ Ordinary note-path/tracking-start edits and per-sync retrieval do not perform a
 separate profile preflight. The Events request itself determines whether
 activity is currently retrievable.
 
+The identity response must provide the canonical `login`, positive numeric
+`id`, and supported account `type` before an association is persisted. The
+numeric ID is stored as the followed person's `githubAccountId`. During event
+normalization, require `event.actor.id` to equal that stored ID and require
+`event.actor.login` to equal the stored canonical username
+case-insensitively. An ID mismatch or a matching ID with a changed login is a
+person-scoped failure; never infer or silently apply a GitHub rename.
+
 Identity resolution may make at most one automatic retry for a transient
 transport failure and at most one for a `5xx` response. A failed lookup never
 creates or changes a followed-person association.
@@ -216,6 +224,7 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 
 - request URL, headers, API version, and `per_page=100`;
 - identity resolution success and failure;
+- durable account-ID binding and event actor-ID/login mismatch;
 - one-, two-, and three-page retrieval through `Link`;
 - invalid pagination origins, paths, and identities;
 - duplicate events across pages;

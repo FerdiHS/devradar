@@ -22,6 +22,7 @@ type DevRadarSettingsV1 = {
 
 type FollowedPersonV1 = {
 	username: string;
+	githubAccountId: string;
 	notePath: string;
 	trackingStart:
 		| { mode: 'from-now'; at: string }
@@ -58,13 +59,16 @@ with defaults.
 ## Followed-person identity
 
 The canonical GitHub `login` returned by the documented identity lookup is the
-MVP identity. Entered usernames are draft input until that lookup succeeds.
+user-facing MVP identity. Persist the same lookup's durable numeric GitHub user
+ID as the canonical account binding, represented as a positive decimal string
+to avoid numeric-width assumptions. Entered usernames are draft input until
+that lookup succeeds.
 
-Username uniqueness is case-insensitive. After a follow association is
-successfully committed, the username is immutable through ordinary edits. A
-wrong-account correction requires unfollowing and creating a new follow
-association; DevRadar never infers username changes or silently retargets
-notes and activity.
+Username and account-ID uniqueness are both required. After a follow
+association is successfully committed, the username, account ID, and their
+binding are immutable through ordinary edits. A wrong-account correction
+requires unfollowing and creating a new follow association; DevRadar never
+infers username changes or silently retargets notes and activity.
 
 ## Note paths
 
@@ -167,7 +171,9 @@ provider identity.
 Known schema-v1 data is rejected as a dataset when it contains:
 
 - duplicate usernames or effective note paths;
+- duplicate GitHub account IDs;
 - malformed usernames or note paths;
+- missing, malformed, or inconsistent GitHub account IDs;
 - malformed tracking-start variants or timestamps;
 - future selected dates;
 - incorrect JSON value types;
