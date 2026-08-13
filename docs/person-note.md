@@ -1,0 +1,181 @@
+# DevRadar person-note specification
+
+This document resolves the person-note and managed-section contract for
+[Issue #61](https://github.com/FerdiHS/devradar/issues/61). It defines the
+Markdown contract only; it does not implement a parser, renderer, or Obsidian
+vault adapter.
+
+## Ownership
+
+DevRadar owns only the content between its canonical managed-section markers.
+Everything outside that range is user-owned, including headings, frontmatter,
+profile links, observations, whitespace, and line endings.
+
+DevRadar must preserve outside content exactly, must not overwrite an entire
+existing note, and must never automatically delete, move, rename, or recreate
+a note after it has been associated.
+
+## Canonical markers
+
+Use standalone HTML comments with no format-version attribute:
+
+```md
+<!-- devradar:begin github="octocat" -->
+
+...
+<!-- devradar:end github="octocat" -->
+```
+
+The marker username binds the section to one GitHub identity. Username
+comparison is case-insensitive, so `OctoCat` and `octocat` identify the same
+person. Casing may be rendered canonically without creating an ownership
+conflict.
+
+A writable associated note must contain exactly one well-formed, correctly
+ordered, identity-matching pair. Fail closed without mutation for partial,
+duplicated, nested, reversed, mismatched, malformed, foreign, or otherwise
+ambiguous markers. Never infer boundaries from headings, blank lines, or
+activity content, and never repair markers automatically.
+
+## New-note template
+
+A newly created person note contains only the required identity information and
+the managed section:
+
+```md
+# octocat
+
+GitHub: [@octocat](https://github.com/octocat)
+
+<!-- devradar:begin github="octocat" -->
+
+## DevRadar activity
+
+_No activity recorded by DevRadar yet._
+<!-- devradar:end github="octocat" -->
+```
+
+Do not copy display names, bios, avatars, locations, employment information,
+or other profile metadata. After creation, the heading and profile line are
+user-owned and are not maintained automatically.
+
+## Managed presentation
+
+The managed region contains the `## DevRadar activity` heading and one flat
+Markdown list. Entries are newest-first and use the provider activity time in
+UTC RFC 3339 form:
+
+```md
+- `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
+```
+
+Do not group by date, repository, activity family, or inferred importance. Do
+not place last-sync times, rate-limit state, completeness claims, retry data,
+hidden provider IDs, or other operational metadata in the note.
+
+The exact factual fields and source links for each family are owned by
+[`activity.md`](activity.md).
+
+## External text and links
+
+GitHub-provided display text is untrusted. Before rendering it inside the
+managed section:
+
+- reduce it to a single line;
+- remove or replace newline and control content;
+- escape Markdown-significant characters for its exact output context;
+- treat marker-like text as ordinary escaped content;
+- derive links from validated canonical GitHub identifiers or validate URLs
+  against the approved GitHub contract;
+- keep all output inside the identified managed range.
+
+Use the smallest field-specific rules required by the canonical output. Do not
+create a generic fuzzy sanitization layer.
+
+## Association lifecycle
+
+Inspect the note before changing it.
+
+- A marker-free existing note may receive one managed section at EOF during
+  explicit initial association.
+- One valid same-person section is reused; a second section is never appended.
+- A foreign-person section rejects association without changing the note.
+- After association, missing markers are an error rather than permission to
+  recreate the section.
+- A missing associated note causes person-scoped sync failure rather than
+  automatic recreation.
+- Users may edit content inside a valid managed section, but DevRadar may
+  regenerate the entire managed content later.
+
+Changing a configured note path is an explicit reassociation governed by the
+settings contract. It does not move or migrate the old note.
+
+## Preservation and idempotence
+
+When updating an existing note, modify only the managed range and preserve all
+outside bytes and the existing line-ending convention. Newly created notes may
+use `\n` line endings.
+
+After computing the intended content, compare it with the current content. If
+identical, perform no vault write. Re-rendering the same valid note and
+normalized activity set must produce identical Markdown.
+
+Any failure to establish one unambiguous managed range occurs before mutation.
+The failed operation leaves the note unchanged and reports an actionable
+person-specific error.
+
+## Examples
+
+An unmanaged existing note is initialized only at EOF:
+
+```md
+---
+tags:
+    - developer
+---
+
+# Notes about Octocat
+
+Met at a conference.
+
+<!-- devradar:begin github="octocat" -->
+
+## DevRadar activity
+
+_No activity recorded by DevRadar yet._
+<!-- devradar:end github="octocat" -->
+```
+
+User content may surround a managed section:
+
+```md
+# octocat
+
+My own observations remain outside the managed section.
+
+<!-- devradar:begin github="octocat" -->
+
+## DevRadar activity
+
+- `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
+- `2026-08-08T16:04:22Z` — <minimal factual activity with source link>
+
+<!-- devradar:end github="octocat" -->
+
+More user-authored notes.
+```
+
+A section for `hubot` must not be associated automatically with `octocat`.
+
+## Validation checklist
+
+- The marker pair is canonical, unique, ordered, and identity-bound.
+- Association handles marker-free, same-person, foreign, and malformed notes
+  deterministically.
+- Missing markers and missing associated notes fail closed after association.
+- Outside content and line endings are preserved exactly.
+- The managed list is flat, newest-first, and UTC-timestamped.
+- Provider text and links cannot escape the managed section.
+- Hidden per-entry metadata is absent.
+- Identical output causes no vault write.
+- Repeated rendering is idempotent.

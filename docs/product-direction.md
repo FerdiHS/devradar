@@ -196,19 +196,18 @@ The initial MVP does not include:
 
 Repositories, organisations, authentication, scheduling, and additional clients require separate validation and later issues.
 
-## Deferred specifications
+## Follow-up specifications
 
-This product contract intentionally does not define:
+The product contract remains authoritative for product scope and boundaries.
+The following focused specifications now define the previously deferred
+contracts without changing those product decisions:
 
-- the exact activity catalogue and default enabled types;
-- the complete person-note template;
-- managed-marker syntax;
-- the persisted settings schema;
-- GitHub event mapping;
-- deduplication and sync-state design;
-- detailed error and rate-limit behaviour;
-- persistence interfaces or GitHub API adapters;
-- layered architecture;
-- the implementation plan.
+- [activity catalogue and GitHub event mapping](activity.md);
+- [person-note and managed-section format](person-note.md);
+- [followed-person settings and lifecycle](settings.md);
+- [synchronization state, deduplication, and idempotency](sync.md);
+- [GitHub retrieval, pagination, rate limits, and failures](github.md).
 
-Each area must be addressed through a focused follow-up specification or planning issue before its implementation proceeds.
+Layered architecture and the implementation plan remain separate follow-up
+work. Runtime implementation must satisfy both this product contract and the
+focused specifications above.
