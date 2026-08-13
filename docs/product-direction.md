@@ -37,9 +37,10 @@ The MVP workflow is:
 4. Use the fixed `v0.2.0` activity subset of Pushes, Pull requests, and
    Issues. The complete people-first MVP may later configure one global set of
    enabled activity types.
-5. Manually run either:
+5. In the complete people-first MVP, manually run either:
     - **Sync all followed people**; or
     - **Sync one person**.
+      The `v0.2.0` implementation slice starts with Sync One.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
@@ -158,7 +159,9 @@ Obsidian Desktop and Mobile are both MVP requirements. DevRadar should avoid unn
 
 ## MVP success criteria
 
-The MVP is successful when it reliably:
+The complete people-first MVP is successful when it reliably satisfies the
+following criteria. The `v0.2.0` implementation slice is narrower: it uses the
+fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
