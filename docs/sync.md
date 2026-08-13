@@ -51,7 +51,9 @@ An event becomes `seenEvents` only after either:
    already present.
 
 Retrieval alone does not make an event seen. Events filtered by tracking start,
-future activity eligibility, or unsupported/invalid mapping remain unrecorded.
+future activity eligibility, or a valid unsupported event/action remain
+unrecorded. A supported mapping with invalid required data fails the person's
+sync under [`github.md`](github.md) and does not advance successful state.
 
 For an eligible event absent from `seenEvents`:
 
