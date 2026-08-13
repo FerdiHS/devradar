@@ -103,10 +103,10 @@ successful operational `skipped` outcome with the earliest permitted time
 when available. Pagination for an already-started retrieval is part of that
 same polling operation.
 
-Invalidate reusable provider response-cache state when tracking-start or a
-future global activity-eligibility change could make previously filtered
-activity eligible. A note-path change does not invalidate the ETag because it
-does not change retrieval eligibility.
+Invalidate reusable provider response-cache state for every followed person
+when tracking-start or a future global activity-eligibility change could make
+previously filtered activity eligible. A note-path change does not invalidate
+the ETag because it does not change retrieval eligibility.
 
 ## Rate-limit observation
 

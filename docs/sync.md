@@ -131,9 +131,10 @@ Changing a tracking start preserves notes, `seenEvents`, and successful-sync
 metadata, while invalidating provider response-cache state so still-visible
 events can be reconsidered. This applies in both directions.
 
-Changing a future global activity eligibility configuration likewise invalidates
-affected provider cache state while preserving notes and deduplication state.
-Schema v1 has no such user-facing activity configuration.
+Changing a future global activity eligibility configuration invalidates the
+reusable provider response-cache state for every followed person while
+preserving notes, `seenEvents`, and successful-sync metadata. Schema v1 has no
+such user-facing activity configuration.
 
 Changing a note path preserves all sync, deduplication, successful-sync, and
 provider-cache continuity and does not migrate or rewrite the old note. Only
