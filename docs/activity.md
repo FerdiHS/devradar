@@ -94,6 +94,10 @@ URLs. Use these rules:
   `payload.release.html_url`, validated respectively as
   `/{repo}/discussions/{discussion.number}` and
   `/{repo}/releases/tag/{release.tag_name}`.
+- Fork links use `payload.forkee.html_url`, validated as
+  `/{payload.forkee.full_name}`. The destination identity and URL are required
+  for a `ForkEvent` mapping; the source repository remains the event's
+  canonical repository identity.
 - Push links use `/{repo}/commit/{payload.head}` when `payload.head` is a
   valid commit ID. Otherwise, a `refs/heads/{name}` or `refs/tags/{name}` ref
   uses `/{repo}/tree/{name}`; an unrecognized ref omits this optional link.
@@ -104,6 +108,10 @@ For every provider URL, require HTTPS, the exact host `github.com`, no
 credentials or query string, and an exact repository/object path after URL
 decoding. Locally derived links must percent-encode ref and tag components;
 raw provider text must never be interpolated into a URL.
+
+Before constructing any link, validate each repository identity as exactly two
+non-empty slash-separated segments, with no backslash, extra slash, control
+character, or segment equal to `.` or `..`. Encoded separators are invalid.
 
 An invalid or missing field required by these rules makes a supported mapping
 invalid; it is not silently converted into an activity without a reliable
