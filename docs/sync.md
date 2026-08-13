@@ -88,11 +88,24 @@ Unfollowing removes that active state and creates no inactive-person tombstone.
 
 ## Per-person sync boundary
 
+Use one process-local application mutation boundary shared by Sync One, Sync
+All, follow and re-follow, note-path changes, tracking-start changes,
+unfollow, and plugin-owned settings saves. A sync acquires this boundary before
+reading its followed-person configuration and holds it through provider
+retrieval, note mutation, and sync-state persistence. A configuration
+operation holds the same boundary through validation, note preparation, and
+settings persistence. The exact mutex or API is an implementation detail.
+
+No sync may commit note or sync-state effects using a followed-person
+configuration that changed during that operation. No configuration mutation
+may commit while a sync is using the relevant configuration. Global
+`githubRequestPolicy` updates use this same boundary.
+
 A permitted per-person sync follows this logical order:
 
 ```text
-validate settings
-→ acquire global sync ownership
+acquire global application mutation ownership
+→ validate and snapshot settings
 → honor pollNotBefore
 → retrieve all required provider pages
 → normalize supported activity
@@ -157,8 +170,11 @@ future unseen activity is written to the new destination.
 
 ## Overlap and Sync All
 
-Use one process-local global synchronization ownership boundary. While Sync
-One or Sync All is running, another manual synchronization cannot start.
+The application mutation boundary also prevents a configuration mutation from
+overlapping Sync One or Sync All. While any sync is running, another sync or a
+followed-person/configuration mutation cannot start. This is a deliberately
+coarse process-local boundary for the v0.2.0 implementation; finer-grained
+ownership can be introduced only with an equivalent stale-commit guarantee.
 
 Sync All processes people sequentially. Each person is an independent commit
 boundary:
@@ -229,6 +245,10 @@ requests, and must cover:
 
 - Sync One and Sync All cannot overlap;
 - two Sync All operations cannot overlap;
+- a note-path, tracking-start, unfollow, or follow mutation cannot commit during
+  an in-flight sync;
+- a sync cannot commit after its followed-person configuration has changed;
+- global provider-policy state cannot race a settings save;
 - Sync All is sequential;
 - one failure preserves other successful people;
 - later people continue when provider policy permits;

@@ -118,6 +118,13 @@ deletes activity already recorded in a note.
 
 ## Follow lifecycle
 
+Follow, re-follow, note-path changes, tracking-start changes, unfollow, and
+plugin-owned settings saves acquire the shared process-local application
+mutation boundary defined in [`sync.md`](sync.md). The operation holds it
+through validation, any required GitHub identity lookup, note preparation, and
+settings persistence. It cannot commit while a sync is active, and a sync
+cannot commit using a configuration snapshot that this operation changed.
+
 Creating an association follows this order:
 
 1. Validate draft username, path, and tracking start.
