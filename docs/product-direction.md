@@ -34,7 +34,9 @@ The MVP workflow is:
     - from now;
     - import available recent activity; or
     - a selected date and time.
-4. Configure one global set of enabled activity types.
+4. Use the fixed `v0.2.0` activity subset of Pushes, Pull requests, and
+   Issues. The complete people-first MVP may later configure one global set of
+   enabled activity types.
 5. Manually run either:
     - **Sync all followed people**; or
     - **Sync one person**.
@@ -93,13 +95,17 @@ A newly created person note should contain only:
 
 DevRadar must not copy unnecessary personal information into a new note.
 
-The exact managed-marker syntax and complete note template are intentionally deferred to a separate specification.
+The exact managed-marker syntax and complete note template are defined in the
+[person-note specification](person-note.md).
 
 ## Activity and retention boundaries
 
 For the MVP, “meaningful activity” means a supported activity type enabled in the single global activity configuration.
 
-The exact supported activity catalogue and its default enabled types are intentionally deferred to a separate specification.
+The exact supported activity catalogue and its default enabled types are
+defined in the [activity specification](activity.md). The `v0.2.0`
+implementation slice has no activity-category setting and uses its fixed
+Pushes, Pull requests, and Issues subset.
 
 DevRadar must not use:
 
