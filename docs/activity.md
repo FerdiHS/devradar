@@ -112,6 +112,10 @@ raw provider text must never be interpolated into a URL.
 Before constructing any link, validate each repository identity as exactly two
 non-empty slash-separated segments, with no backslash, extra slash, control
 character, or segment equal to `.` or `..`. Encoded separators are invalid.
+Validate numeric object IDs and issue/pull-request numbers as positive decimal
+integers, commit IDs as 40-character hexadecimal strings, and refs/tags as
+non-empty Git ref names without control characters, backslashes, `..`, or
+`@{`. Percent-encode each ref or tag component before using it in a path.
 
 An invalid or missing field required by these rules makes a supported mapping
 invalid; it is not silently converted into an activity without a reliable
