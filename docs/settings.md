@@ -172,6 +172,3 @@ the provider contract says otherwise.
 Schema v1 contains no activity-category subscription field. The fixed activity
 scope is defined by [`activity.md`](activity.md); category controls belong to a
 future schema and milestone.
-
-- Invalid settings are rejected as a dataset and never guessed or overwritten.
-- Schema v1 has no activity-category configuration.
