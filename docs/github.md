@@ -132,11 +132,13 @@ as DevRadar-owned quota.
 A recognized primary or secondary rate-limit response, normally returned as
 HTTP `403` or `429`, is provider-wide for the current Sync All run:
 
-1. honor `Retry-After` when present;
-2. otherwise, when `x-ratelimit-remaining` is zero, honor
-   `x-ratelimit-reset`;
-3. otherwise use at least one minute as the earliest next-attempt boundary for
-   a recognized secondary limit.
+1. honor a valid future `Retry-After` value when present;
+2. otherwise, when `x-ratelimit-remaining` is zero, honor a valid future
+   `x-ratelimit-reset` value;
+3. otherwise use at least one minute as the earliest next-attempt boundary.
+
+Missing, malformed, or expired retry and reset headers use the one-minute
+fallback; they never permit another request during the current Sync All run.
 
 The manual MVP does not sleep until the boundary or retry later inside the same
 operation. The current incomplete person fails, further GitHub requests stop,
