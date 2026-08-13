@@ -91,8 +91,11 @@ Do not group by date, repository, activity family, or inferred importance. Do
 not place last-sync times, rate-limit state, completeness claims, retry data,
 hidden provider IDs, or other operational metadata in the note.
 
-The exact factual fields and source links for each family are owned by
-[`activity.md`](activity.md).
+Each entry uses the exact envelope and family-specific serialization defined by
+[`activity.md`](activity.md). Implementations must not substitute equivalent
+wording, reorder fields, or move links. The note's existing line-ending
+convention is applied to the resulting Markdown, while the entry content itself
+is compared byte-for-byte for canonical reconciliation.
 
 ## External text and links
 

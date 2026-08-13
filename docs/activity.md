@@ -161,6 +161,43 @@ personal/repository metadata.
 Provider event IDs and deduplication state are owned by the sync specification;
 they are not rendered as hidden Markdown metadata.
 
+## Canonical v0.2 activity serialization
+
+The person-note contract supplies the entry envelope:
+
+```text
+- `{UTC timestamp}` — {activity fragment}
+```
+
+The activity fragment is exactly one of these forms. There is no alternate
+wording, punctuation, field order, or link placement:
+
+| Family        | Canonical activity fragment                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Pushes        | `Push to [REPOSITORY](REPOSITORY_URL) at \`REF\``or`Push to [REPOSITORY](REPOSITORY_URL) at [\`REF\`](SOURCE_URL)` |
+| Pull requests | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                           |
+| Issues        | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                         |
+
+`REPOSITORY` is the canonical `owner/name` identity and `REPOSITORY_URL` is
+`https://github.com/{REPOSITORY}`. `ACTION` is the lowercase action in the
+mapping table. `NUMBER` is the positive decimal object number. `TITLE` is the
+required provider title after single-line normalization and Markdown escaping.
+`REF` is the required validated push ref after single-line normalization and
+Markdown escaping.
+
+For a push, `REF` is rendered as a Markdown link when the optional canonical
+commit or ref source link can be derived and validated; otherwise it is plain
+escaped code text. The display text remains the same in either case. Optional
+branch, head, merge, and other metadata never changes the serialization and is
+omitted when absent.
+
+The complete entry is compared byte-for-byte after applying the note's existing
+line-ending convention. Provider text is normalized to one line before
+escaping Markdown punctuation, backslashes, and backticks; no provider text
+may introduce a link, marker, or additional Markdown structure. The canonical
+timestamp, repository identity, action, number, title, ref, and links are
+rendered in the exact order shown above.
+
 ## Pull-request and issue rules
 
 Pull-request lifecycle actions are `opened`, `reopened`, `closed` without a
