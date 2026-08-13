@@ -52,8 +52,10 @@ returned by identity resolution. Marker comparison is case-insensitive for
 the login, but the begin/end keyword and attribute name are exact. A line
 matching either marker form inside the managed range is a nested or duplicate
 marker and makes the note ambiguous; other HTML comments are ordinary note
-content. Generated provider text must be escaped so it cannot create a marker
-line.
+content. Any HTML comment whose trimmed body begins with `devradar:begin` or
+`devradar:end` is a reserved DevRadar marker candidate; if it does not match
+the exact grammar above, it is a malformed marker and the note fails closed.
+Generated provider text must be escaped so it cannot create a marker line.
 
 ## New-note template
 
