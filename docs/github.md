@@ -130,16 +130,23 @@ as DevRadar-owned quota.
 ## Rate-limit and retry behavior
 
 A recognized primary or secondary rate-limit response, normally returned as
-HTTP `403` or `429`, is provider-wide for the current Sync All run:
+HTTP `403` or `429`, is provider-wide for the current Sync All run. Classify
+the response before choosing a future boundary:
 
-1. parse a valid non-negative `Retry-After` value as a delay in seconds and
-   honor the resulting future boundary;
-2. otherwise, when `x-ratelimit-remaining` is zero, honor a valid future
-   `x-ratelimit-reset` value;
-3. otherwise use at least one minute as the earliest next-attempt boundary.
+1. For any recognized rate limit, parse a valid non-negative `Retry-After`
+   value as a delay in seconds and honor the resulting future boundary.
+2. When `x-ratelimit-remaining` is zero, treat the response as a primary limit.
+   Honor a valid future `x-ratelimit-reset` value. If that reset value is
+   missing, malformed, or expired, the next safe primary-limit time is
+   unknown: stop the current run, do not schedule an automatic retry, and do
+   not substitute a one-minute permission.
+3. When the response is identified as a secondary limit and no valid
+   `Retry-After` is available, use at least one minute as the earliest
+   next-attempt boundary.
 
-Missing, malformed, or expired retry and reset headers use the one-minute
-fallback; they never permit another request during the current Sync All run.
+If the headers do not establish that a response is secondary, use the
+conservative unknown-primary-boundary behavior. Missing, malformed, or expired
+headers must never authorize another request during the current Sync All run.
 
 The manual MVP does not sleep until the boundary or retry later inside the same
 operation. The current incomplete person fails, further GitHub requests stop,
@@ -210,6 +217,9 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - ETag invalidation;
 - poll-interval skip without a request;
 - primary and secondary rate limits;
+- primary limits with missing, malformed, or expired reset headers do not use
+  the secondary one-minute fallback;
+- secondary limits without `Retry-After` use the one-minute fallback;
 - quota exhaustion on a final successful page;
 - page-2 and page-3 failures;
 - `404` and malformed responses;
