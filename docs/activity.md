@@ -83,15 +83,25 @@ URLs. Use these rules:
   pull-request path; its absence selects the issue path. The discriminator is
   required even though the issue number is shared by both URL forms.
 - Review, issue-comment, review-comment, and commit-comment links use the
-  corresponding `payload.*.html_url` only after validating HTTPS, host
-  `github.com`, and the expected repository/object path. The validated URL is
-  optional metadata if the provider does not supply it; its provider ID remains
-  required for a comment or review mapping.
+  corresponding `payload.*.html_url` only after validating these exact forms:
+  `/{repo}/pull/{number}#pullrequestreview-{review.id}`;
+  `/{repo}/{issues|pull}/{number}#issuecomment-{comment.id}`;
+  `/{repo}/pull/{number}#discussion_r{comment.id}`; and
+  `/{repo}/commit/{comment.commit_id}#commitcomment-{comment.id}`. The
+  validated URL is optional metadata if the provider does not supply it; its
+  provider ID remains required for a comment or review mapping.
 - Discussion and release links use `payload.discussion.html_url` and
-  `payload.release.html_url` under the same validation rule.
+  `payload.release.html_url`, validated respectively as
+  `/{repo}/discussions/{discussion.number}` and
+  `/{repo}/releases/tag/{release.tag_name}`.
 - Push links may be derived from the canonical repository and ref. Branch/tag
   create and delete mappings need only the canonical repository link because a
   deleted ref may no longer have a resolving page.
+
+For every provider URL, require HTTPS, the exact host `github.com`, no
+credentials or query string, and an exact repository/object path after URL
+decoding. Locally derived links must percent-encode ref and tag components;
+raw provider text must never be interpolated into a URL.
 
 An invalid or missing field required by these rules makes a supported mapping
 invalid; it is not silently converted into an activity without a reliable
