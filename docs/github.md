@@ -137,16 +137,16 @@ the response before choosing a future boundary:
    value as a delay in seconds and honor the resulting future boundary.
 2. When `x-ratelimit-remaining` is zero, treat the response as a primary limit.
    Honor a valid future `x-ratelimit-reset` value. If that reset value is
-   missing, malformed, or expired, the next safe primary-limit time is
-   unknown: stop the current run, do not schedule an automatic retry, and do
-   not substitute a one-minute permission.
+   missing, malformed, or expired, persist a conservative boundary at least
+   one hour after the rate-limited response. Stop the current run, do not
+   schedule an automatic retry, and do not substitute a one-minute permission.
 3. When the response is identified as a secondary limit and no valid
    `Retry-After` is available, use at least one minute as the earliest
    next-attempt boundary.
 
 If the headers do not establish that a response is secondary, use the
-conservative unknown-primary-boundary behavior. Missing, malformed, or expired
-headers must never authorize another request during the current Sync All run.
+conservative primary-boundary behavior. Missing, malformed, or expired headers
+must never authorize another request during the current Sync All run.
 
 The manual MVP does not sleep until the boundary or retry later inside the same
 operation. The current incomplete person fails, further GitHub requests stop,
@@ -187,8 +187,12 @@ contract incompatibility, it uses the provider-wide classification instead.
 
 Provider-policy boundaries such as `X-Poll-Interval`, `Retry-After`, and reset
 times may be persisted after an otherwise failed retrieval when needed to
-prevent an invalid future request. Successful ETag, deduplication, and
-`lastSuccessfulSyncAt` state may advance only after complete safe processing.
+prevent an invalid future request. Rate-limit boundaries are persisted in the
+global `githubRequestPolicy` settings state and apply to every GitHub request,
+including identity resolution and later Sync One operations. Per-person
+`X-Poll-Interval` state remains in `PersonSyncState`. Successful ETag,
+deduplication, and `lastSuccessfulSyncAt` state may advance only after complete
+safe processing.
 
 ## Outcome compatibility
 
@@ -217,9 +221,12 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - ETag invalidation;
 - poll-interval skip without a request;
 - primary and secondary rate limits;
-- primary limits with missing, malformed, or expired reset headers do not use
-  the secondary one-minute fallback;
+- primary limits with missing, malformed, or expired reset headers use the
+  persisted conservative one-hour boundary rather than the secondary one-minute
+  fallback;
 - secondary limits without `Retry-After` use the one-minute fallback;
+- a boundary observed by one operation blocks all later GitHub requests until
+  it is reached, including identity lookup and a different Sync One;
 - quota exhaustion on a final successful page;
 - page-2 and page-3 failures;
 - `404` and malformed responses;

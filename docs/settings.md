@@ -17,6 +17,7 @@ The canonical shape is:
 type DevRadarSettingsV1 = {
 	schemaVersion: 1;
 	followedPeople: Array<FollowedPersonV1>;
+	githubRequestPolicy?: GitHubRequestPolicyV1;
 };
 
 type FollowedPersonV1 = {
@@ -28,12 +29,24 @@ type FollowedPersonV1 = {
 		| { mode: 'from-date'; at: string };
 	syncState: PersonSyncState;
 };
+
+type GitHubRequestPolicyV1 = {
+	rateLimitNotBefore?: string;
+};
 ```
 
 `PersonSyncState` is the plugin-owned internal state defined by
 [`sync.md`](sync.md). User-controlled configuration and internal provider/sync
 metadata remain conceptually separate even though they are persisted in one
-followed-person record.
+followed-person record. `githubRequestPolicy` is plugin-owned global provider
+state, not followed-person configuration. Its absence means that no
+provider-wide rate-limit boundary is currently known.
+
+Every GitHub request, including identity resolution before a follow association
+exists, must consult `githubRequestPolicy.rateLimitNotBefore`. A future value
+means no request may be started and the operation returns `skipped`. A reached
+value may be cleared before the next request. Updating or removing one followed
+person must not clear this global state.
 
 Absent saved data and the known legacy value `{}` are valid empty input and
 behave as an empty schema-v1 configuration. Arbitrary non-empty unversioned
@@ -160,6 +173,7 @@ Known schema-v1 data is rejected as a dataset when it contains:
 - incorrect JSON value types;
 - unexpected fields in the strict schema;
 - structurally invalid followed-person or sync-state records.
+- malformed global GitHub request-policy state;
 
 Do not silently discard malformed records, continue with a partial dataset,
 guess repairs, choose winners for duplicates, or overwrite original malformed
@@ -172,3 +186,8 @@ the provider contract says otherwise.
 Schema v1 contains no activity-category subscription field. The fixed activity
 scope is defined by [`activity.md`](activity.md); category controls belong to a
 future schema and milestone.
+
+The implementation test matrix must cover a rate-limit boundary observed while
+following one person blocking Sync One for another person, identity lookup
+consulting the same boundary before an association exists, and unfollowing not
+clearing the boundary.
