@@ -37,6 +37,24 @@ duplicated, nested, reversed, mismatched, malformed, foreign, or otherwise
 ambiguous markers. Never infer boundaries from headings, blank lines, or
 activity content, and never repair markers automatically.
 
+### Marker grammar
+
+Each marker is a complete line with exactly this grammar:
+
+```text
+<!-- devradar:begin github="USERNAME" -->
+<!-- devradar:end github="USERNAME" -->
+```
+
+There is no leading or trailing whitespace, alternate quoting, extra
+attribute, or extra token. `USERNAME` is the non-empty canonical GitHub login
+returned by identity resolution. Marker comparison is case-insensitive for
+the login, but the begin/end keyword and attribute name are exact. A line
+matching either marker form inside the managed range is a nested or duplicate
+marker and makes the note ambiguous; other HTML comments are ordinary note
+content. Generated provider text must be escaped so it cannot create a marker
+line.
+
 ## New-note template
 
 A newly created person note contains only the required identity information and
@@ -84,9 +102,10 @@ managed section:
 - reduce it to a single line;
 - remove or replace newline and control content;
 - escape Markdown-significant characters for its exact output context;
-- treat marker-like text as ordinary escaped content;
-- derive links from validated canonical GitHub identifiers or validate URLs
-  against the approved GitHub contract;
+- escape text that could otherwise create a marker line;
+- derive links from validated canonical GitHub identifiers or accept only URLs
+  that are absolute HTTPS URLs on `github.com`, contain no credentials, and
+  match the expected repository/object path from the activity contract;
 - keep all output inside the identified managed range.
 
 Use the smallest field-specific rules required by the canonical output. Do not
