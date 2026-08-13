@@ -196,7 +196,10 @@ safe processing.
 
 ## Outcome compatibility
 
-The provider adapter supplies the sync outcome model:
+GitHub retrieval reports provider data, retrieval status, and provider-policy
+information to the application sync use case. The application sync use case,
+not the provider adapter, owns the final outcome after note and sync-state
+processing:
 
 - `updated` — complete retrieval produced new eligible activity and the note
   was committed;
