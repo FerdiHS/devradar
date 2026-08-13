@@ -68,10 +68,10 @@ This supports re-follow and state-save recovery without adding provider IDs to
 Markdown. If a user deletes or rewrites an already-seen entry while the follow
 remains active, the event remains seen and is not automatically restored.
 
-Seen IDs may be pruned only when they are safely beyond the provider's
-retrievable event horizon; pruning must never make a still-retrievable event
-duplicate. Unfollowing removes active state and creates no inactive-person
-tombstone.
+The `v0.2.0` slice retains seen IDs for the lifetime of an active follow;
+unfollowing removes that active state and creates no inactive-person tombstone.
+Pruning requires a separate contract based on a verified provider retrieval
+horizon and is not part of this slice.
 
 ## Per-person sync boundary
 
@@ -187,7 +187,7 @@ requests, and must cover:
 - reconstruction after missing state;
 - re-follow with retained canonical history;
 - rewritten or deleted entries while the person remains followed;
-- safe pruning without duplicating still-retrievable events.
+- retention of seen IDs for the active follow.
 
 ### Commit and failure ordering
 
