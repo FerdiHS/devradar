@@ -60,13 +60,13 @@ line.
 A newly created person note contains only the required identity information and
 the managed section:
 
+<!-- prettier-ignore -->
 ```md
 # octocat
 
 GitHub: [@octocat](https://github.com/octocat)
 
 <!-- devradar:begin github="octocat" -->
-
 ## DevRadar activity
 
 _No activity recorded by DevRadar yet._
@@ -150,6 +150,7 @@ person-specific error.
 
 An unmanaged existing note is initialized only at EOF:
 
+<!-- prettier-ignore -->
 ```md
 ---
 tags:
@@ -161,7 +162,6 @@ tags:
 Met at a conference.
 
 <!-- devradar:begin github="octocat" -->
-
 ## DevRadar activity
 
 _No activity recorded by DevRadar yet._
@@ -170,18 +170,17 @@ _No activity recorded by DevRadar yet._
 
 User content may surround a managed section:
 
+<!-- prettier-ignore -->
 ```md
 # octocat
 
 My own observations remain outside the managed section.
 
 <!-- devradar:begin github="octocat" -->
-
 ## DevRadar activity
 
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
 - `2026-08-08T16:04:22Z` — <minimal factual activity with source link>
-
 <!-- devradar:end github="octocat" -->
 
 More user-authored notes.
