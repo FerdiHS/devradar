@@ -220,16 +220,3 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - preservation of prior ETag, deduplication, and successful state after
   incomplete retrieval;
 - preservation of provider-policy boundaries after failed retrieval.
-
-## Validation checklist
-
-- Only the approved public GitHub REST endpoints are used.
-- Requests use `requestUrl()`, the documented headers, pinned API version, and
-  `per_page=100`.
-- Pagination is complete and next links are validated.
-- The bounded, delayed history contract is explicit.
-- ETag and poll intervals are honored without becoming activity identity.
-- Rate-limit behavior is bounded, sequential, and non-aggressive.
-- Person-scoped and provider-wide failures are distinguishable.
-- Provider-wide stops preserve completed people and skip unattempted people.
-- Outcome categories remain compatible with [`sync.md`](sync.md).

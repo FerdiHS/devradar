@@ -234,17 +234,3 @@ This specification does not implement or redefine:
   tombstones, or automatic historical-note migration;
 - automatic pruning of user-authored note content;
 - AI summaries, importance judgments, scoring, ranking, or behavioral analysis.
-
-## Validation checklist
-
-- GitHub event IDs are the primary deduplication identity.
-- Markdown contains no hidden sync identifiers.
-- Canonical reconciliation handles re-follow and state-save recovery.
-- Seen state advances only after durable note accounting.
-- Incomplete retrieval cannot mutate note or successful provider state.
-- Note writes precede newly seen and successful-sync persistence.
-- Failed state-save does not trigger destructive note rollback.
-- Tracking-start and path changes preserve the documented history invariants.
-- One process-local global boundary prevents overlapping syncs.
-- Sync All preserves successful people and distinguishes skipped people.
-- Sync One remains the only `v0.2.0` synchronization command.

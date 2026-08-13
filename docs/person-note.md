@@ -185,16 +185,3 @@ More user-authored notes.
 ```
 
 A section for `hubot` must not be associated automatically with `octocat`.
-
-## Validation checklist
-
-- The marker pair is canonical, unique, ordered, and identity-bound.
-- Association handles marker-free, same-person, foreign, and malformed notes
-  deterministically.
-- Missing markers and missing associated notes fail closed after association.
-- Outside content and line endings are preserved exactly.
-- The managed list is flat, newest-first, and UTC-timestamped.
-- Provider text and links cannot escape the managed section.
-- Hidden per-entry metadata is absent.
-- Identical output causes no vault write.
-- Repeated rendering is idempotent.

@@ -173,20 +173,5 @@ Schema v1 contains no activity-category subscription field. The fixed activity
 scope is defined by [`activity.md`](activity.md); category controls belong to a
 future schema and milestone.
 
-## Validation checklist
-
-- Schema versioning is independent from plugin SemVer.
-- Absent data and `{}` are valid empty legacy states.
-- Arbitrary non-empty unversioned data and future versions fail closed.
-- Followed people are an array with canonical identity, path, tracking start,
-  and internal sync state.
-- Username and effective path uniqueness are case-insensitive.
-- Path validation prevents absolute, escaping, network, NUL, and non-Markdown
-  paths.
-- Tracking-start modes remain distinct and use canonical UTC timestamps.
-- Follow prepares the note before persisting the association.
-- Path changes preserve old notes and sync continuity.
-- Unfollow preserves notes and removes active internal state.
-- Re-follow relies on canonical reconciliation and no tombstone.
 - Invalid settings are rejected as a dataset and never guessed or overwritten.
 - Schema v1 has no activity-category configuration.

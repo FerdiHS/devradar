@@ -181,16 +181,3 @@ Provider text is untrusted and must be reduced to the smallest field-specific
 single-line representation required by that contract. Markdown escaping,
 marker containment, and validated source links are note-rendering concerns,
 not reasons to retain raw provider payloads.
-
-## Validation checklist
-
-- The complete nine-family catalogue is present.
-- The fixed `v0.2.0` subset is exactly Pushes, Pull requests, and Issues.
-- Every supported row has required and optional fields.
-- Comments, Discussions, and Create/Delete branch/tag semantics are explicit.
-- Merged and closed-without-merge pull requests are distinct.
-- One `PushEvent` is one activity.
-- Unknown event types and unsupported actions are safely ignored.
-- Required mapping data cannot silently disappear.
-- All mappings use documented GitHub Events API inputs.
-- No wording promises exhaustive, real-time, or complete history.
