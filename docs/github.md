@@ -33,6 +33,12 @@ equal the stored canonical username case-insensitively. An ID mismatch or a
 matching ID with a changed login is a person-scoped failure; never infer or
 silently apply a GitHub rename.
 
+Provider identity IDs and event actor IDs must be positive integer JSON values.
+Convert each to the same canonical positive-decimal string representation by
+serializing base-10 digits without leading zeroes before persistence or
+comparison. Fractional, negative, non-integer, or otherwise malformed IDs are
+invalid required identity data.
+
 Identity resolution may make at most one automatic retry for a transient
 transport failure and at most one for a `5xx` response. A failed lookup never
 creates or changes a followed-person association.
