@@ -37,9 +37,9 @@ lifecycle, reconciliation, or persistence policy.
 This is a conceptual boundary, not a prescribed directory tree or a request to
 create interfaces in advance. Application-owned capability ports stay narrow
 and are introduced only when a use case needs them, such as retrieving a
-resolved identity and complete activity result, reading or replacing a
-managed note section, and loading or saving validated settings/state. Their
-concrete shape is an implementation decision that must preserve these
+resolved identity and complete activity result, reading note text and safely
+applying a core-computed note transformation, and loading or saving validated
+settings/state. Their concrete shape is an implementation decision that must preserve these
 boundaries. The application owns these ports, each adapter implements the
 ports applicable to its boundary, and adapters never call each other directly;
 the application coordinates their work.
@@ -74,9 +74,9 @@ existing files before a use case requires it.
   validation, and conversion of provider responses into the data and
   provider-policy observations required by the application.
 - The **Obsidian adapter** owns vault note discovery, safe note reads/creates
-  and managed-range writes, plus loading and saving settings and plugin-owned
-  state. It confines Obsidian APIs and their persistence behavior to that
-  boundary.
+  and safe application of core-computed managed-range mutations, plus loading
+  and saving settings and plugin-owned state. It confines Obsidian APIs and
+  their persistence behavior to that boundary.
 - The **plugin lifecycle** loads, wires, and disposes the composed
   application. It remains lifecycle-only.
 - The **UI** collects explicit user actions and presents application results.
@@ -93,10 +93,13 @@ sanitized fixtures and capability substitutes rather than live GitHub calls or
 a vault; adapter tests cover the provider and Obsidian boundary behavior they
 own.
 
-Raw GitHub payloads and HTTP details stop at the GitHub adapter. Vault writes,
-note bytes, and settings persistence stop at the Obsidian adapter. The domain
-and application exchange validated, minimal information rather than leaking
-either external representation across the boundary.
+Raw GitHub payloads and HTTP details stop at the GitHub adapter. Obsidian
+runtime objects, vault handles, and persistence mechanics stop at the Obsidian
+adapter. Plain Markdown note text may cross the application port into core
+logic so managed-section parsing, validation, rendering, and safe
+transformation remain pure and testable without Obsidian. The domain and
+application exchange validated, minimal information rather than leaking
+external representations across the boundary.
 
 ## Shared mutation boundary
 
