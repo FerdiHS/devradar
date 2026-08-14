@@ -99,9 +99,10 @@ Raw GitHub payloads and HTTP details stop at the GitHub adapter. Obsidian
 runtime objects, vault handles, and persistence mechanics stop at the Obsidian
 adapter. Plain Markdown note text may cross the application port into core
 logic so managed-section parsing, validation, rendering, and safe
-transformation remain pure and testable without Obsidian. The domain and
-application exchange validated, minimal information rather than leaking
-external representations across the boundary.
+transformation remain pure and testable without Obsidian. Apart from plain
+Markdown intentionally passed into core transformation logic, provider
+transport objects and platform-specific representations do not cross inward;
+core layers otherwise exchange canonical values and structured results.
 
 ## Shared mutation boundary
 
