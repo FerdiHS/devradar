@@ -16,6 +16,14 @@ action, provider event ID, provider timestamp, repository identity, minimal
 factual metadata, a safe source link where one can be derived, and limited
 provider provenance for diagnostics and reconciliation.
 
+Provider event IDs are required mapping data. Canonicalize each accepted ID as
+a positive decimal string without leading zeroes. Accept the normal GitHub
+string representation; if a numeric representation is accepted, require
+`Number.isSafeInteger(id) && id > 0` before converting it to decimal. Reject
+missing, empty, zero, signed, fractional, unsafe, non-integer, leading-zero, or
+otherwise malformed IDs and apply the provider-boundary failure policy from
+[`github.md`](github.md).
+
 The activity history is recent, bounded, delayed, and not exhaustive. DevRadar
 does not promise every commit, complete contribution history, or real-time
 collection.

@@ -32,6 +32,9 @@ type PersonSyncState = {
 All persisted timestamps use canonical UTC ISO-8601 strings. A new association
 starts with `seenEvents: []` and an empty `github` object.
 
+Each `seenEvents.id` is the canonical provider event ID defined by
+[`activity.md`](activity.md), not an unvalidated raw payload value.
+
 `lastAttemptAt` is operational metadata and need not become durable when a
 state save fails. `lastSuccessfulSyncAt` records the latest per-person sync
 whose intended effects completed safely. It is never an activity identity,
@@ -213,6 +216,8 @@ requests, and must cover:
 ### Deduplication and reconciliation
 
 - repeated IDs in one response and across pages;
+- event IDs with canonical decimal strings, leading zeroes, unsafe numeric
+  values, and other invalid representations;
 - distinct events with similar rendered facts;
 - eligible versus filtered events entering `seenEvents`;
 - an unseen event whose canonical entry already exists;
