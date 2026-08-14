@@ -187,6 +187,10 @@ scraping, webhooks, and hidden background collection. Network processing stays
 sequential in this MVP, and cross-device or distributed locking is out of
 scope; the synchronization guard is process-local only.
 
+The local-first MVP introduces no DevRadar backend, hosted database,
+telemetry or analytics, vault-data transmission, automated publication, or
+additional service beyond the documented GitHub API and Obsidian runtime.
+
 The exact `v0.2.0` Sync One slice is people-first and supports multiple
 followed people, canonical per-person note paths and tracking starts,
 follow-time identity resolution, and only Pushes, Pull requests, and Issues.
