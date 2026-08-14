@@ -5,7 +5,8 @@
 This document is the normative architecture for DevRadar's people-first MVP
 and its `v0.2.0` implementation slice. It assigns architectural ownership and
 integration boundaries; it does not require empty source directories or
-prescribe runtime APIs.
+prescribe concrete application port shapes, classes, or implementation
+interfaces.
 
 [Product direction](product-direction.md) remains authoritative for product
 scope and non-goals. Detailed activity, note, settings, synchronization, and
