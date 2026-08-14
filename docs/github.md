@@ -37,7 +37,11 @@ Provider identity IDs and event actor IDs must be positive integer JSON values.
 Convert each to the same canonical positive-decimal string representation by
 serializing base-10 digits without leading zeroes before persistence or
 comparison. Fractional, negative, non-integer, or otherwise malformed IDs are
-invalid required identity data.
+invalid required identity data. When represented as JavaScript numbers, the
+parsed value must also satisfy `Number.isSafeInteger(id) && id > 0`; otherwise
+the provider data fails closed. Implementations that preserve the raw decimal
+token may apply the same positive-integer validation without converting through
+an unsafe number.
 
 Identity resolution may make at most one automatic retry for a transient
 transport failure and at most one for a `5xx` response. A failed lookup never
@@ -232,6 +236,7 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 
 - request URL, headers, API version, and `per_page=100`;
 - identity resolution success and failure;
+- unsafe/non-safe integer IDs failing closed;
 - durable account-ID binding and event actor-ID/login mismatch;
 - organization, bot, and other unsupported identity types;
 - one-, two-, and three-page retrieval through `Link`;
