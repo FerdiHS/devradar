@@ -23,9 +23,13 @@ DevRadar is a local-first Obsidian Community Plugin for following selected GitHu
 - `docs/`: product and design docs.
 - `README.md` and `CONTRIBUTING.md`: public entry points for setup and workflow.
 
-## Dependency direction
+## Runtime data flow
 
 Keep the codebase layered so the core stays testable without Obsidian:
+
+The following progression describes runtime/data flow, not import or dependency
+ownership. See the [MVP architecture](docs/architecture.md) for the normative
+dependency direction and application-owned ports.
 
 ```text
 domain logic
