@@ -222,5 +222,6 @@ The product exclusions remain explicit: no DevRadar backend or hosted
 database, telemetry or analytics, vault-data transmission, automated
 publication, AI judgment or summaries, behavioral analysis, scoring or ranking,
 recruitment or employee monitoring, lead generation, contact enrichment,
-automated outreach, or monetization. Reconsidering an exclusion requires a
-separate product-direction decision and approved contract.
+automated outreach, bulk people discovery, or monetization. Reconsidering an
+exclusion requires a separate product-direction decision and approved
+contract.
