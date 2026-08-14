@@ -172,6 +172,13 @@ automatically overwrite a whole note, delete, move, rename, or recreate an
 associated note. Generated text and links remain contained in that managed
 range and use the detailed safe rendering rules.
 
+Existing-note mutation must operate against the current vault contents at the
+mutation boundary. Revalidate the identity-matching managed range and
+recompute/apply the pure core transformation against that content, or detect a
+stale snapshot and fail without mutation. Never apply stale offsets or stale
+whole-note output; use `Vault.process()` or an equivalent safe
+compare-and-transform operation.
+
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note
 write succeeds but a later plugin-state save fails, the changed note remains,
