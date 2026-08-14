@@ -50,7 +50,7 @@ domain logic
 - Terminology: use follow, track, and developer activity language.
 - Design: do not add empty folders or speculative abstractions.
 - Note ownership: the user owns everything except the DevRadar-managed section.
-- Note safety: preserve all user content outside DevRadar-managed sections; never automatically delete, rename, move, or overwrite whole notes; stop on missing, duplicated, malformed, or ambiguous markers.
+- Note safety: preserve all user content outside DevRadar-managed sections; never automatically delete, rename, move, or overwrite whole notes; fail closed on missing markers after association, or on duplicated, malformed, foreign, or ambiguous markers; allow marker-free existing notes to be initialized only during explicit association according to the person-note contract.
 - Obsidian APIs: use safe vault APIs for note operations.
 - GitHub APIs: use documented GitHub REST APIs through `requestUrl()` for the unauthenticated MVP; do not use GraphQL, Octokit, scraping, or webhooks.
 - Rate limits: respect GitHub rate-limit and retry headers; do not bypass them.
