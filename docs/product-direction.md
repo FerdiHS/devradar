@@ -217,6 +217,9 @@ contracts without changing those product decisions:
 - [synchronization state, deduplication, and idempotency](sync.md);
 - [GitHub retrieval, pagination, rate limits, and failures](github.md).
 
-Layered architecture and the implementation plan remain separate follow-up
-work. Runtime implementation must satisfy both this product contract and the
-focused specifications above.
+The [MVP architecture](architecture.md) defines the current technical
+integration boundaries without changing this product contract or its scope.
+[Future directions](future-directions.md) are explicitly non-normative
+possibilities and cannot change product decisions without separate approval.
+Runtime implementation must satisfy this product contract, the focused
+specifications above, and the current architecture.

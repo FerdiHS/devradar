@@ -23,3 +23,5 @@ guide.
 
 - [Contributor guide](CONTRIBUTING.md)
 - [Product direction](docs/product-direction.md)
+- [MVP architecture](docs/architecture.md)
+- [Future directions (non-normative)](docs/future-directions.md)

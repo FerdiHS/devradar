@@ -7,6 +7,7 @@ DevRadar is a local-first Obsidian Community Plugin for following selected GitHu
 ## Canonical docs
 
 - [Product direction](docs/product-direction.md)
+- [MVP architecture](docs/architecture.md)
 - [README](README.md)
 - [Contributing](CONTRIBUTING.md)
 
