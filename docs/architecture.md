@@ -219,7 +219,7 @@ outside this implementation slice:
 - authentication or private GitHub activity;
 - repository or organisation tracking;
 - automatic username-change inference;
-- startup, scheduled, or real-time synchronization, including webhooks;
+- startup, scheduled, or real-time synchronization or alerts, including webhooks;
 - exhaustive-history mechanisms;
 - cross-device or distributed locking;
 - standalone CLI support or additional clients.
