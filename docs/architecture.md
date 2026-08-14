@@ -63,9 +63,10 @@ existing files before a use case requires it.
 
 ## Responsibilities and testability
 
-- The **domain** owns provider-independent activity meaning, canonical
-  identity/reconciliation rules, tracking eligibility, and managed-content
-  decisions as defined by the detailed contracts.
+- The **domain** owns the canonical activity representation, followed-person
+  state, tracking-start comparisons, activity filtering, deterministic
+  ordering, deduplication decisions, sync-state transition rules, and
+  managed-section parsing/rendering, as defined by the detailed contracts.
 - The **application** owns follow lifecycle orchestration, Sync One ordering,
   outcomes, mutation ownership, and the commit ordering between retrieval,
   note mutation, and persisted state.
