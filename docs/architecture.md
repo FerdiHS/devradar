@@ -198,9 +198,25 @@ It includes complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
+## Deferred after `v0.2.0`
+
 Sync All and the eventual global activity-family configuration are approved
-post-`v0.2.0` work; their implementation, along with other post-`v0.2.0` work,
-is explicitly deferred. Product-excluded themes—including AI judgment,
-scoring, recruitment or employee monitoring, outreach, lead generation,
-monetization, and hosted or telemetry-based features—remain non-goals unless a
-product-direction decision changes them.
+post-`v0.2.0` work; their implementation is deferred. The following are also
+outside this implementation slice:
+
+- additional activity families beyond Pushes, Pull requests, and Issues;
+- richer followed-person management UI;
+- authentication or private GitHub activity;
+- repository or organisation tracking;
+- automatic username-change inference;
+- startup, scheduled, or real-time synchronization, including webhooks;
+- exhaustive-history mechanisms;
+- cross-device or distributed locking;
+- standalone CLI support or additional clients.
+
+The product exclusions remain explicit: no DevRadar backend or hosted
+database, telemetry or analytics, vault-data transmission, automated
+publication, AI judgment or summaries, behavioral analysis, scoring or ranking,
+recruitment or employee monitoring, lead generation, contact enrichment,
+automated outreach, or monetization. Reconsidering an exclusion requires a
+separate product-direction decision and approved contract.
