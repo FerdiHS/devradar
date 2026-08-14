@@ -80,7 +80,10 @@ DevRadar must:
 - never overwrite an entire existing note;
 - never automatically delete, rename, or move a note;
 - leave unchanged notes untouched;
-- stop with an actionable error when managed markers are malformed, duplicated, missing, or ambiguous;
+- stop with an actionable error when managed markers are malformed, duplicated,
+  missing after association, foreign, or ambiguous; marker-free existing notes
+  may be initialized only during explicit association as defined by the
+  [person-note specification](person-note.md);
 - never guess how to repair damaged or ambiguous marker structure;
 - preserve successful person updates when another person fails;
 - use safe Obsidian vault APIs.
