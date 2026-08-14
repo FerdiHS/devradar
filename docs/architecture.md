@@ -191,6 +191,10 @@ scraping, webhooks, and hidden background collection. Network processing stays
 sequential in this MVP, and cross-device or distributed locking is out of
 scope; the synchronization guard is process-local only.
 
+Production dependencies remain minimal. Any future capability that genuinely
+requires desktop-only support requires a separate product and architecture
+decision rather than being introduced implicitly through an adapter.
+
 The local-first MVP introduces no DevRadar backend, hosted database,
 telemetry or analytics, vault-data transmission, automated publication, or
 additional service beyond the documented GitHub API and Obsidian runtime.
