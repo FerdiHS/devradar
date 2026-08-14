@@ -139,6 +139,11 @@ Inspect the note before changing it.
 
 - A marker-free existing note may receive one managed section at EOF during
   explicit initial association.
+- EOF initialization preserves every existing byte. Choose the first existing
+  line-ending sequence (`CRLF`, `LF`, or `CR`), or `LF` when the note has none;
+  append the minimum number of that sequence needed for the bytes immediately
+  before the new section to end with two consecutive line endings, then append
+  the canonical managed section. Existing trailing whitespace is never removed.
 - One valid same-person section whose username and account ID both match is
   reused; a second section is never appended.
 - A foreign-person section rejects association without changing the note.
@@ -167,6 +172,11 @@ normalized activity set must produce identical Markdown.
 Any failure to establish one unambiguous managed range occurs before mutation.
 The failed operation leaves the note unchanged and reports an actionable
 person-specific error.
+
+Future implementation tests must cover EOF initialization for content ending in
+zero, one, and multiple line endings, trailing spaces, and each supported line-
+ending convention. The resulting note must preserve the original prefix
+byte-for-byte and contain at least the required blank-line separation.
 
 ## Examples
 
