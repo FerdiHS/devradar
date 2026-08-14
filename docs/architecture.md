@@ -77,8 +77,9 @@ existing files before a use case requires it.
   and safe application of core-computed managed-range mutations, plus loading
   and saving settings and plugin-owned state. It confines Obsidian APIs and
   their persistence behavior to that boundary.
-- The **plugin lifecycle** loads, wires, and disposes the composed
-  application. It remains lifecycle-only.
+- The **plugin lifecycle and composition root** loads, wires, and disposes the
+  composed application. It remains thin and contains only composition,
+  command registration, and settings/UI registration.
 - The **UI** collects explicit user actions and presents application results.
   It does not interpret raw GitHub data, mutate vault content directly, or
   bypass application policy.

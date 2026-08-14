@@ -38,7 +38,9 @@ domain logic
   -> thin plugin and UI wiring
 ```
 
-- Keep `src/main.ts` lifecycle-only.
+- Keep `src/main.ts` thin: lifecycle, composition/wiring, command registration,
+  and settings/UI registration only; keep business and synchronization policy
+  in application/domain code.
 - Keep GitHub payload handling out of the domain layer.
 - Put note writing and Obsidian API calls behind adapters.
 
