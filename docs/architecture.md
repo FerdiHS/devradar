@@ -4,8 +4,8 @@
 
 This document is the normative architecture for DevRadar's people-first MVP
 and its `v0.2.0` implementation slice. It assigns architectural ownership and
-integration boundaries; it does not create a source layout, module list, or
-runtime API.
+integration boundaries; it does not require empty source directories or
+prescribe runtime APIs.
 
 [Product direction](product-direction.md) remains authoritative for product
 scope and non-goals. Detailed activity, note, settings, synchronization, and
@@ -44,6 +44,23 @@ boundaries. The application owns these ports, each adapter implements the
 ports applicable to its boundary, and adapters never call each other directly;
 the application coordinates their work.
 
+When implementation creates real functionality, these responsibilities may be
+organized along the following conceptual module boundaries:
+
+```text
+src/
+  domain/
+  application/
+  adapters/
+    github/
+    obsidian/
+  ui/
+  main.ts
+```
+
+This is guidance for ownership, not a request to create empty folders or move
+existing files before a use case requires it.
+
 ## Responsibilities and testability
 
 - The **domain** owns provider-independent activity meaning, canonical
@@ -65,6 +82,11 @@ the application coordinates their work.
 - The **UI** collects explicit user actions and presents application results.
   It does not interpret raw GitHub data, mutate vault content directly, or
   bypass application policy.
+
+Expected provider, vault, and persistence failures cross capability ports as
+structured application-facing results rather than raw transport or platform
+exceptions. Unexpected exceptions are converted to safe internal failure
+outcomes at the appropriate boundary before UI presentation.
 
 Domain and application behavior must be testable without Obsidian. Tests use
 sanitized fixtures and capability substitutes rather than live GitHub calls or
@@ -160,7 +182,10 @@ DevRadar supports Obsidian Desktop and Mobile and declares
 `isDesktopOnly: false`. The unauthenticated MVP uses Obsidian's `requestUrl()`
 with documented GitHub REST APIs. Runtime code must remain browser-compatible:
 it excludes Node.js filesystem APIs, Electron-only APIs, shell execution, and
-desktop-only dependencies.
+desktop-only dependencies, authentication, private-data access, GraphQL,
+scraping, webhooks, and hidden background collection. Network processing stays
+sequential in this MVP, and cross-device or distributed locking is out of
+scope; the synchronization guard is process-local only.
 
 The exact `v0.2.0` Sync One slice is people-first and supports multiple
 followed people, canonical per-person note paths and tracking starts,
