@@ -32,6 +32,7 @@ The following are product-direction exclusions, not endorsed roadmap items:
   scoring, or ranking;
 - recruitment or employee monitoring;
 - lead generation, contact enrichment, or automated outreach;
+- bulk people discovery;
 - monetization;
 - a hosted backend or database;
 - telemetry or analytics;
