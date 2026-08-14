@@ -181,6 +181,12 @@ stale snapshot and fail without mutation. Never apply stale offsets or stale
 whole-note output; use `Vault.process()` or an equivalent safe
 compare-and-transform operation.
 
+Future implementation tests must cover a note changing between its initial read
+and commit: changes outside the managed section preserve the latest content;
+marker changes fail closed; managed-content changes are transformed from the
+current content rather than stale offsets; and a commit-time no-op performs no
+vault write and reports the actual unchanged outcome.
+
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note
 write succeeds but a later plugin-state save fails, the changed note remains,
