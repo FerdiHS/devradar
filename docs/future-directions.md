@@ -13,8 +13,6 @@ These themes may be considered independently in future work, without implying
 that any particular design or scope has been selected:
 
 - richer followed-person management;
-- a broader set of manual activity controls, including a possible Sync All
-  experience;
 - authentication and access to private activity;
 - repository and organization tracking;
 - startup, scheduled, or real-time synchronization, including webhooks;

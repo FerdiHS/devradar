@@ -194,8 +194,9 @@ It includes complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
-Sync All implementation, activity controls, and other post-`v0.2.0` work are
-explicitly deferred. Product-excluded themes—including AI judgment, scoring,
-recruitment or employee monitoring, outreach, lead generation, monetization,
-and hosted or telemetry-based features—remain non-goals unless a
+Sync All and the eventual global activity-family configuration are approved
+post-`v0.2.0` work; their implementation, along with other post-`v0.2.0` work,
+is explicitly deferred. Product-excluded themes—including AI judgment,
+scoring, recruitment or employee monitoring, outreach, lead generation,
+monetization, and hosted or telemetry-based features—remain non-goals unless a
 product-direction decision changes them.
