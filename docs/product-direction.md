@@ -106,10 +106,10 @@ The exact managed-marker syntax and complete note template are defined in the
 
 For the complete people-first MVP, “meaningful activity” means a supported
 activity type enabled in the single global activity configuration. The exact
-supported activity catalogue and its default enabled types are defined in the
-[activity specification](activity.md). The `v0.2.0` implementation slice has
-no activity-category setting and uses its fixed Pushes, Pull requests, and
-Issues subset.
+supported activity catalogue is defined in the [activity specification](activity.md);
+the eventual global activity-family configuration remains post-`v0.2.0` work.
+The `v0.2.0` implementation slice has no activity-category setting and uses its
+fixed Pushes, Pull requests, and Issues subset.
 
 DevRadar must not use:
 
