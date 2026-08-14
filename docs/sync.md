@@ -72,11 +72,14 @@ For eligible events absent from `seenEvents`:
 One existing canonical line can therefore reconcile only one provider event.
 Two distinct unseen events with identical canonical rendering and one existing
 occurrence produce one reconciled event and one newly rendered occurrence. This
-preserves multiplicity without placing provider IDs in Markdown.
+preserves multiplicity without placing provider event IDs in Markdown. The
+managed-section account ID defined by [`person-note.md`](person-note.md) is
+section-level identity metadata, not an event ID or deduplication record.
 
-This supports re-follow and state-save recovery without adding provider IDs to
-Markdown. If a user deletes or rewrites an already-seen entry while the follow
-remains active, the event remains seen and is not automatically restored.
+This supports re-follow and state-save recovery without adding provider event
+IDs or sync-state metadata to Markdown. If a user deletes or rewrites an
+already-seen entry while the follow remains active, the event remains seen and
+is not automatically restored.
 
 The active follow retains enough seen IDs to prevent duplication for activity
 that GitHub can still return. Event IDs may be pruned once they are safely

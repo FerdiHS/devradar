@@ -110,7 +110,9 @@ sync.
 
 Do not group by date, repository, activity family, or inferred importance. Do
 not place last-sync times, rate-limit state, completeness claims, retry data,
-hidden provider IDs, or other operational metadata in the note.
+hidden provider event IDs, per-entry payload metadata, or other operational
+metadata in the note. The managed-section `github-id` is required section-level
+identity metadata and is allowed; it is not an event ID or sync state.
 
 Each entry uses the exact envelope and family-specific serialization defined by
 [`activity.md`](activity.md). Implementations must not substitute equivalent
