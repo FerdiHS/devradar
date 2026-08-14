@@ -34,10 +34,13 @@ The MVP workflow is:
     - from now;
     - import available recent activity; or
     - a selected date and time.
-4. Configure one global set of enabled activity types.
-5. Manually run either:
+4. Use the fixed `v0.2.0` activity subset of Pushes, Pull requests, and
+   Issues. The complete people-first MVP may later configure one global set of
+   enabled activity types.
+5. In the complete people-first MVP, manually run either:
     - **Sync all followed people**; or
     - **Sync one person**.
+      The `v0.2.0` implementation slice starts with Sync One.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
@@ -93,13 +96,17 @@ A newly created person note should contain only:
 
 DevRadar must not copy unnecessary personal information into a new note.
 
-The exact managed-marker syntax and complete note template are intentionally deferred to a separate specification.
+The exact managed-marker syntax and complete note template are defined in the
+[person-note specification](person-note.md).
 
 ## Activity and retention boundaries
 
-For the MVP, “meaningful activity” means a supported activity type enabled in the single global activity configuration.
-
-The exact supported activity catalogue and its default enabled types are intentionally deferred to a separate specification.
+For the complete people-first MVP, “meaningful activity” means a supported
+activity type enabled in the single global activity configuration. The exact
+supported activity catalogue and its default enabled types are defined in the
+[activity specification](activity.md). The `v0.2.0` implementation slice has
+no activity-category setting and uses its fixed Pushes, Pull requests, and
+Issues subset.
 
 DevRadar must not use:
 
@@ -152,7 +159,9 @@ Obsidian Desktop and Mobile are both MVP requirements. DevRadar should avoid unn
 
 ## MVP success criteria
 
-The MVP is successful when it reliably:
+The complete people-first MVP is successful when it reliably satisfies the
+following criteria. The `v0.2.0` implementation slice is narrower: it uses the
+fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
@@ -196,19 +205,18 @@ The initial MVP does not include:
 
 Repositories, organisations, authentication, scheduling, and additional clients require separate validation and later issues.
 
-## Deferred specifications
+## Follow-up specifications
 
-This product contract intentionally does not define:
+The product contract remains authoritative for product scope and boundaries.
+The following focused specifications now define the previously deferred
+contracts without changing those product decisions:
 
-- the exact activity catalogue and default enabled types;
-- the complete person-note template;
-- managed-marker syntax;
-- the persisted settings schema;
-- GitHub event mapping;
-- deduplication and sync-state design;
-- detailed error and rate-limit behaviour;
-- persistence interfaces or GitHub API adapters;
-- layered architecture;
-- the implementation plan.
+- [activity catalogue and GitHub event mapping](activity.md);
+- [person-note and managed-section format](person-note.md);
+- [followed-person settings and lifecycle](settings.md);
+- [synchronization state, deduplication, and idempotency](sync.md);
+- [GitHub retrieval, pagination, rate limits, and failures](github.md).
 
-Each area must be addressed through a focused follow-up specification or planning issue before its implementation proceeds.
+Layered architecture and the implementation plan remain separate follow-up
+work. Runtime implementation must satisfy both this product contract and the
+focused specifications above.
