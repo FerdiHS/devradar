@@ -17,19 +17,23 @@ a note after it has been associated.
 
 ## Canonical markers
 
-Use standalone HTML comments with no format-version attribute:
+Use standalone HTML comments with no format-version attribute and with both
+the canonical username and durable GitHub account ID:
 
 ```md
-<!-- devradar:begin github="octocat" -->
+<!-- devradar:begin github="octocat" github-id="583231" -->
 
 ...
-<!-- devradar:end github="octocat" -->
+<!-- devradar:end github="octocat" github-id="583231" -->
 ```
 
-The marker username binds the section to one GitHub identity. Username
-comparison is case-insensitive, so `OctoCat` and `octocat` identify the same
-person. Casing may be rendered canonically without creating an ownership
-conflict.
+The marker username and account ID together bind the section to one GitHub
+identity. Username comparison is case-insensitive, so `OctoCat` and `octocat`
+identify the same login; the positive decimal account ID must match exactly
+after provider-ID normalization. A username match with a different account ID
+is a foreign or ambiguous section and fails closed. A marker pair without
+`github-id` is malformed under the v0.2.0 contract and is never auto-upgraded.
+Casing may be rendered canonically without creating an ownership conflict.
 
 A writable associated note must contain exactly one well-formed, correctly
 ordered, identity-matching pair. Fail closed without mutation for partial,
@@ -42,14 +46,16 @@ activity content, and never repair markers automatically.
 Each marker is a complete line with exactly this grammar:
 
 ```text
-<!-- devradar:begin github="USERNAME" -->
-<!-- devradar:end github="USERNAME" -->
+<!-- devradar:begin github="USERNAME" github-id="GITHUB_ID" -->
+<!-- devradar:end github="USERNAME" github-id="GITHUB_ID" -->
 ```
 
 There is no leading or trailing whitespace, alternate quoting, extra
 attribute, or extra token. `USERNAME` is the non-empty canonical GitHub login
-returned by identity resolution. Marker comparison is case-insensitive for
-the login, but the begin/end keyword and attribute name are exact. A line
+returned by identity resolution. `GITHUB_ID` is the positive canonical
+decimal account ID returned by identity resolution. Marker comparison is
+case-insensitive for the login and exact for the account ID, while the
+begin/end keywords and attribute names are exact. A line
 matching either marker form inside the managed range is a nested or duplicate
 marker and makes the note ambiguous; other HTML comments are ordinary note
 content. Any HTML comment whose trimmed body begins with `devradar:begin` or
@@ -68,11 +74,11 @@ the managed section:
 
 GitHub: [@octocat](https://github.com/octocat)
 
-<!-- devradar:begin github="octocat" -->
+<!-- devradar:begin github="octocat" github-id="583231" -->
 ## DevRadar activity
 
 _No activity recorded by DevRadar yet._
-<!-- devradar:end github="octocat" -->
+<!-- devradar:end github="octocat" github-id="583231" -->
 ```
 
 Do not copy display names, bios, avatars, locations, employment information,
@@ -133,8 +139,11 @@ Inspect the note before changing it.
 
 - A marker-free existing note may receive one managed section at EOF during
   explicit initial association.
-- One valid same-person section is reused; a second section is never appended.
+- One valid same-person section whose username and account ID both match is
+  reused; a second section is never appended.
 - A foreign-person section rejects association without changing the note.
+- A username-only or account-ID-mismatched section rejects association without
+  automatic migration or mutation.
 - After association, missing markers are an error rather than permission to
   recreate the section.
 - A missing associated note causes person-scoped sync failure rather than
@@ -174,11 +183,11 @@ tags:
 
 Met at a conference.
 
-<!-- devradar:begin github="octocat" -->
+<!-- devradar:begin github="octocat" github-id="583231" -->
 ## DevRadar activity
 
 _No activity recorded by DevRadar yet._
-<!-- devradar:end github="octocat" -->
+<!-- devradar:end github="octocat" github-id="583231" -->
 ```
 
 User content may surround a managed section:
@@ -189,12 +198,12 @@ User content may surround a managed section:
 
 My own observations remain outside the managed section.
 
-<!-- devradar:begin github="octocat" -->
+<!-- devradar:begin github="octocat" github-id="583231" -->
 ## DevRadar activity
 
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
 - `2026-08-08T16:04:22Z` — <minimal factual activity with source link>
-<!-- devradar:end github="octocat" -->
+<!-- devradar:end github="octocat" github-id="583231" -->
 
 More user-authored notes.
 ```
