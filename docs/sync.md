@@ -112,7 +112,7 @@ A permitted per-person sync follows this logical order:
 ```text
 acquire global application mutation ownership
 → validate and snapshot settings
-→ honor pollNotBefore
+→ honor global and per-person provider-policy boundaries
 → retrieve all required provider pages
 → normalize supported activity
 → apply tracking-start and activity eligibility
