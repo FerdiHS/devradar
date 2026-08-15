@@ -49,9 +49,9 @@ the provider data fails closed. Implementations that preserve the raw decimal
 token may apply the same positive-integer validation without converting through
 an unsafe number.
 
-Identity resolution may make at most one automatic retry for a transient
-transport failure and at most one for a `5xx` response. A failed lookup never
-creates or changes a followed-person association.
+Identity resolution may make at most one automatic retry total, and only when
+the first failure is a transient transport/network failure or a `5xx` response.
+A failed lookup never creates or changes a followed-person association.
 
 ## Request contract
 
