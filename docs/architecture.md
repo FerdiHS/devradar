@@ -73,8 +73,9 @@ existing files before a use case requires it.
   note mutation, and persisted state.
 - The **GitHub adapter** owns `requestUrl()` requests, documented REST request
   construction, HTTP status/headers, pagination-link validation, raw payload
-  validation, and conversion of provider responses into the data and
-  provider-policy observations required by the application.
+  validation, mapping raw supported GitHub events into canonical activity
+  candidates, and returning only those candidates plus required provider
+  metadata and provider-policy observations to the application.
 - The **Obsidian adapter** owns vault note discovery, rejects prohibited raw
   note-path forms before any lossy normalization, normalizes only permitted
   harmless syntax, and validates the result as vault-relative before vault
