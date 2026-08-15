@@ -116,7 +116,7 @@ acquire global application mutation ownership
 → retrieve all required provider pages
 → normalize supported activity
 → apply tracking-start and activity eligibility
-→ deduplicate canonical entries
+→ deduplicate by canonical provider event ID
 → validate the associated note and managed range
 → reconcile canonical entries against the validated managed section
 → compute final Markdown
