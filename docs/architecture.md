@@ -75,11 +75,13 @@ existing files before a use case requires it.
   construction, HTTP status/headers, pagination-link validation, raw payload
   validation, and conversion of provider responses into the data and
   provider-policy observations required by the application.
-- The **Obsidian adapter** owns vault note discovery, normalizes and validates
-  user-supplied note paths as vault-relative before vault access or persistence,
-  safely reads/creates notes, and safely applies core-computed managed-range
-  mutations, plus loading and saving settings and plugin-owned state. It
-  confines Obsidian APIs and their persistence behavior to that boundary.
+- The **Obsidian adapter** owns vault note discovery, rejects prohibited raw
+  note-path forms before any lossy normalization, normalizes only permitted
+  harmless syntax, and validates the result as vault-relative before vault
+  access or persistence. It safely reads/creates notes and applies core-computed
+  managed-range mutations, plus loading and saving settings and plugin-owned
+  state. It confines Obsidian APIs and their persistence behavior to that
+  boundary.
 - The **plugin lifecycle and composition root** loads, wires, and disposes the
   composed application. It remains thin and contains only composition,
   command registration, and settings/UI registration.
