@@ -85,6 +85,23 @@ IDs or sync-state metadata to Markdown. If a user deletes or rewrites an
 already-seen entry while the follow remains active, the event remains seen and
 is not automatically restored.
 
+## Historical retention and merge
+
+The current valid managed section is the historical baseline. A sync never
+removes an existing canonical activity entry merely because the current
+provider retrieval no longer returns it. Existing entries remain available
+after they leave GitHub's retrievable window; `seenEvents` is not a substitute
+for the factual content needed to recreate them.
+
+New eligible activities are merged into that baseline rather than rebuilding
+the managed section solely from the current provider result. Retained entries
+preserve their existing relative order. Newly rendered entries are ordered by
+provider activity timestamp descending and provider event ID ascending, then
+inserted by timestamp so the final list remains newest-first. For equal
+timestamps, newly rendered entries precede retained entries, and multiple new
+entries retain event-ID order. Absence from the current provider feed is never
+a deletion signal.
+
 The active follow retains enough seen IDs to prevent duplication for activity
 that GitHub can still return. Event IDs may be pruned once they are safely
 beyond the provider's documented retrievable horizon, so pruning must never

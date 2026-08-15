@@ -126,6 +126,10 @@ DevRadar must not promise every commit or a complete contribution history. A pus
 
 Recorded activity is retained unless the user removes it. The MVP does not automatically prune recorded history.
 
+Absence from GitHub's current retrievable feed is never a deletion signal;
+valid recorded entries remain in the managed section unless the user removes
+them or a later approved contract changes this rule.
+
 ## GitHub data and operational limitations
 
 The unauthenticated MVP must:
