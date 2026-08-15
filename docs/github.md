@@ -96,20 +96,24 @@ For a normal `200 OK`, follow the provider's `Link` header until there is no
 not stop because an event is old, known, ineligible, or produces no new
 activity.
 
-Before requesting a next link, validate that it:
+Track the effective page number for the request being processed; the initial
+Events request is page 1. Before requesting a next link, validate that it:
 
 - uses HTTPS;
 - has host `api.github.com`;
 - targets the public user-events endpoint;
 - refers to the canonical followed username;
-- contains only the documented `page` and `per_page` query parameters, with
-  positive page numbers and `per_page` between 1 and 100;
+- is the only `rel="next"` target in the response;
+- contains exactly one `page` query parameter whose positive value is the
+  current page number plus one;
+- contains exactly one `per_page` query parameter whose value is exactly `100`;
 - contains no fragment, credentials, or other query parameters;
 - contains no unexpected origin, path, or identity.
 
-An invalid next link is a safe retrieval failure. It must not mutate the note,
-advance successful state, or cause DevRadar to follow an arbitrary external
-origin.
+Repeated, backward, or skipping page targets, duplicate `rel="next"`
+relations, duplicate query parameters, parameter drift, and any other invalid
+next link are safe retrieval failures. They must not mutate the note, advance
+successful state, or cause DevRadar to follow an arbitrary external origin.
 
 All pages required for one person's attempt must succeed before that attempt
 can commit note changes, new deduplication state, or `lastSuccessfulSyncAt`.
@@ -239,6 +243,9 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - organization, bot, and other unsupported identity types;
 - one-, two-, and three-page retrieval through `Link`;
 - invalid pagination origins, paths, and identities;
+- self-loop, backward, and skipped-page `Link` targets fail closed;
+- duplicate `rel="next"` relations and duplicate query parameters fail closed;
+- `per_page` drift from 100 fails closed;
 - duplicate events across pages;
 - identical duplicate event IDs collapse, while conflicting activity under one
   event ID fails the person's sync;
