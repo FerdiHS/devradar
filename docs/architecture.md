@@ -94,10 +94,11 @@ structured application-facing results rather than raw transport or platform
 exceptions. Unexpected exceptions are converted to safe internal failure
 outcomes at the appropriate boundary before UI presentation.
 
-Domain and application behavior must be testable without Obsidian. Tests use
-sanitized fixtures and capability substitutes rather than live GitHub calls or
-a vault; adapter tests cover the provider and Obsidian boundary behavior they
-own.
+Domain and application behavior must be testable without Obsidian. Core tests
+use sanitized fixtures and capability substitutes, and automated tests never
+make live GitHub requests. Obsidian-boundary feasibility or integration tests
+may use a dedicated disposable test vault and runtime, never a personal vault;
+adapter tests cover the provider and Obsidian boundary behavior they own.
 
 Raw GitHub payloads and HTTP details stop at the GitHub adapter. Obsidian
 runtime objects, vault handles, and persistence mechanics stop at the Obsidian
