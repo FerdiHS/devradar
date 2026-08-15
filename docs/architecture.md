@@ -186,9 +186,13 @@ compare-and-transform operation.
 This freshness requirement must also preserve the no-write-on-identical-content
 contract. Implementations must not assume that returning unchanged content from
 `Vault.process()` suppresses a physical write unless the supported API documents
-that behavior. The Obsidian adapter must demonstrate a documented,
-Desktop/Mobile-safe strategy that preserves current-content validation, durable
-note accounting, and zero vault writes for true no-op transformations.
+that behavior. The combination of commit-time current-content validation and
+zero physical writes for true no-op transformations is an implementation
+feasibility gate, not an assumed adapter detail. Note-writing implementation
+must not merge until a documented Desktop/Mobile-safe Obsidian strategy
+demonstrates both properties. If the supported API cannot provide both, stop
+and revisit the person-note and synchronization contracts rather than silently
+weakening either invariant.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
