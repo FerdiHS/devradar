@@ -181,11 +181,22 @@ stale snapshot and fail without mutation. Never apply stale offsets or stale
 whole-note output; use `Vault.process()` or an equivalent safe
 compare-and-transform operation.
 
+This freshness requirement must also preserve the no-write-on-identical-content
+contract. Implementations must not assume that returning unchanged content from
+`Vault.process()` suppresses a physical write unless the supported API documents
+that behavior. The Obsidian adapter must demonstrate a documented,
+Desktop/Mobile-safe strategy that preserves current-content validation, durable
+note accounting, and zero vault writes for true no-op transformations.
+
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
 marker changes fail closed; managed-content changes are transformed from the
 current content rather than stale offsets; and a commit-time no-op performs no
-vault write and reports the actual unchanged outcome.
+vault write and reports the actual unchanged outcome. Tests must distinguish a
+callback that returns identical content from an actual vault write not being
+performed, verify that stale reconciliation cannot advance `seenEvents`, and
+verify that a current-content change invalidating earlier reconciliation is
+recomputed or fails safely.
 
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note
