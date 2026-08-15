@@ -247,7 +247,8 @@ the same values; and ASCII control, newline, `U+2028`, `U+2029`, and each
 supported bidirectional-control range above. Each vector must produce exactly
 one expected serialized line.
 Repository fixtures must also reject malformed identities containing `]`, `?`,
-`#`, `%`, invalid owner characters, or overlong components.
+`#`, `%`, consecutive hyphens, other invalid owner characters, or overlong
+components.
 
 ## Rendering boundary
 

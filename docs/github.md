@@ -122,7 +122,7 @@ The `v0.2.0` Events retrieval never sends `If-None-Match` and does not use
 ETag-based conditional requests. Each permitted Sync One begins with an
 unconditional first-page request and follows the validated `Link` chain from
 each response. A `304 Not Modified` response is not an accepted Events result
-in v0.2.0 and fails that person's retrieval closed.
+in v0.2.0 and must fail closed for that person.
 
 Honor `X-Poll-Interval` through the per-person `pollNotBefore` state. If a
 manual sync starts before that boundary, make no Events request and return a
