@@ -227,6 +227,12 @@ the same current-content guarantee. The current `0.1.0` manifest may remain
 at `1.0.0` until functional note-writing implementation ships; that release
 must raise `minAppVersion` accordingly.
 
+Every runtime Obsidian API introduced for `v0.2.0` must be verified as
+available at the declared `minAppVersion`; compiling against the current
+Obsidian type package is not evidence of backward compatibility. If a required
+API was introduced later, raise the minimum deliberately and update the
+release metadata with that compatibility decision.
+
 Production dependencies remain minimal. Any future capability that genuinely
 requires desktop-only support requires a separate product and architecture
 decision rather than being introduced implicitly through an adapter.
