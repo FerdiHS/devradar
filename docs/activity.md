@@ -212,7 +212,9 @@ The exact provider-text normalization algorithm is:
    tab, and delete, with `U+FFFD`.
 2. Replace Unicode line and paragraph separators (`U+2028` and `U+2029`) with
    `U+FFFD`.
-3. Prefix a backslash to every ASCII punctuation character in the CommonMark
+3. Replace Unicode bidirectional formatting and control characters (`U+061C`,
+   `U+200E`, `U+200F`, `U+202A`–`U+202E`, and `U+2066`–`U+2069`) with `U+FFFD`.
+4. Prefix a backslash to every ASCII punctuation character in the CommonMark
    escapable set, using the same fixed set for titles and refs. The set is
    exactly:
 
@@ -241,8 +243,9 @@ are outside this catalogue.
 
 Future implementation tests must include a valid ref containing a backtick, a
 backslash, Markdown punctuation, and ordinary branch names; titles containing
-the same values; and ASCII control, newline, `U+2028`, and `U+2029` input. Each
-vector must produce exactly one expected serialized line.
+the same values; and ASCII control, newline, `U+2028`, `U+2029`, and each
+supported bidirectional-control range above. Each vector must produce exactly
+one expected serialized line.
 Repository fixtures must also reject malformed identities containing `]`, `?`,
 `#`, `%`, invalid owner characters, or overlong components.
 
