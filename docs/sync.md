@@ -93,20 +93,23 @@ is not automatically restored.
 
 ## Historical retention and merge
 
-The current valid managed section is the historical baseline. A sync never
-removes an existing canonical activity entry merely because the current
+The set and order of existing canonical DevRadar activity entries in the
+current valid managed section form the historical activity baseline. A sync
+never removes an existing canonical activity entry merely because the current
 provider retrieval no longer returns it. Existing entries remain available
 after they leave GitHub's retrievable window; `seenEvents` is not a substitute
-for the factual content needed to recreate them.
+for the factual content needed to recreate them. Other arbitrary or
+non-canonical content in the managed section follows the existing person-note
+rule and has no historical preservation guarantee.
 
 New eligible activities are merged into that baseline rather than rebuilding
 the managed section solely from the current provider result. Retained entries
 preserve their existing relative order. Newly rendered entries are ordered by
 provider activity timestamp descending and provider event ID ascending, then
 inserted by timestamp so the final list remains newest-first. For equal
-timestamps, newly rendered entries precede retained entries, and multiple new
-entries retain event-ID order. Absence from the current provider feed is never
-a deletion signal.
+timestamps, newly rendered entries are placed after retained entries at that
+timestamp, and multiple new entries retain event-ID order. Absence from the
+current provider feed is never a deletion signal.
 
 The active follow retains enough seen IDs to prevent duplication for activity
 that GitHub can still return. Event IDs may be pruned once they are safely
@@ -248,7 +251,10 @@ requests, and must cover:
   canonical occurrence;
 - reconstruction after missing state;
 - re-follow with retained canonical history;
-- equal timestamps ordered by ascending provider event ID;
+- newly rendered equal timestamps ordered by ascending provider event ID;
+- retained entries preserve their relative order, with same-timestamp new
+  entries placed after the retained group;
+- canonical history remains when it leaves the provider's retrievable window;
 - equivalent ISO-8601 timestamps with offsets or trailing fractional zeroes
   producing one canonical UTC RFC 3339 representation;
 - rewritten or deleted entries while the person remains followed;

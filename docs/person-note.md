@@ -100,9 +100,13 @@ canonical UTC RFC 3339 form:
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
 ```
 
-Sort entries by provider activity timestamp descending. When timestamps are
-equal, sort by the provider event ID ascending in lexicographic string order.
-This tie-breaker is an internal ordering key and is never rendered in the note.
+Sort entries by provider activity timestamp descending. For a newly rendered
+set, equal timestamps sort by provider event ID ascending in lexicographic
+string order. During a sync, existing canonical entries preserve their
+relative order. Newly added entries are inserted by timestamp; when a new
+entry has the same timestamp as retained entries, place it after the retained
+group, and order multiple new entries by provider event ID ascending. These
+ordering keys are internal and are never rendered in the note.
 
 Normalize each valid provider ISO-8601 timestamp by parsing its instant,
 converting it to UTC, and emitting `YYYY-MM-DDTHH:mm:ssZ` when the instant has
