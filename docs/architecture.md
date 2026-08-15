@@ -270,10 +270,12 @@ outside this implementation slice:
 - cross-device or distributed locking;
 - standalone CLI support or additional clients.
 
-The product exclusions remain explicit: no DevRadar backend or hosted
-database, telemetry or analytics, vault-data transmission, automated
-publication, AI judgment or summaries, behavioral analysis, scoring or ranking,
-recruitment or employee monitoring, lead generation, contact enrichment,
-automated outreach, bulk people discovery, or monetization. Reconsidering an
-exclusion requires a separate product-direction decision and approved
-contract.
+The product exclusions remain explicit. This summary is non-exhaustive;
+[product direction](product-direction.md) remains authoritative for the complete
+set, including privacy and productivity boundaries. The summary includes no
+DevRadar backend or hosted database, telemetry or analytics, vault-data
+transmission, automated publication, AI judgment or summaries, behavioral
+analysis, scoring or ranking, recruitment or employee monitoring, lead
+generation, contact enrichment, automated outreach, bulk people discovery, or
+monetization. Reconsidering an exclusion requires a separate product-direction
+decision and approved contract.

@@ -26,7 +26,8 @@ that remain authoritative for the current product.
 
 ## Explicit non-goals pending product-direction decisions
 
-The following are product-direction exclusions, not endorsed roadmap items:
+Examples of product-direction exclusions particularly relevant to future scope
+include the following; this is not an exhaustive list:
 
 - AI summaries or judgment, behavioral analysis, productivity conclusions,
   scoring, or ranking;
