@@ -132,7 +132,7 @@ acquire guard
 -> validate and snapshot state
 -> honor poll boundaries
 -> retrieve all required pages
--> normalize, filter, and deduplicate
+-> normalize, filter, sort, deduplicate, and reconcile
 -> validate note
 -> compute managed-section replacement
 -> write only changed content
