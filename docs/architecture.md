@@ -254,8 +254,9 @@ telemetry or analytics, vault-data transmission, automated publication, or
 additional service beyond the documented GitHub API and Obsidian runtime.
 
 The exact `v0.2.0` Sync One slice is people-first and supports multiple
-followed people, canonical per-person note paths and tracking starts,
-follow-time identity resolution, and only Pushes, Pull requests, and Issues.
+followed people, case-insensitively unique effective note paths with each note
+associated to at most one followed person, tracking starts, follow-time identity
+resolution, and only Pushes, Pull requests, and Issues.
 It includes complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
