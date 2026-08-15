@@ -191,10 +191,10 @@ contract. Implementations must not assume that returning unchanged content from
 that behavior. The combination of commit-time current-content validation and
 zero physical writes for true no-op transformations is an implementation
 feasibility gate, not an assumed adapter detail. Note-writing implementation
-must not merge until a documented Desktop/Mobile-safe Obsidian strategy
+must not begin or merge until a documented Desktop/Mobile-safe Obsidian strategy
 demonstrates both properties. If the supported API cannot provide both, stop
-and revisit the person-note and synchronization contracts rather than silently
-weakening either invariant.
+before implementation and revisit the person-note and synchronization contracts
+rather than silently weakening either invariant.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
