@@ -112,32 +112,23 @@ advance successful state, or cause DevRadar to follow an arbitrary external
 origin.
 
 All pages required for one person's attempt must succeed before that attempt
-can commit note changes, new deduplication state, provider-cache state, or
-`lastSuccessfulSyncAt`. A page-2 or page-3 failure leaves that person at its
-previous last-known-good successful state.
+can commit note changes, new deduplication state, or `lastSuccessfulSyncAt`.
+A page-2 or page-3 failure leaves that person at its previous last-known-good
+successful state.
 
 ## Conditional requests and polling
 
-The `v0.2.0` paginated Events retrieval must not use a first-page ETag or
-`If-None-Match` response as a short circuit for the entire timeline. A
-first-page `304 Not Modified` does not establish that later pages are
-unchanged, so every required page must still be requested and validated before
-a successful sync.
-
-The `github.etag` field is reserved for a future page-aware conditional
-strategy. It must not be used in `v0.2.0` to skip later pages or advance
-successful provider-cache state without complete retrieval.
+The `v0.2.0` Events retrieval never sends `If-None-Match` and does not use
+ETag-based conditional requests. Each permitted Sync One begins with an
+unconditional first-page request and follows the validated `Link` chain from
+each response. A `304 Not Modified` response is not an accepted Events result
+in v0.2.0 and fails that person's retrieval closed.
 
 Honor `X-Poll-Interval` through the per-person `pollNotBefore` state. If a
 manual sync starts before that boundary, make no Events request and return a
 successful operational `skipped` outcome with the earliest permitted time
 when available. Pagination for an already-started retrieval is part of that
 same polling operation.
-
-Invalidate reusable provider response-cache state for every followed person
-when tracking-start or a future global activity-eligibility change could make
-previously filtered activity eligible. A note-path change does not invalidate
-reserved provider-cache state because it does not change retrieval eligibility.
 
 ## Rate-limit observation
 
@@ -218,9 +209,8 @@ times may be persisted after an otherwise failed retrieval when needed to
 prevent an invalid future request. Rate-limit boundaries are persisted in the
 global `githubRequestPolicy` settings state and apply to every GitHub request,
 including identity resolution and later Sync One operations. Per-person
-`X-Poll-Interval` state remains in `PersonSyncState`. Successful provider-cache,
-deduplication, and `lastSuccessfulSyncAt` state may advance only after complete
-safe processing.
+`X-Poll-Interval` state remains in `PersonSyncState`. Deduplication and
+`lastSuccessfulSyncAt` state may advance only after complete safe processing.
 
 ## Outcome compatibility
 
@@ -253,7 +243,7 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - identical duplicate event IDs collapse, while conflicting activity under one
   event ID fails the person's sync;
 - old/known events not terminating pagination;
-- first-page conditional responses cannot skip later pages;
+- v0.2 Events requests never send `If-None-Match`;
 - poll-interval skip without a request;
 - primary and secondary rate limits;
 - primary limits with missing, malformed, or expired reset headers use the
@@ -269,6 +259,6 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - one successful retry and repeated transient/`5xx` failures;
 - no retry for normal `4xx` or rate limits;
 - provider-wide stopping and remaining-person skipping;
-- preservation of prior provider-cache, deduplication, and successful state after
+- preservation of prior deduplication and successful state after
   incomplete retrieval;
 - preservation of provider-policy boundaries after failed retrieval.

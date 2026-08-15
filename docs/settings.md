@@ -164,9 +164,8 @@ that person until the user explicitly changes the configured path.
 ## Tracking-start changes
 
 Tracking-start changes affect future retrieval eligibility only. They never
-prune recorded Markdown activity. The sync contract invalidates reusable
-provider cache state so the next sync can reconsider still-available history
-under the new boundary.
+prune recorded Markdown activity. The next sync can reconsider still-available
+history under the new boundary.
 
 ## Unfollow and re-follow
 
