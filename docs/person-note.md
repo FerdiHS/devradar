@@ -102,11 +102,13 @@ canonical UTC RFC 3339 form:
 
 Sort entries by provider activity timestamp descending. For a newly rendered
 set, equal timestamps sort by provider event ID ascending in lexicographic
-string order. During a sync, existing canonical entries preserve their
-relative order. Newly added entries are inserted by timestamp; when a new
-entry has the same timestamp as retained entries, place it after the retained
-group, and order multiple new entries by provider event ID ascending. These
-ordering keys are internal and are never rendered in the note.
+string order. During a sync, retained canonical entries are sorted by provider
+activity timestamp descending; within each equal-timestamp retained group,
+their existing relative order is preserved. Newly added entries are inserted
+by timestamp; when a new entry has the same timestamp as retained entries,
+place it after the retained group, and order multiple new entries by provider
+event ID ascending. These ordering keys are internal and are never rendered in
+the note.
 
 Normalize each valid provider ISO-8601 timestamp by parsing its instant,
 converting it to UTC, and emitting `YYYY-MM-DDTHH:mm:ssZ` when the instant has

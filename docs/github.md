@@ -219,8 +219,8 @@ information to the application sync use case. The application sync use case,
 not the provider adapter, owns the final outcome after note and sync-state
 processing:
 
-- `updated` — complete retrieval produced new eligible activity and the note
-  was committed;
+- `updated` — complete retrieval and application processing changed the
+  managed note;
 - `unchanged` — complete retrieval produced no note change;
 - `failed` — an attempted person could not complete safely;
 - `skipped` — no person request was attempted because an approved polling,
@@ -244,6 +244,8 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
   event ID fails the person's sync;
 - old/known events not terminating pagination;
 - v0.2 Events requests never send `If-None-Match`;
+- unexpected `304 Not Modified` fails the person without note mutation or
+  successful-state advancement;
 - poll-interval skip without a request;
 - primary and secondary rate limits;
 - primary limits with missing, malformed, or expired reset headers use the
