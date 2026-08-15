@@ -233,6 +233,12 @@ Obsidian type package is not evidence of backward compatibility. If a required
 API was introduced later, raise the minimum deliberately and update the
 release metadata with that compatibility decision.
 
+A future `v0.2.0` release that raises `minAppVersion` must advance the release
+version before applying the new minimum: preserve the historical
+`versions.json` mapping from `0.1.0` to `1.0.0`, and add the new minimum under
+the v0.2.0 release version. Version synchronization must not rewrite the
+historical entry.
+
 Production dependencies remain minimal. Any future capability that genuinely
 requires desktop-only support requires a separate product and architecture
 decision rather than being introduced implicitly through an adapter.
