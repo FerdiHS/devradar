@@ -144,11 +144,11 @@ acquire guard
 -> release guard
 ```
 
-Retrieval must be complete before a note change, deduplication advance, ETag
-advance, or successful-sync state advance. A safe provider-policy boundary,
+Retrieval must be complete before a note change, deduplication advance,
+provider-cache state advance, or successful-sync state advance. A safe provider-policy boundary,
 such as a poll, retry, or rate-limit boundary, may persist after failed
 retrieval when doing so prevents an invalid later request. That exception never
-permits note mutation, deduplication state, ETag, or successful-sync state to
+permits note mutation, deduplication state, provider-cache state, or successful-sync state to
 advance after incomplete retrieval. A note write is not destructively rolled
 back if a later state save fails: the changed note remains, the operation
 reports failure, and successful-sync state does not advance. Later canonical

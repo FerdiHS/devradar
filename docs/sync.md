@@ -39,7 +39,8 @@ Each `seenEvents.id` is the canonical provider event ID defined by
 state save fails. `lastSuccessfulSyncAt` records the latest per-person sync
 whose intended effects completed safely. It is never an activity identity,
 deduplication cursor, or proof of complete history. ETag and polling state are
-provider optimizations, not activity identity.
+provider optimizations, not activity identity; the v0.2.0 ETag field is
+reserved and must not skip pages.
 
 ## Primary identity and canonical reconciliation
 
@@ -131,7 +132,7 @@ following invariants:
 
 - Required retrieval completes before note mutation or successful state
   advancement.
-- A required later-page failure leaves the note, seen IDs, ETag, and
+- A required later-page failure leaves the note, seen IDs, provider-cache state, and
   `lastSuccessfulSyncAt` at their previous last-known-good values.
 - New events are marked seen only after note accounting.
 - A note write is never destructively rolled back when a later state save
@@ -150,8 +151,7 @@ state.
 The per-person outcome is one of:
 
 - `updated`: complete successful retrieval changed the note;
-- `unchanged`: complete successful retrieval caused no note change, including a
-  valid `304 Not Modified`;
+- `unchanged`: complete successful retrieval caused no note change;
 - `failed`: an attempted operation could not complete safely;
 - `skipped`: no request was attempted because an approved provider policy or
   provider-wide block prohibited it.
