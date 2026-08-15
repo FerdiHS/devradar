@@ -33,6 +33,12 @@ equal the stored canonical username case-insensitively. An ID mismatch or a
 matching ID with a changed login is a person-scoped failure; never infer or
 silently apply a GitHub rename.
 
+Validate a draft username before constructing `/users/{username}`. The
+returned canonical `login` must satisfy the username grammar in
+[`activity.md`](activity.md) before it is persisted or used in request paths,
+profile links, or managed-note markers; do not interpolate an unvalidated
+provider value.
+
 Provider identity IDs and event actor IDs must be positive integer JSON values.
 Convert each to the same canonical positive-decimal string representation by
 serializing base-10 digits without leading zeroes before persistence or

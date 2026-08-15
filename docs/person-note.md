@@ -63,6 +63,11 @@ content. Any HTML comment whose trimmed body begins with `devradar:begin` or
 the exact grammar above, it is a malformed marker and the note fails closed.
 Generated provider text must be escaped so it cannot create a marker line.
 
+`USERNAME` must satisfy the canonical GitHub login grammar in
+[`activity.md`](activity.md): 1–39 ASCII letters, digits, or hyphens, with no
+leading or trailing hyphen. Never interpolate an unvalidated username into a
+marker.
+
 ## New-note template
 
 A newly created person note contains only the required identity information and
