@@ -183,6 +183,8 @@ Known schema-v1 data is rejected as a dataset when it contains:
 - malformed usernames or note paths;
 - missing, malformed, or inconsistent GitHub account IDs;
 - malformed tracking-start variants or timestamps;
+- duplicate `seenEvents.id` values or malformed `seenEvents.createdAt`
+  timestamps;
 - future selected dates;
 - incorrect JSON value types;
 - unexpected fields in the strict schema;

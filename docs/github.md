@@ -244,6 +244,8 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - one-, two-, and three-page retrieval through `Link`;
 - invalid pagination origins, paths, and identities;
 - duplicate events across pages;
+- identical duplicate event IDs collapse, while conflicting activity under one
+  event ID fails the person's sync;
 - old/known events not terminating pagination;
 - first-page conditional responses cannot skip later pages;
 - poll-interval skip without a request;

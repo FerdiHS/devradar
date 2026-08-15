@@ -33,7 +33,15 @@ All persisted timestamps use canonical UTC ISO-8601 strings. A new association
 starts with `seenEvents: []` and an empty `github` object.
 
 Each `seenEvents.id` is the canonical provider event ID defined by
-[`activity.md`](activity.md), not an unvalidated raw payload value.
+[`activity.md`](activity.md), not an unvalidated raw payload value. Its
+`createdAt` is the canonical provider activity timestamp, not an observation or
+persistence time. `seenEvents` contains at most one record per event ID.
+
+Duplicate persisted event IDs are malformed sync state and fail strict dataset
+validation. Within one retrieval, repeated occurrences of an event ID may be
+collapsed only when they produce the same canonical activity. If one ID maps
+to conflicting canonical activity data, the provider data is malformed; fail
+that person's sync without note mutation or successful-state advancement.
 
 `lastAttemptAt` is operational metadata and need not become durable when a
 state save fails. `lastSuccessfulSyncAt` records the latest per-person sync
