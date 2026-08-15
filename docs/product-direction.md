@@ -80,7 +80,10 @@ DevRadar must:
 - never overwrite an entire existing note;
 - never automatically delete, rename, or move a note;
 - leave unchanged notes untouched;
-- stop with an actionable error when managed markers are malformed, duplicated, missing, or ambiguous;
+- stop with an actionable error when managed markers are malformed, duplicated,
+  missing after association, foreign, or ambiguous; marker-free existing notes
+  may be initialized only during explicit association as defined by the
+  [person-note specification](person-note.md);
 - never guess how to repair damaged or ambiguous marker structure;
 - preserve successful person updates when another person fails;
 - use safe Obsidian vault APIs.
@@ -103,10 +106,10 @@ The exact managed-marker syntax and complete note template are defined in the
 
 For the complete people-first MVP, “meaningful activity” means a supported
 activity type enabled in the single global activity configuration. The exact
-supported activity catalogue and its default enabled types are defined in the
-[activity specification](activity.md). The `v0.2.0` implementation slice has
-no activity-category setting and uses its fixed Pushes, Pull requests, and
-Issues subset.
+supported activity catalogue is defined in the [activity specification](activity.md);
+the eventual global activity-family configuration remains post-`v0.2.0` work.
+The `v0.2.0` implementation slice has no activity-category setting and uses its
+fixed Pushes, Pull requests, and Issues subset.
 
 DevRadar must not use:
 
@@ -122,6 +125,10 @@ Recorded entries should contain minimal factual metadata and source links. DevRa
 DevRadar must not promise every commit or a complete contribution history. A push is treated as one activity unless a later specification explicitly changes that rule.
 
 Recorded activity is retained unless the user removes it. The MVP does not automatically prune recorded history.
+
+Absence from GitHub's current retrievable feed is never a deletion signal;
+valid recorded entries remain in the managed section unless the user removes
+them or a later approved contract changes this rule.
 
 ## GitHub data and operational limitations
 
@@ -217,6 +224,9 @@ contracts without changing those product decisions:
 - [synchronization state, deduplication, and idempotency](sync.md);
 - [GitHub retrieval, pagination, rate limits, and failures](github.md).
 
-Layered architecture and the implementation plan remain separate follow-up
-work. Runtime implementation must satisfy both this product contract and the
-focused specifications above.
+The [MVP architecture](architecture.md) defines the current technical
+integration boundaries without changing this product contract or its scope.
+[Future directions](future-directions.md) are explicitly non-normative
+possibilities and cannot change product decisions without separate approval.
+Runtime implementation must satisfy this product contract, the focused
+specifications above, and the current architecture.

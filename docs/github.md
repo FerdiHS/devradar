@@ -33,6 +33,12 @@ equal the stored canonical username case-insensitively. An ID mismatch or a
 matching ID with a changed login is a person-scoped failure; never infer or
 silently apply a GitHub rename.
 
+Validate a draft username before constructing `/users/{username}`. The
+returned canonical `login` must satisfy the username grammar in
+[`activity.md`](activity.md) before it is persisted or used in request paths,
+profile links, or managed-note markers; do not interpolate an unvalidated
+provider value.
+
 Provider identity IDs and event actor IDs must be positive integer JSON values.
 Convert each to the same canonical positive-decimal string representation by
 serializing base-10 digits without leading zeroes before persistence or
@@ -43,9 +49,9 @@ the provider data fails closed. Implementations that preserve the raw decimal
 token may apply the same positive-integer validation without converting through
 an unsafe number.
 
-Identity resolution may make at most one automatic retry for a transient
-transport failure and at most one for a `5xx` response. A failed lookup never
-creates or changes a followed-person association.
+Identity resolution may make at most one automatic retry total, and only when
+the first failure is a transient transport/network failure or a `5xx` response.
+A failed lookup never creates or changes a followed-person association.
 
 ## Request contract
 
@@ -61,7 +67,7 @@ The Events request uses `per_page=100`. The pinned API version is deliberate;
 changing it is a compatibility change, not an incidental implementation edit.
 
 The [GitHub Events REST documentation](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)
-defines the public user-events endpoint, ETag polling, `X-Poll-Interval`,
+defines the public user-events endpoint, `X-Poll-Interval`,
 pagination, a maximum recent timeline, and delayed event availability.
 
 ## Available history
@@ -90,46 +96,43 @@ For a normal `200 OK`, follow the provider's `Link` header until there is no
 not stop because an event is old, known, ineligible, or produces no new
 activity.
 
-Before requesting a next link, validate that it:
+Track the effective page number for the request being processed; the initial
+Events request is page 1. Before requesting a next link, validate that it:
 
 - uses HTTPS;
 - has host `api.github.com`;
 - targets the public user-events endpoint;
 - refers to the canonical followed username;
-- contains only the documented `page` and `per_page` query parameters, with
-  positive page numbers and `per_page` between 1 and 100;
+- is the only `rel="next"` target in the response;
+- contains exactly one `page` query parameter whose positive value is the
+  current page number plus one;
+- contains exactly one `per_page` query parameter whose value is exactly `100`;
 - contains no fragment, credentials, or other query parameters;
 - contains no unexpected origin, path, or identity.
 
-An invalid next link is a safe retrieval failure. It must not mutate the note,
-advance successful state, or cause DevRadar to follow an arbitrary external
-origin.
+Repeated, backward, or skipping page targets, duplicate `rel="next"`
+relations, duplicate query parameters, parameter drift, and any other invalid
+next link are safe retrieval failures. They must not mutate the note, advance
+successful state, or cause DevRadar to follow an arbitrary external origin.
 
 All pages required for one person's attempt must succeed before that attempt
-can commit note changes, new deduplication state, a successful ETag, or
-`lastSuccessfulSyncAt`. A page-2 or page-3 failure leaves that person at its
-previous last-known-good successful state.
+can commit note changes, new deduplication state, or `lastSuccessfulSyncAt`.
+A page-2 or page-3 failure leaves that person at its previous last-known-good
+successful state.
 
 ## Conditional requests and polling
 
-Persist the successful first-page representation's ETag and later send it as
-`If-None-Match` while the cached representation remains valid. A valid `304 Not
-Modified` is a successful unchanged result: no later pages are requested, no
-note is written, and ordinary operational success metadata may advance.
-
-An ETag observed during incomplete retrieval is not authoritative successful
-representation state.
+The `v0.2.0` Events retrieval never sends `If-None-Match` and does not use
+ETag-based conditional requests. Each permitted Sync One begins with an
+unconditional first-page request and follows the validated `Link` chain from
+each response. A `304 Not Modified` response is not an accepted Events result
+in v0.2.0 and must fail closed for that person.
 
 Honor `X-Poll-Interval` through the per-person `pollNotBefore` state. If a
 manual sync starts before that boundary, make no Events request and return a
 successful operational `skipped` outcome with the earliest permitted time
 when available. Pagination for an already-started retrieval is part of that
 same polling operation.
-
-Invalidate reusable provider response-cache state for every followed person
-when tracking-start or a future global activity-eligibility change could make
-previously filtered activity eligible. A note-path change does not invalidate
-the ETag because it does not change retrieval eligibility.
 
 ## Rate-limit observation
 
@@ -177,7 +180,7 @@ If the final required page for a person succeeds while remaining quota becomes
 zero, that person may commit successfully; later requests still stop.
 
 At most one automatic retry is allowed for transient transport/network
-failures and `5xx` responses. Do not retry ordinary `4xx`, `304`, primary rate
+failures and `5xx` responses. Do not retry ordinary `4xx`, primary rate
 limits, or secondary rate limits. A failed permitted retry becomes a
 person-scoped failure unless the response demonstrates a provider-wide request
 contract problem.
@@ -210,9 +213,8 @@ times may be persisted after an otherwise failed retrieval when needed to
 prevent an invalid future request. Rate-limit boundaries are persisted in the
 global `githubRequestPolicy` settings state and apply to every GitHub request,
 including identity resolution and later Sync One operations. Per-person
-`X-Poll-Interval` state remains in `PersonSyncState`. Successful ETag,
-deduplication, and `lastSuccessfulSyncAt` state may advance only after complete
-safe processing.
+`X-Poll-Interval` state remains in `PersonSyncState`. Deduplication and
+`lastSuccessfulSyncAt` state may advance only after complete safe processing.
 
 ## Outcome compatibility
 
@@ -221,9 +223,9 @@ information to the application sync use case. The application sync use case,
 not the provider adapter, owns the final outcome after note and sync-state
 processing:
 
-- `updated` — complete retrieval produced new eligible activity and the note
-  was committed;
-- `unchanged` — complete retrieval produced no note change, including `304`;
+- `updated` — complete retrieval and application processing changed the
+  managed note;
+- `unchanged` — complete retrieval produced no note change;
 - `failed` — an attempted person could not complete safely;
 - `skipped` — no person request was attempted because an approved polling,
   rate-limit, or provider-wide condition prohibited it.
@@ -241,10 +243,16 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - organization, bot, and other unsupported identity types;
 - one-, two-, and three-page retrieval through `Link`;
 - invalid pagination origins, paths, and identities;
+- self-loop, backward, and skipped-page `Link` targets fail closed;
+- duplicate `rel="next"` relations and duplicate query parameters fail closed;
+- `per_page` drift from 100 fails closed;
 - duplicate events across pages;
+- identical duplicate event IDs collapse, while conflicting activity under one
+  event ID fails the person's sync;
 - old/known events not terminating pagination;
-- `200` followed by `304`;
-- ETag invalidation;
+- v0.2 Events requests never send `If-None-Match`;
+- unexpected `304 Not Modified` fails the person without note mutation or
+  successful-state advancement;
 - poll-interval skip without a request;
 - primary and secondary rate limits;
 - primary limits with missing, malformed, or expired reset headers use the
@@ -258,8 +266,8 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - `404` and malformed responses;
 - unsupported API-version/provider-contract failure;
 - one successful retry and repeated transient/`5xx` failures;
-- no retry for normal `4xx`, `304`, or rate limits;
+- no retry for normal `4xx` or rate limits;
 - provider-wide stopping and remaining-person skipping;
-- preservation of prior ETag, deduplication, and successful state after
+- preservation of prior deduplication and successful state after
   incomplete retrieval;
 - preservation of provider-policy boundaries after failed retrieval.

@@ -23,7 +23,6 @@ type PersonSyncState = {
 		createdAt: string;
 	}>;
 	github: {
-		etag?: string;
 		pollNotBefore?: string;
 	};
 };
@@ -33,13 +32,21 @@ All persisted timestamps use canonical UTC ISO-8601 strings. A new association
 starts with `seenEvents: []` and an empty `github` object.
 
 Each `seenEvents.id` is the canonical provider event ID defined by
-[`activity.md`](activity.md), not an unvalidated raw payload value.
+[`activity.md`](activity.md), not an unvalidated raw payload value. Its
+`createdAt` is the canonical provider activity timestamp, not an observation or
+persistence time. `seenEvents` contains at most one record per event ID.
+
+Duplicate persisted event IDs are malformed sync state and fail strict dataset
+validation. Within one retrieval, repeated occurrences of an event ID may be
+collapsed only when they produce the same canonical activity. If one ID maps
+to conflicting canonical activity data, the provider data is malformed; fail
+that person's sync without note mutation or successful-state advancement.
 
 `lastAttemptAt` is operational metadata and need not become durable when a
 state save fails. `lastSuccessfulSyncAt` records the latest per-person sync
 whose intended effects completed safely. It is never an activity identity,
-deduplication cursor, or proof of complete history. ETag and polling state are
-provider optimizations, not activity identity.
+deduplication cursor, or proof of complete history. Polling state is provider
+policy metadata, not activity identity.
 
 ## Primary identity and canonical reconciliation
 
@@ -84,6 +91,28 @@ IDs or sync-state metadata to Markdown. If a user deletes or rewrites an
 already-seen entry while the follow remains active, the event remains seen and
 is not automatically restored.
 
+## Historical retention and merge
+
+The set and order of existing canonical DevRadar activity entries in the
+current valid managed section form the historical activity baseline. A sync
+never removes an existing canonical activity entry merely because the current
+provider retrieval no longer returns it. Existing entries remain available
+after they leave GitHub's retrievable window; `seenEvents` is not a substitute
+for the factual content needed to recreate them. Other arbitrary or
+non-canonical content in the managed section follows the existing person-note
+rule and has no historical preservation guarantee.
+
+New eligible activities are merged into that baseline rather than rebuilding
+the managed section solely from the current provider result. Retained entries
+are ordered by provider activity timestamp descending; within each equal-
+timestamp retained group, their existing relative order is preserved. Newly
+rendered entries are ordered by provider activity timestamp descending and
+provider event ID ascending, then inserted by timestamp so the final list
+remains newest-first. For equal timestamps, newly rendered entries are placed
+after the retained group at that timestamp, and multiple new entries retain
+event-ID order. Absence from the current provider feed is never a deletion
+signal.
+
 The active follow retains enough seen IDs to prevent duplication for activity
 that GitHub can still return. Event IDs may be pruned once they are safely
 beyond the provider's documented retrievable horizon, so pruning must never
@@ -112,12 +141,13 @@ A permitted per-person sync follows this logical order:
 ```text
 acquire global application mutation ownership
 → validate and snapshot settings
-→ honor pollNotBefore
+→ honor global and per-person provider-policy boundaries
 → retrieve all required provider pages
 → normalize supported activity
 → apply tracking-start and activity eligibility
-→ deduplicate and reconcile canonical entries
+→ deduplicate by canonical provider event ID
 → validate the associated note and managed range
+→ reconcile canonical entries against the validated managed section
 → compute final Markdown
 → write only changed Markdown
 → persist newly seen IDs and successful provider state
@@ -130,7 +160,7 @@ following invariants:
 
 - Required retrieval completes before note mutation or successful state
   advancement.
-- A required later-page failure leaves the note, seen IDs, ETag, and
+- A required later-page failure leaves the note, seen IDs, and
   `lastSuccessfulSyncAt` at their previous last-known-good values.
 - New events are marked seen only after note accounting.
 - A note write is never destructively rolled back when a later state save
@@ -149,30 +179,28 @@ state.
 The per-person outcome is one of:
 
 - `updated`: complete successful retrieval changed the note;
-- `unchanged`: complete successful retrieval caused no note change, including a
-  valid `304 Not Modified`;
+- `unchanged`: complete successful retrieval caused no note change;
 - `failed`: an attempted operation could not complete safely;
 - `skipped`: no request was attempted because an approved provider policy or
   provider-wide block prohibited it.
 
-Successful completion may advance `lastSuccessfulSyncAt`, newly accounted
-event IDs, and valid provider cache state. A failed attempt retains the previous
-successful state except for safely observed attempt or provider-policy data.
+Successful completion may advance `lastSuccessfulSyncAt` and newly accounted
+event IDs. A failed attempt retains the previous successful state except for
+safely observed attempt or provider-policy data.
 
 ## Configuration transitions
 
 Changing a tracking start preserves notes, `seenEvents`, and successful-sync
-metadata, while invalidating provider response-cache state so still-visible
-events can be reconsidered. This applies in both directions.
+metadata. The next sync can reconsider still-visible events under the new
+boundary. This applies in both directions.
 
-Changing a future global activity eligibility configuration invalidates the
-reusable provider response-cache state for every followed person while
-preserving notes, `seenEvents`, and successful-sync metadata. Schema v1 has no
-such user-facing activity configuration.
+Changing a future global activity eligibility configuration preserves notes,
+`seenEvents`, and successful-sync metadata for every followed person. Schema v1
+has no such user-facing activity configuration.
 
 Changing a note path preserves all sync, deduplication, successful-sync, and
-provider-cache continuity and does not migrate or rewrite the old note. Only
-future unseen activity is written to the new destination.
+polling continuity and does not migrate or rewrite the old note. Only future
+unseen activity is written to the new destination.
 
 ## Overlap and Sync All
 
@@ -225,7 +253,11 @@ requests, and must cover:
   canonical occurrence;
 - reconstruction after missing state;
 - re-follow with retained canonical history;
-- equal timestamps ordered by ascending provider event ID;
+- newly rendered equal timestamps ordered by ascending provider event ID;
+- manually reordered retained entries are sorted by timestamp, preserving
+  relative order only within equal-timestamp groups;
+- same-timestamp new entries are placed after the retained group;
+- canonical history remains when it leaves the provider's retrievable window;
 - equivalent ISO-8601 timestamps with offsets or trailing fractional zeroes
   producing one canonical UTC RFC 3339 representation;
 - rewritten or deleted entries while the person remains followed;
@@ -245,10 +277,9 @@ requests, and must cover:
 ### Configuration and idempotency
 
 - tracking-start changes in both directions;
-- provider-cache invalidation after eligibility changes;
+- tracking-start changes reconsidering still-available history;
 - note-path change preserving continuity without old-note migration;
 - repeated successful sync with no provider change;
-- valid cache-hit behavior;
 - identical Markdown causing no vault write.
 
 ### Concurrency and partial failure

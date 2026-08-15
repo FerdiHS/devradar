@@ -64,6 +64,14 @@ ID as the canonical account binding, represented as a positive decimal string
 to avoid numeric-width assumptions. Entered usernames are draft input until
 that lookup succeeds.
 
+Draft usernames must be validated before identity request construction. A
+username is 1–39 ASCII letters, digits, or hyphens, starts and ends with an
+ASCII letter or digit, contains no consecutive hyphens, and contains no other
+characters. The canonical login
+returned by GitHub is validated by the same rule before persistence, request
+path use, profile-link generation, or marker interpolation. This is the same
+owner grammar used by [`activity.md`](activity.md).
+
 Username and account-ID uniqueness are both required. After a follow
 association is successfully committed, the username, account ID, and their
 binding are immutable through ordinary edits. A wrong-account correction
@@ -157,9 +165,8 @@ that person until the user explicitly changes the configured path.
 ## Tracking-start changes
 
 Tracking-start changes affect future retrieval eligibility only. They never
-prune recorded Markdown activity. The sync contract invalidates reusable
-provider cache state so the next sync can reconsider still-available history
-under the new boundary.
+prune recorded Markdown activity. The next sync can reconsider still-available
+history under the new boundary.
 
 ## Unfollow and re-follow
 
@@ -183,6 +190,8 @@ Known schema-v1 data is rejected as a dataset when it contains:
 - malformed usernames or note paths;
 - missing, malformed, or inconsistent GitHub account IDs;
 - malformed tracking-start variants or timestamps;
+- duplicate `seenEvents.id` values or malformed `seenEvents.createdAt`
+  timestamps;
 - future selected dates;
 - incorrect JSON value types;
 - unexpected fields in the strict schema;

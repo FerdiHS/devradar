@@ -63,6 +63,11 @@ content. Any HTML comment whose trimmed body begins with `devradar:begin` or
 the exact grammar above, it is a malformed marker and the note fails closed.
 Generated provider text must be escaped so it cannot create a marker line.
 
+`USERNAME` must satisfy the canonical GitHub login grammar in
+[`activity.md`](activity.md): 1–39 ASCII letters, digits, or hyphens, with no
+leading, trailing, or consecutive hyphens. Never interpolate an unvalidated
+username into a marker.
+
 ## New-note template
 
 A newly created person note contains only the required identity information and
@@ -95,9 +100,15 @@ canonical UTC RFC 3339 form:
 - `2026-08-09T07:32:10Z` — <minimal factual activity with source link>
 ```
 
-Sort entries by provider activity timestamp descending. When timestamps are
-equal, sort by the provider event ID ascending in lexicographic string order.
-This tie-breaker is an internal ordering key and is never rendered in the note.
+Sort entries by provider activity timestamp descending. For a newly rendered
+set, equal timestamps sort by provider event ID ascending in lexicographic
+string order. During a sync, retained canonical entries are sorted by provider
+activity timestamp descending; within each equal-timestamp retained group,
+their existing relative order is preserved. Newly added entries are inserted
+by timestamp; when a new entry has the same timestamp as retained entries,
+place it after the retained group, and order multiple new entries by provider
+event ID ascending. These ordering keys are internal and are never rendered in
+the note.
 
 Normalize each valid provider ISO-8601 timestamp by parsing its instant,
 converting it to UTC, and emitting `YYYY-MM-DDTHH:mm:ssZ` when the instant has

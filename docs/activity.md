@@ -120,8 +120,8 @@ raw provider text must never be interpolated into a URL.
 Before constructing any link, validate each repository identity as exactly two
 canonical GitHub namespace segments. The owner segment must satisfy the
 canonical GitHub login character and length rules: ASCII letters, digits, and
-hyphens only, with no leading or trailing hyphen and no more than 39
-characters. The repository-name segment must contain only ASCII letters,
+hyphens only, with no leading, trailing, or consecutive hyphens and no more
+than 39 characters. The repository-name segment must contain only ASCII letters,
 digits, `.`, `-`, or `_`, and must be no more than 100 characters. Both
 segments must be non-empty; backslashes, extra slashes, control characters,
 segments equal to `.` or `..`, and encoded separators are invalid. Do not
@@ -212,7 +212,9 @@ The exact provider-text normalization algorithm is:
    tab, and delete, with `U+FFFD`.
 2. Replace Unicode line and paragraph separators (`U+2028` and `U+2029`) with
    `U+FFFD`.
-3. Prefix a backslash to every ASCII punctuation character in the CommonMark
+3. Replace Unicode bidirectional formatting and control characters (`U+061C`,
+   `U+200E`, `U+200F`, `U+202A`–`U+202E`, and `U+2066`–`U+2069`) with `U+FFFD`.
+4. Prefix a backslash to every ASCII punctuation character in the CommonMark
    escapable set, using the same fixed set for titles and refs. The set is
    exactly:
 
@@ -241,10 +243,12 @@ are outside this catalogue.
 
 Future implementation tests must include a valid ref containing a backtick, a
 backslash, Markdown punctuation, and ordinary branch names; titles containing
-the same values; and ASCII control, newline, `U+2028`, and `U+2029` input. Each
-vector must produce exactly one expected serialized line.
+the same values; and ASCII control, newline, `U+2028`, `U+2029`, and each
+supported bidirectional-control range above. Each vector must produce exactly
+one expected serialized line.
 Repository fixtures must also reject malformed identities containing `]`, `?`,
-`#`, `%`, invalid owner characters, or overlong components.
+`#`, `%`, consecutive hyphens, other invalid owner characters, or overlong
+components.
 
 ## Rendering boundary
 
