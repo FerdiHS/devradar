@@ -131,11 +131,13 @@ For a permitted Sync One, the application preserves this order:
 ```text
 acquire guard
 -> validate and snapshot state
--> honor poll boundaries
+-> honor global and per-person provider-policy boundaries
 -> retrieve all required pages
--> normalize, filter, sort, deduplicate, and reconcile
--> validate note
--> compute managed-section replacement
+-> normalize, filter, sort, and deduplicate provider events
+-> obtain and validate the associated note and managed range
+-> reconcile unseen canonical activities against the validated managed section
+-> compute the intended managed-section replacement
+-> safely revalidate/recompute against current vault content at the mutation boundary
 -> write only changed content
 -> persist successful state
 -> report outcome
