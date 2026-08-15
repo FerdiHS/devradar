@@ -65,8 +65,8 @@ Generated provider text must be escaped so it cannot create a marker line.
 
 `USERNAME` must satisfy the canonical GitHub login grammar in
 [`activity.md`](activity.md): 1–39 ASCII letters, digits, or hyphens, with no
-leading or trailing hyphen. Never interpolate an unvalidated username into a
-marker.
+leading, trailing, or consecutive hyphens. Never interpolate an unvalidated
+username into a marker.
 
 ## New-note template
 

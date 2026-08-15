@@ -66,7 +66,8 @@ that lookup succeeds.
 
 Draft usernames must be validated before identity request construction. A
 username is 1–39 ASCII letters, digits, or hyphens, starts and ends with an
-ASCII letter or digit, and contains no other characters. The canonical login
+ASCII letter or digit, contains no consecutive hyphens, and contains no other
+characters. The canonical login
 returned by GitHub is validated by the same rule before persistence, request
 path use, profile-link generation, or marker interpolation. This is the same
 owner grammar used by [`activity.md`](activity.md).

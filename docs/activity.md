@@ -120,8 +120,8 @@ raw provider text must never be interpolated into a URL.
 Before constructing any link, validate each repository identity as exactly two
 canonical GitHub namespace segments. The owner segment must satisfy the
 canonical GitHub login character and length rules: ASCII letters, digits, and
-hyphens only, with no leading or trailing hyphen and no more than 39
-characters. The repository-name segment must contain only ASCII letters,
+hyphens only, with no leading, trailing, or consecutive hyphens and no more
+than 39 characters. The repository-name segment must contain only ASCII letters,
 digits, `.`, `-`, or `_`, and must be no more than 100 characters. Both
 segments must be non-empty; backslashes, extra slashes, control characters,
 segments equal to `.` or `..`, and encoded separators are invalid. Do not
