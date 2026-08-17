@@ -120,6 +120,10 @@ change is successfully committed. `available-recent` stores no invented
 timestamp. `from-date` stores the selected instant in canonical UTC ISO-8601
 form and rejects future times for the MVP.
 
+For `from-now` and `from-date`, an activity is eligible when its canonical
+provider activity timestamp is equal to or later than the configured start
+instant (`activityTimestamp >= trackingStart`).
+
 Moving a start backwards may expose older activity still available from
 GitHub, but never promises unavailable history. Moving it forwards never
 deletes activity already recorded in a note.
