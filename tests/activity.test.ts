@@ -58,6 +58,7 @@ describe('canonical primitive validation', () => {
 			'./repo',
 			'octocat/..',
 			'octocat/repo/',
+			'octo_cat/repo',
 			`a${'a'.repeat(39)}/repo`,
 			`owner/${'a'.repeat(101)}`,
 		])
@@ -136,6 +137,22 @@ describe('activity construction', () => {
 			createPullRequestActivity({
 				...base,
 				number: '4',
+				title: 'Improve docs',
+				action: 'edited' as never,
+			}),
+		);
+		bad(
+			createIssueActivity({
+				...base,
+				number: '5',
+				title: 'Fix bug',
+				action: 'edited' as never,
+			}),
+		);
+		bad(
+			createPullRequestActivity({
+				...base,
+				number: '4',
 				title: '',
 				action: 'opened',
 			}),
@@ -146,6 +163,9 @@ describe('activity construction', () => {
 describe('timestamps, eligibility, and ordering', () => {
 	it('normalizes equivalent timestamps without rounding precision', () => {
 		expect(ok(canonicalizeTimestamp('2026-08-18T02:02:03.100Z'))).toBe(
+			'2026-08-18T02:02:03.1Z',
+		);
+		expect(ok(canonicalizeTimestamp('2026-08-18T02:02:03.1Z'))).toBe(
 			'2026-08-18T02:02:03.1Z',
 		);
 		expect(
@@ -190,6 +210,14 @@ describe('timestamps, eligibility, and ordering', () => {
 					}),
 				),
 			).toBe(false);
+			expect(
+				ok(
+					isActivityEligible('2026-08-18T01:00:01Z', {
+						mode,
+						at: '2026-08-18T01:00:00Z',
+					}),
+				),
+			).toBe(true);
 		}
 	});
 
@@ -220,11 +248,14 @@ describe('timestamps, eligibility, and ordering', () => {
 				}),
 			),
 		];
-		expect(
-			activities
-				.sort(compareActivities)
-				.map((activity) => activity.providerEventId),
-		).toEqual(['1', '2', '20']);
+		const firstSort = activities.slice().sort(compareActivities);
+		const secondSort = activities.slice().sort(compareActivities);
+		expect(firstSort.map((activity) => activity.providerEventId)).toEqual([
+			'1',
+			'2',
+			'20',
+		]);
+		expect(secondSort).toEqual(firstSort);
 	});
 });
 
@@ -252,6 +283,17 @@ describe('safe links and exact fragments', () => {
 			),
 		).toMatchObject({
 			pushSourceUrl: `https://github.com/octocat/hello-world/commit/${'a'.repeat(40)}`,
+		});
+		expect(
+			ok(
+				createPushActivity({
+					...base,
+					ref: 'refs/heads/main',
+					head: 'invalid-head',
+				}),
+			),
+		).toMatchObject({
+			pushSourceUrl: 'https://github.com/octocat/hello-world/tree/main',
 		});
 		expect(
 			ok(createPushActivity({ ...base, ref: 'refs/other/main' })),
@@ -310,6 +352,15 @@ describe('safe links and exact fragments', () => {
 				'�',
 			);
 		}
+		const activity = ok(
+			createIssueActivity({
+				...base,
+				number: '5',
+				title: 'line\r\n\u202e',
+				action: 'opened',
+			}),
+		);
+		expect(activity.title).toBe('line���');
 	});
 
 	it('serializes every family with exact wording and hostile text contained', () => {
@@ -328,6 +379,18 @@ describe('safe links and exact fragments', () => {
 		);
 		expect(serializeActivityFragment(linkedPush)).toContain(
 			`[refs\\/heads\\/main](https://github.com/octocat/hello-world/commit/${'a'.repeat(40)})`,
+		);
+		const unlinkedPush = ok(
+			createPushActivity({ ...base, ref: 'refs/other/main' }),
+		);
+		expect(serializeActivityFragment(unlinkedPush)).toBe(
+			'Push to [octocat/hello-world](https://github.com/octocat/hello-world) at refs\\/other\\/main',
+		);
+		const hostileRef = ok(
+			createPushActivity({ ...base, ref: 'refs/heads/feature`name' }),
+		);
+		expect(serializeActivityFragment(hostileRef)).toBe(
+			'Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [refs\\/heads\\/feature\\`name](https://github.com/octocat/hello-world/tree/feature%60name)',
 		);
 		const pull = ok(
 			createPullRequestActivity({
