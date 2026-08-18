@@ -133,7 +133,7 @@ export function validateRef(input: string): ValidationResult<CanonicalRef> {
 				(part) =>
 					!part ||
 					part.startsWith('.') ||
-					/\.lock$/i.test(part) ||
+					/\.lock$/.test(part) ||
 					part.endsWith('.'),
 			)
 	) {
