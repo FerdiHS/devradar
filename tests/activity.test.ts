@@ -327,6 +327,7 @@ describe('safe links and exact fragments', () => {
 				action: 'merged',
 			}),
 		);
+		expect(pull.title).toBe('\\[unsafe\\] \\`title\\`');
 		expect(serializeActivityFragment(pull)).toBe(
 			'Pull request [#4](https://github.com/octocat/hello-world/pull/4) merged in [octocat/hello-world](https://github.com/octocat/hello-world): \\[unsafe\\] \\`title\\`',
 		);

@@ -354,7 +354,7 @@ function createObjectActivity<T extends PullRequestActivity | IssueActivity>(
 		family,
 		action: input.action,
 		number: number.value,
-		title: input.title,
+		title: normalizeProviderText(input.title),
 		sourceUrl,
 	} as T);
 }
@@ -439,7 +439,7 @@ export function serializeActivityFragment(activity: Activity): string {
 			? `Push to ${repository} at [${ref}](${activity.pushSourceUrl})`
 			: `Push to ${repository} at ${ref}`;
 	}
-	const title = normalizeProviderText(activity.title);
+	const title = activity.title;
 	const label = activity.family === 'pull-request' ? 'Pull request' : 'Issue';
 	return `${label} [#${activity.number}](${activity.sourceUrl}) ${activity.action} in ${repository}: ${title}`;
 }
