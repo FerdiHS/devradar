@@ -168,6 +168,17 @@ describe('person-note parsing', () => {
 		}
 	});
 
+	it('rejects malformed reserved candidates nested inside a valid section', () => {
+		const malformedNested = [
+			begin,
+			'<!-- devradar:begin github=\'octocat\' github-id="583231" -->',
+			end,
+		].join('\n');
+		expect(invalidKind(parsePersonNote(malformedNested))).toBe(
+			'malformed-marker',
+		);
+	});
+
 	it('rejects foreign identity without authorizing mutation', () => {
 		const foreign = section('', '\n').replaceAll('octocat', 'hubot');
 		const result = replaceManagedContent(foreign, identity, []);
@@ -215,8 +226,8 @@ describe('person-note rendering', () => {
 
 	it('renders activities newest-first with equal timestamps ordered by event ID', () => {
 		const activities = [
-			activity('20', '2026-08-18T02:00:00Z'),
-			activity('2', '2026-08-18T02:00:00Z'),
+			activity('20', '2026-08-18T02:00:00Z', 'event twenty'),
+			activity('2', '2026-08-18T02:00:00Z', 'event two'),
 			activity('1', '2026-08-18T03:00:00Z'),
 		];
 		const original = activities.slice();
@@ -225,9 +236,14 @@ describe('person-note rendering', () => {
 		expect(content).toContain(
 			'- `2026-08-18T03:00:00Z` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): Fix bug',
 		);
-		expect(content.indexOf('event')).toBe(-1);
 		expect(content.indexOf('2026-08-18T03:00:00Z')).toBeLessThan(
 			content.indexOf('2026-08-18T02:00:00Z'),
+		);
+		expect(content.indexOf('event two')).toBeLessThan(
+			content.indexOf('event twenty'),
+		);
+		expect(content).not.toContain(
+			'_No activity recorded by DevRadar yet._',
 		);
 	});
 
@@ -262,6 +278,7 @@ describe('person-note association and replacement', () => {
 			['content', `content\n\n${generated}`],
 			['content\n', `content\n\n${generated}`],
 			['content\n\n', `content\n\n${generated}`],
+			['content\n\n\n', `content\n\n\n${generated}`],
 			['content   ', `content   \n\n${generated}`],
 			['content   \n', `content   \n\n${generated}`],
 			[
