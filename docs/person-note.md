@@ -33,7 +33,10 @@ identify the same login; the positive decimal account ID must match exactly
 after provider-ID normalization. A username match with a different account ID
 is a foreign or ambiguous section and fails closed. A marker pair without
 `github-id` is malformed under the v0.2.0 contract and is never auto-upgraded.
-Casing may be rendered canonically without creating an ownership conflict.
+During ordinary managed-content replacement, valid existing marker lines are
+ownership anchors and are preserved byte-for-byte, including their username
+casing. Only newly rendered markers use the canonical username supplied for
+the operation.
 
 A writable associated note must contain exactly one well-formed, correctly
 ordered, identity-matching pair. Fail closed without mutation for partial,
@@ -55,7 +58,7 @@ attribute, or extra token. `USERNAME` is the non-empty canonical GitHub login
 returned by identity resolution. `GITHUB_ID` is the positive canonical
 decimal account ID returned by identity resolution. Marker comparison is
 case-insensitive for the login and exact for the account ID, while the
-begin/end keywords and attribute names are exact. A line
+begin/end keywords and attribute names are exact and case-sensitive. A line
 matching either marker form inside the managed range is a nested or duplicate
 marker and makes the note ambiguous; other HTML comments are ordinary note
 content. Any HTML comment whose trimmed body begins with `devradar:begin` or
@@ -156,7 +159,10 @@ Inspect the note before changing it.
   line-ending sequence (`CRLF`, `LF`, or `CR`), or `LF` when the note has none;
   append the minimum number of that sequence needed for the bytes immediately
   before the new section to end with two consecutive line endings, then append
-  the canonical managed section. Existing trailing whitespace is never removed.
+  the canonical managed section. The first sequence is selected by scanning
+  left-to-right, treating `CRLF` as one sequence; this same rule applies to all
+  generated managed content in mixed-line-ending notes. Existing trailing
+  whitespace is never removed.
 - One valid same-person section whose username and account ID both match is
   reused; a second section is never appended.
 - A foreign-person section rejects association without changing the note.
@@ -177,6 +183,11 @@ settings contract. It does not move or migrate the old note.
 When updating an existing note, modify only the managed range and preserve all
 outside bytes and the existing line-ending convention. Newly created notes may
 use `\n` line endings.
+
+A standalone generated managed section ends at the final `>` of its end marker;
+it owns no trailing line ending after that marker. The line ending immediately
+before an end marker is part of the generated managed content, while the marker
+text itself remains an exact preserved anchor when replacing an existing note.
 
 After computing the intended content, compare it with the current content. If
 identical, perform no vault write. Re-rendering the same valid note and
