@@ -105,6 +105,7 @@ export function validateRef(input: string): ValidationResult<CanonicalRef> {
 		containsForbiddenControl(input) ||
 		input.includes('\\') ||
 		/[ ~^:?*\x5b]/.test(input) ||
+		input === '@' ||
 		input.includes('..') ||
 		input.includes('@{') ||
 		input.startsWith('/') ||
@@ -117,6 +118,7 @@ export function validateRef(input: string): ValidationResult<CanonicalRef> {
 					part.startsWith('.') ||
 					part === '.' ||
 					part === '..' ||
+					/\.lock$/i.test(part) ||
 					part.endsWith('.'),
 			)
 	) {
