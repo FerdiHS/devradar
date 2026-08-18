@@ -92,8 +92,13 @@ export function canonicalizePositiveNumber(
 }
 
 export function canonicalizeRepository(
-	input: string,
+	input: unknown,
 ): ValidationResult<CanonicalRepository> {
+	if (typeof input !== 'string')
+		return failure(
+			'invalid-repository',
+			'repository must be a canonical owner/repository identity',
+		);
 	const parts = input.split('/');
 	const [owner, repository] = parts;
 	if (
@@ -115,7 +120,9 @@ export function canonicalizeRepository(
 	return success(input as CanonicalRepository);
 }
 
-export function validateRef(input: string): ValidationResult<CanonicalRef> {
+export function validateRef(input: unknown): ValidationResult<CanonicalRef> {
+	if (typeof input !== 'string')
+		return failure('invalid-ref', 'ref is not a supported Git ref');
 	if (
 		!input ||
 		containsForbiddenControl(input) ||

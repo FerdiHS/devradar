@@ -63,6 +63,14 @@ describe('canonical primitive validation', () => {
 			`owner/${'a'.repeat(101)}`,
 		])
 			bad(canonicalizeRepository(input));
+		for (const input of [undefined, null, 42]) {
+			expect(() => canonicalizeRepository(input as never)).not.toThrow();
+			bad(canonicalizeRepository(input));
+		}
+		for (const input of [undefined, null, 42]) {
+			expect(() => validateRef(input as never)).not.toThrow();
+			bad(validateRef(input));
+		}
 	});
 
 	it('validates positive object numbers, refs, and commit IDs', () => {
