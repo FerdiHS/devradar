@@ -88,6 +88,9 @@ describe('canonical primitive validation', () => {
 		expect(ok(validateRef('refs/heads/feature/test'))).toBe(
 			'refs/heads/feature/test',
 		);
+		expect(ok(validateRef('refs/heads/feature`name'))).toBe(
+			'refs/heads/feature`name',
+		);
 		expect(ok(validateCommitId('a'.repeat(40)))).toBe('a'.repeat(40));
 		bad(validateCommitId('a'.repeat(39)));
 		bad(validateCommitId('g'.repeat(40)));
