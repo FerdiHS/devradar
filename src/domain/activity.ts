@@ -375,7 +375,11 @@ function createObjectActivity<T extends PullRequestActivity | IssueActivity>(
 ): ValidationResult<T> {
 	const shared = common(input);
 	if (!shared.ok) return { ok: false, error: shared.error };
-	if (typeof input.title !== 'string' || input.title.length === 0)
+	if (
+		typeof input.title !== 'string' ||
+		input.title.length === 0 ||
+		containsUnpairedSurrogate(input.title)
+	)
 		return failure('invalid-title', 'title must be a non-empty string');
 	const number = canonicalizePositiveNumber(input.number);
 	if (!number.ok) return { ok: false, error: number.error };

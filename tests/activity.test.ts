@@ -177,6 +177,14 @@ describe('activity construction', () => {
 				action: 'opened',
 			}),
 		);
+		bad(
+			createIssueActivity({
+				...base,
+				number: '5',
+				title: 'bad\uD800title',
+				action: 'opened',
+			}),
+		);
 	});
 });
 
