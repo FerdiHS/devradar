@@ -220,6 +220,12 @@ function scanMarkers(
 			line,
 		});
 	}
+	for (const match of input.matchAll(/<!--/g)) {
+		const start = match.index ?? 0;
+		if (input.indexOf('-->', start + 4) !== -1) continue;
+		const kind = markerKind(input.slice(start + 4));
+		if (kind) malformed ??= { kind: 'malformed-marker', marker: kind };
+	}
 	return { candidates, ...(malformed ? { malformed } : {}) };
 }
 
@@ -286,6 +292,26 @@ export function parsePersonNote(
 
 	const begins = candidates.filter((candidate) => candidate.kind === 'begin');
 	const ends = candidates.filter((candidate) => candidate.kind === 'end');
+	if (begins.length > 1 && ends.length > 1) {
+		const orderedBegins = begins
+			.slice()
+			.sort((left, right) => left.line.start - right.line.start);
+		const orderedEnds = ends
+			.slice()
+			.sort((left, right) => left.line.start - right.line.start);
+		const secondBegin = orderedBegins[1];
+		const firstEnd = orderedEnds[0];
+		const secondEnd = orderedEnds[1];
+		if (
+			secondBegin &&
+			firstEnd &&
+			secondEnd &&
+			secondBegin.line.start < firstEnd.line.start &&
+			firstEnd.line.start < secondEnd.line.start
+		)
+			return invalid({ kind: 'ambiguous-marker', reason: 'nested' });
+		return invalid({ kind: 'ambiguous-marker', reason: 'multiple-pairs' });
+	}
 	if (begins.length > 1)
 		return invalid({ kind: 'ambiguous-marker', reason: 'duplicate-begin' });
 	if (ends.length > 1)

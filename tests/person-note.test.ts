@@ -127,6 +127,19 @@ describe('person-note parsing', () => {
 		).toBe('identity-mismatch');
 	});
 
+	it('classifies nested and multiple complete pairs distinctly', () => {
+		const nested = parsePersonNote(`${begin}\n${begin}\n${end}\n${end}`);
+		const multiple = parsePersonNote(`${begin}\n${end}\n${begin}\n${end}`);
+		expect(nested).toMatchObject({
+			kind: 'invalid',
+			error: { kind: 'ambiguous-marker', reason: 'nested' },
+		});
+		expect(multiple).toMatchObject({
+			kind: 'invalid',
+			error: { kind: 'ambiguous-marker', reason: 'multiple-pairs' },
+		});
+	});
+
 	it('rejects every reserved marker candidate that is not exact grammar', () => {
 		const malformed = [
 			` <!-- devradar:begin github="octocat" github-id="583231" -->`,
@@ -144,6 +157,15 @@ describe('person-note parsing', () => {
 			expect(invalidKind(parsePersonNote(candidate))).toBe(
 				'malformed-marker',
 			);
+	});
+
+	it('rejects unterminated reserved marker candidates for every line ending', () => {
+		for (const lineEnding of ['', '\n', '\r\n', '\r']) {
+			const note = `Before${lineEnding}<!-- devradar:begin github="octocat" github-id="583231"`;
+			expect(invalidKind(parsePersonNote(note))).toBe('malformed-marker');
+			const result = associatePersonNote(note, identity, []);
+			expect(result.ok).toBe(false);
+		}
 	});
 
 	it('rejects foreign identity without authorizing mutation', () => {
