@@ -49,7 +49,7 @@ export function canonicalizeEventId(
 			);
 		return success(String(input) as CanonicalEventId);
 	}
-	if (!EVENT_ID.test(input) || (input.length > 1 && input.startsWith('0')))
+	if (!EVENT_ID.test(input))
 		return failure(
 			'invalid-event-id',
 			'event ID must be a positive decimal string without leading zeroes',
@@ -68,7 +68,7 @@ export function canonicalizePositiveNumber(
 			);
 		return success(String(input) as CanonicalNumber);
 	}
-	if (!NUMBER.test(input) || (input.length > 1 && input.startsWith('0')))
+	if (!NUMBER.test(input))
 		return failure(
 			'invalid-number',
 			'number must be a positive decimal string without leading zeroes',
@@ -116,8 +116,6 @@ export function validateRef(input: string): ValidationResult<CanonicalRef> {
 				(part) =>
 					!part ||
 					part.startsWith('.') ||
-					part === '.' ||
-					part === '..' ||
 					/\.lock$/i.test(part) ||
 					part.endsWith('.'),
 			)

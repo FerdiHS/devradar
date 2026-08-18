@@ -151,6 +151,13 @@ describe('timestamps, eligibility, and ordering', () => {
 		expect(ok(canonicalizeTimestamp('2026-08-18T03:02:03+01:00'))).toBe(
 			'2026-08-18T02:02:03Z',
 		);
+		expect(ok(canonicalizeTimestamp('2024-02-29T00:00:00Z'))).toBe(
+			'2024-02-29T00:00:00Z',
+		);
+		bad(canonicalizeTimestamp('2023-02-29T00:00:00Z'));
+		expect(ok(canonicalizeTimestamp('2026-01-01T00:00:00+02:00'))).toBe(
+			'2025-12-31T22:00:00Z',
+		);
 		bad(canonicalizeTimestamp('2026-02-30T03:02:03Z'));
 		bad(canonicalizeTimestamp('not-a-timestamp'));
 	});
