@@ -95,6 +95,12 @@ describe('canonical primitive validation', () => {
 		expect(ok(validateCommitId('a'.repeat(40)))).toBe('a'.repeat(40));
 		bad(validateCommitId('a'.repeat(39)));
 		bad(validateCommitId('g'.repeat(40)));
+		const malformedRef = 'refs/heads/\uD800';
+		bad(validateRef(malformedRef));
+		expect(() =>
+			createPushActivity({ ...base, ref: malformedRef }),
+		).not.toThrow();
+		bad(createPushActivity({ ...base, ref: malformedRef }));
 	});
 });
 

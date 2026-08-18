@@ -38,6 +38,21 @@ function containsForbiddenControl(input: string): boolean {
 	});
 }
 
+function containsUnpairedSurrogate(input: string): boolean {
+	for (let index = 0; index < input.length; index += 1) {
+		const code = input.charCodeAt(index);
+		if (code >= 0xd800 && code <= 0xdbff) {
+			const next = input.charCodeAt(index + 1);
+			if (Number.isNaN(next) || next < 0xdc00 || next > 0xdfff)
+				return true;
+			index += 1;
+		} else if (code >= 0xdc00 && code <= 0xdfff) {
+			return true;
+		}
+	}
+	return false;
+}
+
 export function canonicalizeEventId(
 	input: string | number,
 ): ValidationResult<CanonicalEventId> {
@@ -89,6 +104,7 @@ export function canonicalizeRepository(
 		!REPOSITORY.test(repository) ||
 		parts.some((part) => part === '.' || part === '..') ||
 		containsForbiddenControl(input) ||
+		containsUnpairedSurrogate(input) ||
 		/%2f|%5c/i.test(input)
 	) {
 		return failure(
@@ -104,6 +120,7 @@ export function validateRef(input: string): ValidationResult<CanonicalRef> {
 		!input ||
 		containsForbiddenControl(input) ||
 		input.includes('\\') ||
+		containsUnpairedSurrogate(input) ||
 		/[ ~^:?*\x5b]/.test(input) ||
 		input === '@' ||
 		input.includes('..') ||
