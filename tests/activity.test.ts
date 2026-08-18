@@ -40,6 +40,41 @@ describe('canonical primitive validation', () => {
 		expect(ok(canonicalizeEventId(42))).toBe('42');
 	});
 
+	it('rejects non-primitive validator inputs without coercion', () => {
+		const eventIdInputs: unknown[] = [
+			1n,
+			Symbol('event-id'),
+			new String('1'),
+			{ toString: () => '1' },
+		];
+		for (const input of eventIdInputs) {
+			expect(() => canonicalizeEventId(input as never)).not.toThrow();
+			bad(canonicalizeEventId(input as never));
+			bad(canonicalizePositiveNumber(input as never));
+		}
+
+		const commitId = 'a'.repeat(40);
+		for (const input of [
+			1n,
+			Symbol('commit-id'),
+			new String(commitId),
+			{ toString: () => commitId },
+		]) {
+			expect(() => validateCommitId(input as never)).not.toThrow();
+			bad(validateCommitId(input));
+		}
+
+		for (const input of [
+			1n,
+			Symbol('timestamp'),
+			new String(base.timestamp),
+			{ toString: () => base.timestamp },
+		]) {
+			expect(() => canonicalizeTimestamp(input as never)).not.toThrow();
+			bad(canonicalizeTimestamp(input));
+		}
+	});
+
 	it('validates repository identities without repairing them', () => {
 		expect(ok(canonicalizeRepository('octocat/hello-world'))).toBe(
 			'octocat/hello-world',

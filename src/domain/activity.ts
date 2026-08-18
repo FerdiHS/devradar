@@ -64,6 +64,11 @@ export function canonicalizeEventId(
 			);
 		return success(String(input) as CanonicalEventId);
 	}
+	if (typeof input !== 'string')
+		return failure(
+			'invalid-event-id',
+			'event ID must be a positive decimal string without leading zeroes',
+		);
 	if (!EVENT_ID.test(input))
 		return failure(
 			'invalid-event-id',
@@ -83,6 +88,11 @@ export function canonicalizePositiveNumber(
 			);
 		return success(String(input) as CanonicalNumber);
 	}
+	if (typeof input !== 'string')
+		return failure(
+			'invalid-number',
+			'number must be a positive decimal string without leading zeroes',
+		);
 	if (!NUMBER.test(input))
 		return failure(
 			'invalid-number',
@@ -150,8 +160,13 @@ export function validateRef(input: unknown): ValidationResult<CanonicalRef> {
 }
 
 export function validateCommitId(
-	input: string,
+	input: unknown,
 ): ValidationResult<CanonicalCommitId> {
+	if (typeof input !== 'string')
+		return failure(
+			'invalid-commit-id',
+			'commit ID must be 40 hexadecimal characters',
+		);
 	return COMMIT.test(input)
 		? success(input.toLowerCase() as CanonicalCommitId)
 		: failure(
@@ -172,8 +187,9 @@ function daysInMonth(year: number, month: number): number {
 }
 
 function timestampParts(
-	value: string,
+	value: unknown,
 ): { epoch: number; fraction: string } | undefined {
+	if (typeof value !== 'string') return undefined;
 	const match = TIMESTAMP.exec(value);
 	if (!match) return undefined;
 	const [, year, month, day, hour, minute, second, rawFraction = '', zone] =
@@ -228,7 +244,7 @@ function compareTimestamps(left: string, right: string): number {
 }
 
 export function canonicalizeTimestamp(
-	input: string,
+	input: unknown,
 ): ValidationResult<CanonicalTimestamp> {
 	const parsed = timestampParts(input);
 	if (!parsed)
