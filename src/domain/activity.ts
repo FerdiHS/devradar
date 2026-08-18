@@ -156,6 +156,14 @@ export function validateCommitId(
 const TIMESTAMP =
 	/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
 
+function daysInMonth(year: number, month: number): number {
+	if (month === 2)
+		return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+			? 29
+			: 28;
+	return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
 function timestampParts(
 	value: string,
 ): { epoch: number; fraction: string } | undefined {
@@ -171,8 +179,7 @@ function timestampParts(
 		numericMonth < 1 ||
 		numericMonth > 12 ||
 		numericDay < 1 ||
-		numericDay >
-			new Date(Date.UTC(numericYear, numericMonth, 0)).getUTCDate() ||
+		numericDay > daysInMonth(numericYear, numericMonth) ||
 		Number(hour) > 23 ||
 		Number(minute) > 59 ||
 		Number(second) > 59
@@ -223,6 +230,11 @@ export function canonicalizeTimestamp(
 			'timestamp must be a valid RFC 3339 instant',
 		);
 	const date = new Date(parsed.epoch);
+	if (date.getUTCFullYear() < 0 || date.getUTCFullYear() > 9999)
+		return failure(
+			'invalid-timestamp',
+			'timestamp must remain within the four-digit UTC year range',
+		);
 	const iso = date.toISOString().replace(/\.\d{3}Z$/, '');
 	const value = parsed.fraction ? `${iso}.${parsed.fraction}Z` : `${iso}Z`;
 	return success(value as CanonicalTimestamp);

@@ -174,6 +174,10 @@ describe('activity construction', () => {
 
 describe('timestamps, eligibility, and ordering', () => {
 	it('normalizes equivalent timestamps without rounding precision', () => {
+		expect(ok(canonicalizeTimestamp('0000-02-29T00:00:00Z'))).toBe(
+			'0000-02-29T00:00:00Z',
+		);
+		bad(canonicalizeTimestamp('9999-12-31T23:59:59-14:00'));
 		expect(ok(canonicalizeTimestamp('2026-08-18T02:02:03.100Z'))).toBe(
 			'2026-08-18T02:02:03.1Z',
 		);
