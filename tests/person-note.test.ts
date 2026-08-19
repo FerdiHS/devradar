@@ -164,6 +164,7 @@ describe('person-note parsing', () => {
 			'<!-- devradar:begin github=\'octocat\' github-id="583231" -->',
 			'<!-- devradar:begin github-id="583231" github="octocat" -->',
 			'<!-- devradar:begin github="octocat" github-id="583231" extra="x" -->',
+			'<!-- devradar:begin github="octocat" github-id="583231" unexpected -->',
 			'<!-- devradar:begin github="octocat" -->',
 			'<!-- devradar:begin github="" github-id="583231" -->',
 			'<!-- devradar:begin github="octo--cat" github-id="583231" -->',
@@ -175,6 +176,12 @@ describe('person-note parsing', () => {
 			expect(invalidKind(parsePersonNote(candidate))).toBe(
 				'malformed-marker',
 			);
+		for (const candidate of malformed) {
+			const result = replaceManagedContent(candidate, identity, []);
+			expect(result.ok).toBe(false);
+			if (result.ok) continue;
+			expect(result).not.toHaveProperty('value');
+		}
 	});
 
 	it('treats case-variant reserved-looking comments as ordinary content', () => {
