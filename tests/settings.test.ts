@@ -407,6 +407,27 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 		);
 	});
 
+	it('rejects non-canonical enumerable array keys', () => {
+		const seenEvents = Object.assign(
+			[
+				{ id: '1', createdAt: PROVIDER_TIME },
+				{ id: '2', createdAt: PROVIDER_TIME },
+			],
+			{ '01': true },
+		);
+		expectFailure(
+			validSettings({
+				followedPeople: [
+					validPerson({
+						syncState: { seenEvents, github: {} },
+					}),
+				],
+			}),
+			'unexpected-field',
+			'/followedPeople/0/syncState/seenEvents/01',
+		);
+	});
+
 	it('reports missing nested fields in schema order', () => {
 		expectFailure(
 			validSettings({

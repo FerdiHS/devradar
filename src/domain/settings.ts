@@ -213,7 +213,11 @@ function validateArray(
 		const unexpected = keys.find((key) => {
 			if (!/^\d+$/.test(key)) return true;
 			const index = Number(key);
-			return !Number.isSafeInteger(index) || index >= array.length;
+			return (
+				String(index) !== key ||
+				!Number.isSafeInteger(index) ||
+				index >= array.length
+			);
 		});
 		if (unexpected)
 			return error(
