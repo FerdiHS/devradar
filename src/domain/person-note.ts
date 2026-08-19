@@ -167,9 +167,8 @@ function lineAt(
 
 function markerKind(body: string): 'begin' | 'end' | undefined {
 	const trimmed = body.trim();
-	const normalized = trimmed.toLowerCase();
-	if (normalized.startsWith('devradar:begin')) return 'begin';
-	if (normalized.startsWith('devradar:end')) return 'end';
+	if (trimmed.startsWith('devradar:begin')) return 'begin';
+	if (trimmed.startsWith('devradar:end')) return 'end';
 	return undefined;
 }
 

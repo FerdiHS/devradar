@@ -169,13 +169,20 @@ describe('person-note parsing', () => {
 			'<!-- devradar:begin github="octo--cat" github-id="583231" -->',
 			'<!-- devradar:begin github="octocat" github-id="01" -->',
 			'<!-- devradar:begin github="octocat" github-id="abc" -->',
-			'<!-- devradar:BEGIN github="octocat" github-id="583231" -->',
 			'<!-- devradar:end github="octocat" -->',
 		];
 		for (const candidate of malformed)
 			expect(invalidKind(parsePersonNote(candidate))).toBe(
 				'malformed-marker',
 			);
+	});
+
+	it('treats case-variant reserved-looking comments as ordinary content', () => {
+		for (const comment of [
+			'<!-- devradar:BEGIN github="octocat" github-id="583231" -->',
+			'<!-- DEVRADAR:begin github="octocat" github-id="583231" -->',
+		])
+			expect(parsePersonNote(comment)).toEqual({ kind: 'marker-free' });
 	});
 
 	it('rejects unterminated reserved marker candidates for every line ending', () => {
