@@ -348,6 +348,15 @@ describe('person-note association and replacement', () => {
 		);
 	});
 
+	it('uses the first line ending after an existing begin marker', () => {
+		const note = `Before\r\n${begin}\n## DevRadar activity\n\nOld content\n${end}\nAfter`;
+		const result = replaceManagedContent(note, identity, []);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const generated = ok(renderManagedSection(identity, [], '\r\n'));
+		expect(result.value.markdown).toBe(`Before\r\n${generated}\nAfter`);
+	});
+
 	it('supports sections at the beginning and at EOF without owning a trailing newline', () => {
 		for (const note of [section('old'), `Before\n\n${section('old')}`]) {
 			const result = replaceManagedContent(note, identity, []);

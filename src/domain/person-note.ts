@@ -84,6 +84,7 @@ interface MarkerCandidate {
 }
 
 interface ParsedSection extends ManagedSection {
+	readonly beginMarkerEnd: number;
 	readonly contentStart: number;
 	readonly contentEnd: number;
 }
@@ -272,6 +273,7 @@ function asParsedSection(
 		endMarker: endCandidate.marker,
 		managedContent: input.slice(contentStart, contentEnd),
 		lineEnding,
+		beginMarkerEnd: beginCandidate.line.end,
 		contentStart,
 		contentEnd,
 	};
@@ -406,7 +408,8 @@ function replaceParsedSection(
 ): PersonNoteResult<PersonNoteChange> {
 	const body = renderManagedContent(activities, section.lineEnding);
 	const markdown =
-		input.slice(0, section.contentStart) +
+		input.slice(0, section.beginMarkerEnd) +
+		section.lineEnding +
 		body +
 		section.lineEnding +
 		input.slice(section.contentEnd);
