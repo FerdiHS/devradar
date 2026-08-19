@@ -277,6 +277,28 @@ describe('schema-v1 field validation', () => {
 		);
 		expect(fullState.ok).toBe(true);
 		expectFailure(
+			validSettings(),
+			'invalid-plugin-timestamp',
+			'',
+			'not-a-timestamp',
+		);
+		expectFailure(
+			validSettings({
+				followedPeople: [
+					validPerson({
+						syncState: {
+							seenEvents: [
+								{ id: '01', createdAt: PROVIDER_TIME },
+							],
+							github: {},
+						},
+					}),
+				],
+			}),
+			'invalid-provider-event-id',
+			'/followedPeople/0/syncState/seenEvents/0/id',
+		);
+		expectFailure(
 			validSettings({
 				followedPeople: [
 					validPerson({
