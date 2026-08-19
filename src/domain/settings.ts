@@ -74,7 +74,6 @@ export type SchemaV1ValidationResult<T> =
 	| { readonly ok: true; readonly value: T }
 	| { readonly ok: false; readonly error: SchemaV1ValidationError };
 
-type Checked<T> = SchemaV1ValidationResult<T>;
 type RecordView = {
 	readonly record: Record<string, unknown>;
 	readonly keys: readonly string[];
@@ -88,13 +87,19 @@ function isValidationError(
 
 const PLUGIN_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
-const success = <T>(value: T): Checked<T> => ({ ok: true, value });
+const success = <T>(value: T): SchemaV1ValidationResult<T> => ({
+	ok: true,
+	value,
+});
 
 const failure = <T>(
 	code: SchemaV1ValidationCode,
 	path: string,
 	message: string,
-): Checked<T> => ({ ok: false, error: { code, path, message } });
+): SchemaV1ValidationResult<T> => ({
+	ok: false,
+	error: { code, path, message },
+});
 
 function error(
 	code: SchemaV1ValidationCode,
@@ -243,7 +248,9 @@ function isUnpairedSurrogate(input: string): boolean {
 	return false;
 }
 
-function canonicalizeNotePath(input: unknown): Checked<string> {
+function canonicalizeNotePath(
+	input: unknown,
+): SchemaV1ValidationResult<string> {
 	if (
 		typeof input !== 'string' ||
 		input.length === 0 ||
@@ -271,14 +278,16 @@ function canonicalizeNotePath(input: unknown): Checked<string> {
 	return success(result);
 }
 
-export function canonicalizeDraftNotePath(input: unknown): Checked<string> {
+export function canonicalizeDraftNotePath(
+	input: unknown,
+): SchemaV1ValidationResult<string> {
 	return canonicalizeNotePath(input);
 }
 
 function validatePersistedNotePath(
 	input: unknown,
 	path: string,
-): Checked<string> {
+): SchemaV1ValidationResult<string> {
 	const canonical = canonicalizeNotePath(input);
 	if (!canonical.ok)
 		return failure('invalid-note-path', path, 'note path is invalid');
@@ -294,7 +303,7 @@ function validatePersistedNotePath(
 function validateProviderTimestamp(
 	input: unknown,
 	path: string,
-): Checked<string> {
+): SchemaV1ValidationResult<string> {
 	const canonical = canonicalizeTimestamp(input);
 	if (!canonical.ok)
 		return failure(
@@ -314,7 +323,7 @@ function validateProviderTimestamp(
 function validatePluginTimestamp(
 	input: unknown,
 	path: string,
-): Checked<string> {
+): SchemaV1ValidationResult<string> {
 	const canonical = canonicalizeTimestamp(input);
 	if (!canonical.ok)
 		return failure(
@@ -336,7 +345,7 @@ function validateOptionalPluginTimestamp(
 	record: Record<string, unknown>,
 	field: string,
 	path: string,
-): Checked<string | undefined> {
+): SchemaV1ValidationResult<string | undefined> {
 	if (!hasField(view, field)) return success(undefined);
 	return validatePluginTimestamp(record[field], fieldPath(path, field));
 }
@@ -344,7 +353,7 @@ function validateOptionalPluginTimestamp(
 function validateSeenEvents(
 	input: unknown,
 	path: string,
-): Checked<SeenEventV1[]> {
+): SchemaV1ValidationResult<SeenEventV1[]> {
 	const array = validateArray(input, path);
 	if (isValidationError(array)) return { ok: false, error: array };
 	const events: SeenEventV1[] = [];
@@ -390,7 +399,7 @@ function validateSeenEvents(
 function validateGitHubState(
 	input: unknown,
 	path: string,
-): Checked<GitHubSyncStateV1> {
+): SchemaV1ValidationResult<GitHubSyncStateV1> {
 	const view = inspectRecord(input, path, ['pollNotBefore'], []);
 	if (!('record' in view)) return { ok: false, error: view };
 	const pollNotBefore = validateOptionalPluginTimestamp(
@@ -410,7 +419,7 @@ function validateGitHubState(
 function validateSyncState(
 	input: unknown,
 	path: string,
-): Checked<PersonSyncState> {
+): SchemaV1ValidationResult<PersonSyncState> {
 	const view = inspectRecord(
 		input,
 		path,
@@ -458,7 +467,7 @@ function validateTrackingStart(
 	input: unknown,
 	path: string,
 	currentInstant: string,
-): Checked<TrackingStart> {
+): SchemaV1ValidationResult<TrackingStart> {
 	const view = inspectRecord(input, path, ['mode', 'at'], ['mode']);
 	if (!('record' in view)) return { ok: false, error: view };
 	const mode = view.record.mode;
@@ -502,7 +511,7 @@ function validateFollowedPerson(
 	input: unknown,
 	path: string,
 	currentInstant: string,
-): Checked<FollowedPersonV1> {
+): SchemaV1ValidationResult<FollowedPersonV1> {
 	const view = inspectRecord(
 		input,
 		path,
@@ -562,7 +571,7 @@ function validateFollowedPerson(
 function validatePolicy(
 	input: unknown,
 	path: string,
-): Checked<GitHubRequestPolicyV1> {
+): SchemaV1ValidationResult<GitHubRequestPolicyV1> {
 	const view = inspectRecord(input, path, ['rateLimitNotBefore'], []);
 	if (!('record' in view)) return { ok: false, error: view };
 	const rateLimitNotBefore = validateOptionalPluginTimestamp(
@@ -639,7 +648,7 @@ export function createEmptyPersonSyncState(): PersonSyncState {
 export function validatePersistedSettingsV1(
 	input: unknown,
 	currentInstant: string,
-): Checked<DevRadarSettingsV1> {
+): SchemaV1ValidationResult<DevRadarSettingsV1> {
 	const current = validatePluginTimestamp(currentInstant, '');
 	if (!current.ok) return current;
 	if (input === undefined) return success(createEmptySettingsV1());
