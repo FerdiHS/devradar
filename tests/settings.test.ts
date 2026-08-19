@@ -104,6 +104,28 @@ describe('schema-v1 persisted validation', () => {
 		expect(input.followedPeople[0]?.syncState.seenEvents).toHaveLength(1);
 	});
 
+	it('strips accepted null prototypes during reconstruction', () => {
+		const input = Object.assign(
+			Object.create(null) as Record<string, unknown>,
+			validSettings({
+				followedPeople: [
+					Object.assign(
+						Object.create(null) as Record<string, unknown>,
+						validPerson(),
+					),
+				],
+			}),
+		);
+		const result = validatePersistedSettingsV1(input, NOW);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error('expected successful validation');
+		expect(Object.getPrototypeOf(result.value)).toBe(Object.prototype);
+		expect(Object.getPrototypeOf(result.value.followedPeople[0])).toBe(
+			Object.prototype,
+		);
+	});
+
 	it('preserves followed-person and seen-event order', () => {
 		const input = validSettings({
 			followedPeople: [
@@ -165,6 +187,11 @@ describe('schema-v1 persisted validation', () => {
 			{ schemaVersion: 1, followedPeople: [], 'a/b': true },
 			'unexpected-field',
 			'/a~1b',
+		);
+		expectFailure(
+			{ schemaVersion: 1, followedPeople: [], 'a~b': true },
+			'unexpected-field',
+			'/a~0b',
 		);
 	});
 
@@ -376,6 +403,40 @@ describe('schema-v1 field validation', () => {
 		);
 	});
 
+	it('validates global policy boundaries and strict shape', () => {
+		for (const rateLimitNotBefore of [
+			'2026-08-19T12:00:00.000Z',
+			'2026-08-21T12:00:00.000Z',
+		]) {
+			expect(
+				validatePersistedSettingsV1(
+					validSettings({
+						githubRequestPolicy: { rateLimitNotBefore },
+					}),
+					NOW,
+				),
+			).toMatchObject({ ok: true });
+		}
+		expect(
+			validatePersistedSettingsV1(
+				validSettings({ githubRequestPolicy: {} }),
+				NOW,
+			),
+		).toMatchObject({ ok: true });
+		expectFailure(
+			validSettings({
+				githubRequestPolicy: { rateLimitNotBefore: 'not-a-timestamp' },
+			}),
+			'invalid-plugin-timestamp',
+			'/githubRequestPolicy/rateLimitNotBefore',
+		);
+		expectFailure(
+			validSettings({ githubRequestPolicy: { extra: true } }),
+			'unexpected-field',
+			'/githubRequestPolicy/extra',
+		);
+	});
+
 	it('validates tracking-start variants and the injected current instant', () => {
 		for (const trackingStart of [
 			{ mode: 'available-recent' },
@@ -465,6 +526,79 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 			'missing-field',
 			'/followedPeople/0/syncState/github',
 		);
+	});
+
+	it('rejects unexpected fields at every persisted object level', () => {
+		const cases: Array<[unknown, string]> = [
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							trackingStart: {
+								mode: 'from-now',
+								at: NOW,
+								extra: true,
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/trackingStart/extra',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								lastAttemptAt: NOW,
+								seenEvents: [
+									{ id: '1', createdAt: PROVIDER_TIME },
+								],
+								github: {},
+								extra: true,
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/extra',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{
+										id: '1',
+										createdAt: PROVIDER_TIME,
+										extra: true,
+									},
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents/0/extra',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{ id: '1', createdAt: PROVIDER_TIME },
+								],
+								github: { extra: true },
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/github/extra',
+			],
+		];
+
+		for (const [input, path] of cases)
+			expectFailure(input, 'unexpected-field', path);
 	});
 
 	it('checks dataset uniqueness in the documented order', () => {
