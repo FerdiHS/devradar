@@ -235,6 +235,23 @@ describe('person-note parsing', () => {
 		});
 	});
 
+	it('requires only spaces or tabs after a closing fence', () => {
+		const note = [
+			'```md',
+			'example',
+			'```\u00a0',
+			begin,
+			'User-authored example.',
+			end,
+			'```',
+		].join('\n');
+		expect(parsePersonNote(note)).toEqual({ kind: 'marker-free' });
+		expect(replaceManagedContent(note, identity, [])).toEqual({
+			ok: false,
+			error: { kind: 'missing-marker', missing: 'associated-section' },
+		});
+	});
+
 	it('fails closed when marker lines cross a multiline HTML comment', () => {
 		const note = [
 			'<!-- user comment',

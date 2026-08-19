@@ -192,9 +192,9 @@ function openingFence(line: string): CodeFence | undefined {
 }
 
 function closesFence(line: string, fence: CodeFence): boolean {
-	return new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(
-		line,
-	);
+	return new RegExp(
+		`^ {0,3}${fence.character}{${fence.length},}[ \\t]*$`,
+	).test(line);
 }
 
 function scanLiteralMarkdown(lines: readonly NoteLine[]): LiteralMarkdownScan {
