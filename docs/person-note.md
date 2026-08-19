@@ -61,9 +61,14 @@ case-insensitive for the login and exact for the account ID, while the
 begin/end keywords and attribute names are exact and case-sensitive. A line
 matching either marker form inside the managed range is a nested or duplicate
 marker and makes the note ambiguous; other HTML comments are ordinary note
-content. Any HTML comment whose trimmed body begins with `devradar:begin` or
-`devradar:end` is a reserved DevRadar marker candidate; if it does not match
-the exact grammar above, it is a malformed marker and the note fails closed.
+content. Marker-shaped lines inside fenced code blocks or an already-open
+multiline HTML comment are literal note content, not managed markers. An inline
+`<!--` in ordinary text or a code span does not open a multiline HTML comment.
+A marker-free note whose EOF remains inside an unterminated fenced code block or
+multiline HTML comment fails closed and is not initialized. Any HTML comment
+whose trimmed body begins with `devradar:begin` or `devradar:end` is a reserved
+DevRadar marker candidate; if it does not match the exact grammar above, it is a
+malformed marker and the note fails closed.
 Generated provider text must be escaped so it cannot create a marker line.
 
 `USERNAME` must satisfy the canonical GitHub login grammar in
