@@ -363,6 +363,20 @@ describe('person-note association and replacement', () => {
 		});
 	});
 
+	it('replaces an empty managed region and then reports a no-op', () => {
+		const note = `${begin}\n${end}`;
+		const expected = `${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`;
+
+		expect(replaceManagedContent(note, identity, [])).toEqual({
+			ok: true,
+			value: { markdown: expected, changed: true },
+		});
+		expect(replaceManagedContent(expected, identity, [])).toEqual({
+			ok: true,
+			value: { markdown: expected, changed: false },
+		});
+	});
+
 	it('preserves mixed outside line endings while generating with the first one', () => {
 		const note = [
 			'Before',
