@@ -169,6 +169,7 @@ describe('person-note parsing', () => {
 			'<!-- devradar:begin github="octo--cat" github-id="583231" -->',
 			'<!-- devradar:begin github="octocat" github-id="01" -->',
 			'<!-- devradar:BEGIN github="octocat" github-id="583231" -->',
+			'<!-- devradar:end github="octocat" -->',
 		];
 		for (const candidate of malformed)
 			expect(invalidKind(parsePersonNote(candidate))).toBe(
