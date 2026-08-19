@@ -104,8 +104,7 @@ filename restrictions.
 
 Effective note paths are unique case-insensitively after canonicalization.
 Equivalent paths such as `People/Alice.md` and `people/alice.md` cannot belong
-to different followed people. Do not invent operating-system restrictions
-unrelated to vault containment.
+to different followed people.
 
 ## Timestamp representations
 
