@@ -97,6 +97,17 @@ describe('person-note parsing', () => {
 		});
 	});
 
+	it('allows unrelated HTML comments inside the managed section', () => {
+		const note = section('<!-- unrelated comment -->\nUser-edited content');
+		expect(parsePersonNote(note, identity)).toMatchObject({
+			kind: 'valid-section',
+			section: {
+				managedContent:
+					'## DevRadar activity\n<!-- unrelated comment -->\nUser-edited content\n',
+			},
+		});
+	});
+
 	it('rejects partial, malformed, ambiguous, reversed, and mismatched markers', () => {
 		expect(invalidKind(parsePersonNote(begin))).toBe('missing-marker');
 		expect(invalidKind(parsePersonNote(end))).toBe('missing-marker');
@@ -117,6 +128,12 @@ describe('person-note parsing', () => {
 				parsePersonNote(`${begin}\n${end.replace('583231', '583232')}`),
 			),
 		).toBe('identity-mismatch');
+		expect(
+			parsePersonNote(`${begin}\n${end.replace('octocat', 'hubot')}`),
+		).toMatchObject({
+			kind: 'invalid',
+			error: { kind: 'identity-mismatch', reason: 'begin-end' },
+		});
 		expect(
 			invalidKind(
 				parsePersonNote(`${begin}\n${end}`, {
@@ -233,14 +250,14 @@ describe('person-note rendering', () => {
 		const original = activities.slice();
 		const content = renderManagedContent(activities, '\n');
 		expect(activities).toEqual(original);
-		expect(content).toContain(
-			'- `2026-08-18T03:00:00Z` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): Fix bug',
-		);
-		expect(content.indexOf('2026-08-18T03:00:00Z')).toBeLessThan(
-			content.indexOf('2026-08-18T02:00:00Z'),
-		);
-		expect(content.indexOf('event two')).toBeLessThan(
-			content.indexOf('event twenty'),
+		expect(content).toBe(
+			[
+				'## DevRadar activity',
+				'',
+				'- `2026-08-18T03:00:00Z` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): Fix bug',
+				'- `2026-08-18T02:00:00Z` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): event two',
+				'- `2026-08-18T02:00:00Z` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): event twenty',
+			].join('\n'),
 		);
 		expect(content).not.toContain(
 			'_No activity recorded by DevRadar yet._',
