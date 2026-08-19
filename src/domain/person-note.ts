@@ -448,12 +448,12 @@ export function associatePersonNote(
 	const lineEnding = detectLineEnding(input);
 	const rendered = renderManagedSection(identity, activities, lineEnding);
 	if (!rendered.ok) return rendered;
-	const separatorCount = Math.max(
-		0,
-		2 -
-			trailingLineEndingCount(input) +
-			(lineEnding === '\n' && input.endsWith('\r') ? 1 : 0),
-	);
+	let separatorCount = 0;
+	while (
+		separatorCount < 2 &&
+		trailingLineEndingCount(input + lineEnding.repeat(separatorCount)) < 2
+	)
+		separatorCount += 1;
 	const markdown = input + lineEnding.repeat(separatorCount) + rendered.value;
 	return success({ markdown, changed: markdown !== input });
 }

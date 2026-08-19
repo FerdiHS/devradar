@@ -317,6 +317,8 @@ describe('person-note association and replacement', () => {
 			],
 			['first\nsecond\r', `first\nsecond\r\n\n${generated}`],
 			['first\nsecond   \r', `first\nsecond   \r\n\n${generated}`],
+			['first\nsecond\r\r', `first\nsecond\r\r${generated}`],
+			['first\nsecond\n\r', `first\nsecond\n\r${generated}`],
 		] as const;
 		for (const [input, expected] of cases) {
 			const result = associatePersonNote(input, identity, []);
