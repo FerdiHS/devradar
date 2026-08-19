@@ -175,6 +175,25 @@ personal/repository metadata.
 Provider event IDs and deduplication state are owned by the sync specification;
 they are not rendered as hidden Markdown metadata.
 
+## Canonical provider timestamps
+
+Every provider activity timestamp is normalized by this document's algorithm.
+Parse a valid RFC 3339 instant, convert it to UTC, and emit
+`YYYY-MM-DDTHH:mm:ssZ` when no fractional second is significant. When a
+fractional second is significant, retain its exact precision after removing
+trailing fractional zeroes and append `Z`; never round. Reject invalid
+timestamps and values outside the supported four-digit UTC year range.
+
+For example, offset forms and equivalent fractional forms normalize to one
+canonical value, while meaningful sub-second precision is preserved. Persisted
+provider timestamps must already equal this canonical representation; callers
+must not silently rewrite noncanonical persisted values.
+
+`docs/settings.md`, `docs/sync.md`, and `docs/person-note.md` reference this
+algorithm rather than defining competing provider timestamp rules. Plugin-owned
+timestamps are a separate settings/sync concern and use their exact
+millisecond-precision UTC grammar.
+
 ## Canonical v0.2 activity serialization
 
 The person-note contract supplies the entry envelope:

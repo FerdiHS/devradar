@@ -3,6 +3,10 @@ import {
 	serializeActivityFragment,
 	type Activity,
 } from './activity';
+import {
+	isCanonicalGitHubUsername,
+	isCanonicalPositiveDecimalString,
+} from './primitives';
 
 export type LineEnding = '\n' | '\r\n' | '\r';
 
@@ -62,9 +66,6 @@ export interface PersonNoteChange {
 	readonly changed: boolean;
 }
 
-const USERNAME =
-	/^(?=.{1,39}$)(?!.*--)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/;
-const ACCOUNT_ID = /^[1-9]\d*$/;
 const MARKER =
 	/^<!-- devradar:(begin|end) github="([^"]+)" github-id="([^"]+)" -->$/;
 
@@ -112,13 +113,13 @@ function validateIdentity(input: unknown): PersonNoteFailure | undefined {
 	if (
 		!input ||
 		typeof input !== 'object' ||
-		typeof (input as { username?: unknown }).username !== 'string' ||
-		!USERNAME.test((input as { username: string }).username)
+		!isCanonicalGitHubUsername((input as { username?: unknown }).username)
 	)
 		return { kind: 'invalid-identity', field: 'username' };
 	if (
-		typeof (input as { githubId?: unknown }).githubId !== 'string' ||
-		!ACCOUNT_ID.test((input as { githubId: string }).githubId)
+		!isCanonicalPositiveDecimalString(
+			(input as { githubId?: unknown }).githubId,
+		)
 	)
 		return { kind: 'invalid-identity', field: 'github-id' };
 	return undefined;
@@ -270,8 +271,8 @@ function scanMarkers(
 		if (
 			!username ||
 			!githubId ||
-			!USERNAME.test(username) ||
-			!ACCOUNT_ID.test(githubId)
+			!isCanonicalGitHubUsername(username) ||
+			!isCanonicalPositiveDecimalString(githubId)
 		) {
 			malformed ??= { kind: 'malformed-marker', marker: kind };
 			continue;

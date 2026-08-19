@@ -28,12 +28,14 @@ type PersonSyncState = {
 };
 ```
 
-All persisted timestamps use canonical UTC ISO-8601 strings. A new association
-starts with `seenEvents: []` and an empty `github` object.
+Plugin-owned persisted timestamps use the exact canonical UTC millisecond form
+defined by [`settings.md`](settings.md). A new association starts with
+`seenEvents: []` and an empty `github` object.
 
 Each `seenEvents.id` is the canonical provider event ID defined by
 [`activity.md`](activity.md), not an unvalidated raw payload value. Its
-`createdAt` is the canonical provider activity timestamp, not an observation or
+`createdAt` is the canonical provider activity timestamp produced by the
+single algorithm in [`activity.md`](activity.md), not an observation or
 persistence time. `seenEvents` contains at most one record per event ID.
 
 Duplicate persisted event IDs are malformed sync state and fail strict dataset

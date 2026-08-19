@@ -118,14 +118,10 @@ place it after the retained group, and order multiple new entries by provider
 event ID ascending. These ordering keys are internal and are never rendered in
 the note.
 
-Normalize each valid provider ISO-8601 timestamp by parsing its instant,
-converting it to UTC, and emitting `YYYY-MM-DDTHH:mm:ssZ` when the instant has
-no fractional second. When it has a fractional second, emit the same form with
-`.` followed by the significant fractional digits and a trailing `Z`; remove
-trailing fractional zeroes and never round. Thus offset forms, `.100Z`, and
-`.1Z` for the same instant serialize identically, while sub-second precision is
-preserved. Invalid timestamps are required mapping data and fail the person's
-sync.
+Provider timestamp normalization follows the single authoritative algorithm in
+[`activity.md`](activity.md). Invalid timestamps are required mapping data and
+fail the person's sync; persisted provider timestamps must already be in the
+canonical form rather than being silently repaired.
 
 Do not group by date, repository, activity family, or inferred importance. Do
 not place last-sync times, rate-limit state, completeness claims, retry data,
