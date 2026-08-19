@@ -220,33 +220,41 @@ describe('person-note parsing', () => {
 		}
 	});
 
-	it('ignores marker-shaped lines in literal Markdown contexts', () => {
-		const notes = [
-			['```md', begin, 'User-authored example.', end, '```'].join('\n'),
-			[
-				'<!-- user comment',
-				begin,
-				'User-authored example.',
-				end,
-				'-->',
-			].join('\n'),
-		];
-		for (const note of notes) {
-			expect(parsePersonNote(note)).toEqual({ kind: 'marker-free' });
-			expect(replaceManagedContent(note, identity, [])).toEqual({
-				ok: false,
-				error: {
-					kind: 'missing-marker',
-					missing: 'associated-section',
-				},
-			});
-		}
+	it('ignores marker-shaped lines inside fenced code', () => {
+		const note = [
+			'```md',
+			begin,
+			'User-authored example.',
+			end,
+			'```',
+		].join('\n');
+		expect(parsePersonNote(note)).toEqual({ kind: 'marker-free' });
+		expect(replaceManagedContent(note, identity, [])).toEqual({
+			ok: false,
+			error: { kind: 'missing-marker', missing: 'associated-section' },
+		});
+	});
+
+	it('fails closed when marker lines cross a multiline HTML comment', () => {
+		const note = [
+			'<!-- user comment',
+			begin,
+			'User-authored example.',
+			end,
+			'-->',
+		].join('\n');
+		expect(invalidKind(parsePersonNote(note))).toBe('missing-marker');
+		expect(replaceManagedContent(note, identity, [])).toEqual({
+			ok: false,
+			error: { kind: 'missing-marker', missing: 'begin' },
+		});
 	});
 
 	it('recognizes real markers after closed literal Markdown contexts', () => {
 		const prefixes = [
 			['```md', begin, 'User-authored example.', end, '```'].join('\n'),
 			'<!-- ordinary comment -->',
+			'`<!--`',
 		];
 		const generated = ok(renderManagedSection(identity, [], '\n'));
 		for (const prefix of prefixes) {
@@ -257,6 +265,21 @@ describe('person-note parsing', () => {
 				value: { markdown: `${prefix}\n${generated}`, changed: true },
 			});
 		}
+	});
+
+	it('fails closed when EOF remains inside a literal Markdown context', () => {
+		for (const note of [
+			['```md', 'example'].join('\n'),
+			['~~~md', 'example'].join('\n'),
+			['<!-- user comment', 'example'].join('\n'),
+		])
+			expect(associatePersonNote(note, identity, [])).toEqual({
+				ok: false,
+				error: {
+					kind: 'missing-marker',
+					missing: 'associated-section',
+				},
+			});
 	});
 
 	it('rejects foreign identity without authorizing mutation', () => {
@@ -401,6 +424,15 @@ describe('person-note association and replacement', () => {
 		if (!result.ok) return;
 		expect(result.value.markdown.match(/devradar:begin/g)).toHaveLength(1);
 		expect(result.value.markdown.match(/devradar:end/g)).toHaveLength(1);
+	});
+
+	it('associates marker-free notes into a reparsable section', () => {
+		const result = associatePersonNote('User content', identity, []);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(parsePersonNote(result.value.markdown, identity).kind).toBe(
+			'valid-section',
+		);
 	});
 
 	it('replaces only managed bytes and reports a no-op', () => {

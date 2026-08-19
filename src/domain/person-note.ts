@@ -92,6 +92,11 @@ interface CodeFence {
 	readonly length: number;
 }
 
+interface LiteralMarkdownScan {
+	readonly lineStarts: ReadonlySet<number>;
+	readonly unterminated: boolean;
+}
+
 const success = <T>(value: T): PersonNoteResult<T> => ({ ok: true, value });
 
 const failure = <T>(error: PersonNoteFailure): PersonNoteResult<T> => ({
@@ -192,9 +197,7 @@ function closesFence(line: string, fence: CodeFence): boolean {
 	);
 }
 
-function literalMarkdownLineStarts(
-	lines: readonly NoteLine[],
-): ReadonlySet<number> {
+function scanLiteralMarkdown(lines: readonly NoteLine[]): LiteralMarkdownScan {
 	const literal = new Set<number>();
 	let fence: CodeFence | undefined;
 	let htmlCommentOpen = false;
@@ -206,8 +209,7 @@ function literalMarkdownLineStarts(
 		}
 		if (htmlCommentOpen) {
 			literal.add(line.start);
-			if (line.text.includes('-->') && !line.text.includes('<!--'))
-				htmlCommentOpen = false;
+			if (line.text.includes('-->')) htmlCommentOpen = false;
 			continue;
 		}
 		const nextFence = openingFence(line.text);
@@ -216,14 +218,19 @@ function literalMarkdownLineStarts(
 			fence = nextFence;
 			continue;
 		}
-		const commentStart = line.text.indexOf('<!--');
+		const commentStart = /^ {0,3}<!--/.test(line.text)
+			? line.text.indexOf('<!--')
+			: -1;
 		if (
 			commentStart !== -1 &&
 			line.text.indexOf('-->', commentStart + 4) === -1
 		)
 			htmlCommentOpen = true;
 	}
-	return literal;
+	return {
+		lineStarts: literal,
+		unterminated: Boolean(fence || htmlCommentOpen),
+	};
 }
 
 function scanMarkers(
@@ -231,15 +238,16 @@ function scanMarkers(
 	lines: readonly NoteLine[],
 ): {
 	readonly candidates: readonly MarkerCandidate[];
+	readonly unterminated: boolean;
 	readonly malformed?: PersonNoteFailure;
 } {
 	const candidates: MarkerCandidate[] = [];
-	const literalLines = literalMarkdownLineStarts(lines);
+	const literalScan = scanLiteralMarkdown(lines);
 	let malformed: PersonNoteFailure | undefined;
 	for (const match of input.matchAll(/<!--/g)) {
 		const start = match.index ?? 0;
 		const line = lineAt(lines, start);
-		if (line && literalLines.has(line.start)) continue;
+		if (line && literalScan.lineStarts.has(line.start)) continue;
 		const close = input.indexOf('-->', start + 4);
 		const raw =
 			close === -1 ? input.slice(start) : input.slice(start, close + 3);
@@ -279,7 +287,11 @@ function scanMarkers(
 			line,
 		});
 	}
-	return { candidates, ...(malformed ? { malformed } : {}) };
+	return {
+		candidates,
+		unterminated: literalScan.unterminated,
+		...(malformed ? { malformed } : {}),
+	};
 }
 
 function detectLineEnding(input: string): LineEnding {
@@ -339,9 +351,16 @@ export function parsePersonNote(
 		: undefined;
 	if (identityError) return invalid(identityError);
 	const lines = splitLines(input);
-	const { candidates, malformed } = scanMarkers(input, lines);
+	const { candidates, malformed, unterminated } = scanMarkers(input, lines);
 	if (malformed) return invalid(malformed);
-	if (candidates.length === 0) return { kind: 'marker-free' };
+	if (candidates.length === 0) {
+		if (unterminated)
+			return invalid({
+				kind: 'missing-marker',
+				missing: 'associated-section',
+			});
+		return { kind: 'marker-free' };
+	}
 
 	const begins = candidates.filter((candidate) => candidate.kind === 'begin');
 	const ends = candidates.filter((candidate) => candidate.kind === 'end');
