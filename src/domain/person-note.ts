@@ -85,7 +85,6 @@ interface MarkerCandidate {
 
 interface ParsedSection extends ManagedSection {
 	readonly beginMarkerEnd: number;
-	readonly contentStart: number;
 	readonly contentEnd: number;
 }
 
@@ -274,7 +273,6 @@ function asParsedSection(
 		managedContent: input.slice(contentStart, contentEnd),
 		lineEnding,
 		beginMarkerEnd: beginCandidate.line.end,
-		contentStart,
 		contentEnd,
 	};
 }
