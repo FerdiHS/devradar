@@ -67,7 +67,6 @@ const USERNAME =
 const ACCOUNT_ID = /^[1-9]\d*$/;
 const MARKER =
 	/^<!-- devradar:(begin|end) github="([^"]+)" github-id="([^"]+)" -->$/;
-const RESERVED_MARKER = /<!--([\s\S]*?)-->/g;
 
 interface NoteLine {
 	readonly text: string;
@@ -183,15 +182,20 @@ function scanMarkers(
 } {
 	const candidates: MarkerCandidate[] = [];
 	let malformed: PersonNoteFailure | undefined;
-	for (const match of input.matchAll(RESERVED_MARKER)) {
-		const raw = match[0];
-		const body = match[1] ?? '';
+	for (const match of input.matchAll(/<!--/g)) {
+		const start = match.index ?? 0;
+		const close = input.indexOf('-->', start + 4);
+		const raw =
+			close === -1 ? input.slice(start) : input.slice(start, close + 3);
+		const body = input.slice(
+			start + 4,
+			close === -1 ? input.length : close,
+		);
 		const kind = markerKind(body);
 		if (!kind) continue;
-		const start = match.index ?? 0;
 		const line = lineAt(lines, start);
 		const parsed =
-			line?.text === raw && line.start === start
+			close !== -1 && line?.text === raw && line.start === start
 				? MARKER.exec(raw)
 				: null;
 		if (!parsed || parsed[1] !== kind) {
@@ -219,12 +223,6 @@ function scanMarkers(
 			marker: raw,
 			line,
 		});
-	}
-	for (const match of input.matchAll(/<!--/g)) {
-		const start = match.index ?? 0;
-		if (input.indexOf('-->', start + 4) !== -1) continue;
-		const kind = markerKind(input.slice(start + 4));
-		if (kind) malformed ??= { kind: 'malformed-marker', marker: kind };
 	}
 	return { candidates, ...(malformed ? { malformed } : {}) };
 }

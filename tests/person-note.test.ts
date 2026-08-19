@@ -197,6 +197,14 @@ describe('person-note parsing', () => {
 		);
 	});
 
+	it('rejects reserved candidates hidden inside another HTML comment', () => {
+		for (const marker of [begin, end]) {
+			const note = `<!-- wrapper ${marker}`;
+			expect(invalidKind(parsePersonNote(note))).toBe('malformed-marker');
+			expect(associatePersonNote(note, identity, []).ok).toBe(false);
+		}
+	});
+
 	it('rejects foreign identity without authorizing mutation', () => {
 		const foreign = section('', '\n').replaceAll('octocat', 'hubot');
 		const result = replaceManagedContent(foreign, identity, []);
