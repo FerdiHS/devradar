@@ -258,6 +258,13 @@ describe('person-note rendering', () => {
 		);
 	});
 
+	it('renders identical bytes for repeated canonical inputs', () => {
+		const activities = [activity('1', '2026-08-18T03:00:00Z')];
+		const first = ok(renderManagedSection(identity, activities, '\r\n'));
+		const second = ok(renderManagedSection(identity, activities, '\r\n'));
+		expect(second).toBe(first);
+	});
+
 	it('renders activities newest-first with equal timestamps ordered by event ID', () => {
 		const activities = [
 			activity('20', '2026-08-18T02:00:00Z', 'event twenty'),
