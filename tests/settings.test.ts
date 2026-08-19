@@ -201,11 +201,38 @@ describe('schema-v1 persisted validation', () => {
 		);
 	});
 
+	it('does not read through live proxy traps after inspection', () => {
+		const input = new Proxy(
+			{ schemaVersion: 1, followedPeople: [] },
+			{
+				get(target, property) {
+					if (property === 'schemaVersion') throw new Error('trap');
+					return target[property as keyof typeof target];
+				},
+			},
+		);
+		expect(validatePersistedSettingsV1(input, NOW)).toEqual({
+			ok: true,
+			value: createEmptySettingsV1(),
+		});
+
+		const followedPeople = new Proxy([], {
+			get() {
+				throw new Error('trap');
+			},
+		});
+		expectFailure(
+			{ schemaVersion: 1, followedPeople },
+			'invalid-type',
+			'/followedPeople',
+		);
+	});
+
 	it('does not treat non-enumerable own fields as legacy absence', () => {
 		const input = {};
 		Object.defineProperty(input, 'schemaVersion', { value: 1 });
 
-		expectFailure(input, 'missing-field', '/followedPeople');
+		expectFailure(input, 'missing-field', '/schemaVersion');
 	});
 });
 

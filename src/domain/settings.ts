@@ -77,6 +77,7 @@ export type SchemaV1ValidationResult<T> =
 type RecordView = {
 	readonly record: Record<string, unknown>;
 	readonly keys: readonly string[];
+	readonly hasOwnKeys: boolean;
 };
 
 function isValidationError(
@@ -146,8 +147,10 @@ function inspectRecord(
 		if (prototype !== Object.prototype && prototype !== null)
 			return invalidType(path, 'object');
 
-		const symbols = Object.getOwnPropertySymbols(objectInput);
-		for (const symbol of symbols) {
+		const ownKeys = Reflect.ownKeys(objectInput);
+		for (const symbol of ownKeys.filter(
+			(key): key is symbol => typeof key === 'symbol',
+		)) {
 			const descriptor = Object.getOwnPropertyDescriptor(
 				objectInput,
 				symbol,
@@ -156,7 +159,8 @@ function inspectRecord(
 				return invalidType(path, 'object with enumerable symbol keys');
 		}
 
-		const keys = Object.getOwnPropertyNames(objectInput).sort();
+		const keys = Object.keys(objectInput).sort();
+		const entries: Array<[string, unknown]> = [];
 		for (const key of keys) {
 			if (containsForbiddenControl(key) || isUnpairedSurrogate(key))
 				return invalidType(path, 'object key');
@@ -166,6 +170,7 @@ function inspectRecord(
 			);
 			if (!descriptor || !('value' in descriptor))
 				return invalidType(fieldPath(path, key), 'property');
+			entries.push([key, descriptor.value]);
 		}
 
 		const unknown = keys.find((key) => !allowed.includes(key));
@@ -184,7 +189,11 @@ function inspectRecord(
 				`required field ${missing} is missing`,
 			);
 
-		return { record: objectInput as Record<string, unknown>, keys };
+		return {
+			record: Object.fromEntries(entries),
+			keys,
+			hasOwnKeys: ownKeys.length > 0,
+		};
 	} catch {
 		return invalidType(path, 'object');
 	}
@@ -204,6 +213,7 @@ function validateArray(
 		const array = input as unknown[];
 		if (Object.getPrototypeOf(array) !== Array.prototype)
 			return invalidType(path, 'array');
+		const length = array.length;
 		for (const symbol of Object.getOwnPropertySymbols(array)) {
 			const descriptor = Object.getOwnPropertyDescriptor(array, symbol);
 			if (descriptor?.enumerable)
@@ -216,7 +226,7 @@ function validateArray(
 			return (
 				String(index) !== key ||
 				!Number.isSafeInteger(index) ||
-				index >= array.length
+				index >= length
 			);
 		});
 		if (unexpected)
@@ -225,15 +235,17 @@ function validateArray(
 				fieldPath(path, unexpected),
 				'unexpected array field',
 			);
-		for (let index = 0; index < array.length; index += 1) {
+		const values: unknown[] = [];
+		for (let index = 0; index < length; index += 1) {
 			const descriptor = Object.getOwnPropertyDescriptor(
 				array,
 				String(index),
 			);
 			if (!descriptor || !('value' in descriptor))
 				return invalidType(indexPath(path, index), 'array item');
+			values.push(descriptor.value);
 		}
-		return array;
+		return values;
 	} catch {
 		return invalidType(path, 'array');
 	}
@@ -664,7 +676,8 @@ export function validatePersistedSettingsV1(
 		[],
 	);
 	if (!('record' in view)) return { ok: false, error: view };
-	if (view.keys.length === 0) return success(createEmptySettingsV1());
+	if (view.keys.length === 0 && !view.hasOwnKeys)
+		return success(createEmptySettingsV1());
 	const missing = ['schemaVersion', 'followedPeople'].find(
 		(field) => !hasField(view, field),
 	);
