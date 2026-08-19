@@ -87,6 +87,11 @@ interface ParsedSection extends ManagedSection {
 	readonly contentEnd: number;
 }
 
+interface CodeFence {
+	readonly character: '`' | '~';
+	readonly length: number;
+}
+
 const success = <T>(value: T): PersonNoteResult<T> => ({ ok: true, value });
 
 const failure = <T>(error: PersonNoteFailure): PersonNoteResult<T> => ({
@@ -172,6 +177,55 @@ function markerKind(body: string): 'begin' | 'end' | undefined {
 	return undefined;
 }
 
+function openingFence(line: string): CodeFence | undefined {
+	const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
+	if (!match) return undefined;
+	const fence = match[2];
+	if (!fence || (fence[0] === '`' && match[3]?.includes('`')))
+		return undefined;
+	return { character: fence[0] as '`' | '~', length: fence.length };
+}
+
+function closesFence(line: string, fence: CodeFence): boolean {
+	return new RegExp(`^ {0,3}${fence.character}{${fence.length},}\\s*$`).test(
+		line,
+	);
+}
+
+function literalMarkdownLineStarts(
+	lines: readonly NoteLine[],
+): ReadonlySet<number> {
+	const literal = new Set<number>();
+	let fence: CodeFence | undefined;
+	let htmlCommentOpen = false;
+	for (const line of lines) {
+		if (fence) {
+			literal.add(line.start);
+			if (closesFence(line.text, fence)) fence = undefined;
+			continue;
+		}
+		if (htmlCommentOpen) {
+			literal.add(line.start);
+			if (line.text.includes('-->') && !line.text.includes('<!--'))
+				htmlCommentOpen = false;
+			continue;
+		}
+		const nextFence = openingFence(line.text);
+		if (nextFence) {
+			literal.add(line.start);
+			fence = nextFence;
+			continue;
+		}
+		const commentStart = line.text.indexOf('<!--');
+		if (
+			commentStart !== -1 &&
+			line.text.indexOf('-->', commentStart + 4) === -1
+		)
+			htmlCommentOpen = true;
+	}
+	return literal;
+}
+
 function scanMarkers(
 	input: string,
 	lines: readonly NoteLine[],
@@ -180,9 +234,12 @@ function scanMarkers(
 	readonly malformed?: PersonNoteFailure;
 } {
 	const candidates: MarkerCandidate[] = [];
+	const literalLines = literalMarkdownLineStarts(lines);
 	let malformed: PersonNoteFailure | undefined;
 	for (const match of input.matchAll(/<!--/g)) {
 		const start = match.index ?? 0;
+		const line = lineAt(lines, start);
+		if (line && literalLines.has(line.start)) continue;
 		const close = input.indexOf('-->', start + 4);
 		const raw =
 			close === -1 ? input.slice(start) : input.slice(start, close + 3);
@@ -192,7 +249,6 @@ function scanMarkers(
 		);
 		const kind = markerKind(body);
 		if (!kind) continue;
-		const line = lineAt(lines, start);
 		const parsed =
 			close !== -1 && line?.text === raw && line.start === start
 				? MARKER.exec(raw)

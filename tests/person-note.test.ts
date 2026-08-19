@@ -213,6 +213,45 @@ describe('person-note parsing', () => {
 		}
 	});
 
+	it('ignores marker-shaped lines in literal Markdown contexts', () => {
+		const notes = [
+			['```md', begin, 'User-authored example.', end, '```'].join('\n'),
+			[
+				'<!-- user comment',
+				begin,
+				'User-authored example.',
+				end,
+				'-->',
+			].join('\n'),
+		];
+		for (const note of notes) {
+			expect(parsePersonNote(note)).toEqual({ kind: 'marker-free' });
+			expect(replaceManagedContent(note, identity, [])).toEqual({
+				ok: false,
+				error: {
+					kind: 'missing-marker',
+					missing: 'associated-section',
+				},
+			});
+		}
+	});
+
+	it('recognizes real markers after closed literal Markdown contexts', () => {
+		const prefixes = [
+			['```md', begin, 'User-authored example.', end, '```'].join('\n'),
+			'<!-- ordinary comment -->',
+		];
+		const generated = ok(renderManagedSection(identity, [], '\n'));
+		for (const prefix of prefixes) {
+			const note = `${prefix}\n${section('Old content')}`;
+			expect(parsePersonNote(note).kind).toBe('valid-section');
+			expect(replaceManagedContent(note, identity, [])).toEqual({
+				ok: true,
+				value: { markdown: `${prefix}\n${generated}`, changed: true },
+			});
+		}
+	});
+
 	it('rejects foreign identity without authorizing mutation', () => {
 		const foreign = section('', '\n').replaceAll('octocat', 'hubot');
 		const result = replaceManagedContent(foreign, identity, []);
