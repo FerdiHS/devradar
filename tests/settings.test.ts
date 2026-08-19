@@ -186,6 +186,27 @@ describe('schema-v1 persisted validation', () => {
 		});
 		expectFailure(withGetter, 'invalid-type', '/danger');
 	});
+
+	it('returns structured errors for revoked proxies', () => {
+		const root = Proxy.revocable({}, {});
+		root.revoke();
+		expectFailure(root.proxy, 'invalid-type', '');
+
+		const followedPeople = Proxy.revocable([], {});
+		followedPeople.revoke();
+		expectFailure(
+			{ schemaVersion: 1, followedPeople: followedPeople.proxy },
+			'invalid-type',
+			'/followedPeople',
+		);
+	});
+
+	it('does not treat non-enumerable own fields as legacy absence', () => {
+		const input = {};
+		Object.defineProperty(input, 'schemaVersion', { value: 1 });
+
+		expectFailure(input, 'missing-field', '/followedPeople');
+	});
 });
 
 describe('schema-v1 field validation', () => {

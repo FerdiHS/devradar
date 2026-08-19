@@ -132,10 +132,10 @@ function inspectRecord(
 	allowed: readonly string[],
 	required: readonly string[],
 ): RecordView | SchemaV1ValidationError {
-	if (input === null || typeof input !== 'object' || Array.isArray(input))
-		return invalidType(path, 'object');
-
 	try {
+		if (input === null || typeof input !== 'object' || Array.isArray(input))
+			return invalidType(path, 'object');
+
 		const objectInput = input;
 		const prototype = Reflect.getPrototypeOf(objectInput);
 		if (prototype !== Object.prototype && prototype !== null)
@@ -151,7 +151,7 @@ function inspectRecord(
 				return invalidType(path, 'object with enumerable symbol keys');
 		}
 
-		const keys = Object.keys(objectInput).sort();
+		const keys = Object.getOwnPropertyNames(objectInput).sort();
 		for (const key of keys) {
 			if (containsForbiddenControl(key) || isUnpairedSurrogate(key))
 				return invalidType(path, 'object key');
@@ -193,8 +193,9 @@ function validateArray(
 	input: unknown,
 	path: string,
 ): readonly unknown[] | SchemaV1ValidationError {
-	if (!Array.isArray(input)) return invalidType(path, 'array');
 	try {
+		if (!Array.isArray(input)) return invalidType(path, 'array');
+
 		const array = input as unknown[];
 		if (Object.getPrototypeOf(array) !== Array.prototype)
 			return invalidType(path, 'array');
