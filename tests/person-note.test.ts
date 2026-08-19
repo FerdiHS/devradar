@@ -168,6 +168,7 @@ describe('person-note parsing', () => {
 			'<!-- devradar:begin github="" github-id="583231" -->',
 			'<!-- devradar:begin github="octo--cat" github-id="583231" -->',
 			'<!-- devradar:begin github="octocat" github-id="01" -->',
+			'<!-- devradar:begin github="octocat" github-id="abc" -->',
 			'<!-- devradar:BEGIN github="octocat" github-id="583231" -->',
 			'<!-- devradar:end github="octocat" -->',
 		];
@@ -314,6 +315,10 @@ describe('person-note association and replacement', () => {
 			[
 				'first\rsecond\r',
 				`first\rsecond\r\r${generated.replaceAll('\n', '\r')}`,
+			],
+			[
+				'first\r\nsecond\r\n',
+				`first\r\nsecond\r\n\r\n${generated.replaceAll('\n', '\r\n')}`,
 			],
 			['first\nsecond\r', `first\nsecond\r\n\n${generated}`],
 			['first\nsecond   \r', `first\nsecond   \r\n\n${generated}`],
