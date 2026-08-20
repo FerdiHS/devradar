@@ -31,6 +31,15 @@ function validSettings(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function withoutField(
+	input: Record<string, unknown>,
+	field: string,
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([key]) => key !== field),
+	);
+}
+
 function expectFailure(
 	input: unknown,
 	code: string,
@@ -842,6 +851,209 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 			'invalid-provider-event-id',
 			'/followedPeople/0/syncState/seenEvents/0/id',
 		);
+	});
+
+	it('rejects wrong container types at every persisted level', () => {
+		const cases: Array<[unknown, string, string]> = [
+			[
+				validSettings({ followedPeople: {} }),
+				'/followedPeople',
+				'array has an invalid type',
+			],
+			[
+				validSettings({ followedPeople: [null] }),
+				'/followedPeople/0',
+				'object has an invalid type',
+			],
+			[
+				validSettings({
+					followedPeople: [validPerson({ trackingStart: null })],
+				}),
+				'/followedPeople/0/trackingStart',
+				'object has an invalid type',
+			],
+			[
+				validSettings({
+					followedPeople: [validPerson({ syncState: null })],
+				}),
+				'/followedPeople/0/syncState',
+				'object has an invalid type',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: { seenEvents: null, github: {} },
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents',
+				'array has an invalid type',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: { seenEvents: [null], github: {} },
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents/0',
+				'object has an invalid type',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: { seenEvents: [], github: null },
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/github',
+				'object has an invalid type',
+			],
+			[
+				validSettings({ githubRequestPolicy: null }),
+				'/githubRequestPolicy',
+				'object has an invalid type',
+			],
+		];
+
+		for (const [input, path, message] of cases)
+			expectFailure(input, 'invalid-type', path, NOW, message);
+	});
+
+	it('rejects missing required fields at every persisted level', () => {
+		const cases: Array<[unknown, string, string]> = [
+			[
+				validSettings({
+					followedPeople: [withoutField(validPerson(), 'username')],
+				}),
+				'/followedPeople/0/username',
+				'required field username is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						withoutField(validPerson(), 'githubAccountId'),
+					],
+				}),
+				'/followedPeople/0/githubAccountId',
+				'required field githubAccountId is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [withoutField(validPerson(), 'notePath')],
+				}),
+				'/followedPeople/0/notePath',
+				'required field notePath is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						withoutField(validPerson(), 'trackingStart'),
+					],
+				}),
+				'/followedPeople/0/trackingStart',
+				'required field trackingStart is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [withoutField(validPerson(), 'syncState')],
+				}),
+				'/followedPeople/0/syncState',
+				'required field syncState is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							trackingStart: withoutField(
+								{ mode: 'from-date', at: NOW },
+								'mode',
+							),
+						}),
+					],
+				}),
+				'/followedPeople/0/trackingStart/mode',
+				'required field mode is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							trackingStart: { mode: 'from-date' },
+						}),
+					],
+				}),
+				'/followedPeople/0/trackingStart/at',
+				'required field at is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: withoutField(
+								{ seenEvents: [], github: {} },
+								'seenEvents',
+							),
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents',
+				'required field seenEvents is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({ syncState: { seenEvents: [] } }),
+					],
+				}),
+				'/followedPeople/0/syncState/github',
+				'required field github is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									withoutField(
+										{ id: '1', createdAt: PROVIDER_TIME },
+										'id',
+									),
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents/0/id',
+				'required field id is missing',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									withoutField(
+										{ id: '1', createdAt: PROVIDER_TIME },
+										'createdAt',
+									),
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'/followedPeople/0/syncState/seenEvents/0/createdAt',
+				'required field createdAt is missing',
+			],
+		];
+
+		for (const [input, path, message] of cases)
+			expectFailure(input, 'missing-field', path, NOW, message);
 	});
 
 	it('reports missing nested fields in schema order', () => {
