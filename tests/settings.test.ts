@@ -795,6 +795,68 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 		);
 	});
 
+	it('defers uniqueness until local validation completes', () => {
+		const cases: Array<[unknown, string, string]> = [
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{ id: '1', createdAt: PROVIDER_TIME },
+									{ id: '1', createdAt: PROVIDER_TIME },
+									{ id: '3', createdAt: 'not-a-timestamp' },
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'invalid-provider-timestamp',
+				'/followedPeople/0/syncState/seenEvents/2/createdAt',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson(),
+						validPerson({
+							username: 'OCTOCAT',
+							githubAccountId: '2',
+							notePath: 'People/two.md',
+						}),
+						validPerson({
+							username: 'invalid username',
+							githubAccountId: '3',
+							notePath: 'People/three.md',
+						}),
+					],
+				}),
+				'invalid-username',
+				'/followedPeople/2/username',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson(),
+						validPerson({
+							username: 'OCTOCAT',
+							githubAccountId: '2',
+							notePath: 'People/two.md',
+						}),
+					],
+					githubRequestPolicy: {
+						rateLimitNotBefore: 'not-a-timestamp',
+					},
+				}),
+				'invalid-plugin-timestamp',
+				'/githubRequestPolicy/rateLimitNotBefore',
+			],
+		];
+
+		for (const [input, code, path] of cases)
+			expectFailure(input, code, path);
+	});
+
 	it('rejects non-canonical enumerable array keys', () => {
 		const seenEvents = Object.assign(
 			[
