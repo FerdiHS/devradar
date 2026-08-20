@@ -80,11 +80,10 @@ type RecordView = {
 	readonly hasOwnKeys: boolean;
 };
 
-function isValidationError(
-	value: readonly unknown[] | SchemaV1ValidationError,
-): value is SchemaV1ValidationError {
-	return !Array.isArray(value);
-}
+type ArrayView = {
+	readonly input: unknown[];
+	readonly length: number;
+};
 
 const PLUGIN_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
@@ -213,10 +212,10 @@ function readField(
 	}
 }
 
-function validateArray(
+function inspectArray(
 	input: unknown,
 	path: string,
-): readonly unknown[] | SchemaV1ValidationError {
+): ArrayView | SchemaV1ValidationError {
 	try {
 		if (!Array.isArray(input)) return invalidType(path, 'array');
 
@@ -245,19 +244,35 @@ function validateArray(
 				fieldPath(path, unexpected),
 				'unexpected array field',
 			);
-		const values: unknown[] = [];
-		for (let index = 0; index < length; index += 1) {
-			const descriptor = Object.getOwnPropertyDescriptor(
-				array,
-				String(index),
-			);
-			if (!descriptor || !('value' in descriptor))
-				return invalidType(indexPath(path, index), 'array item');
-			values.push(descriptor.value);
-		}
-		return values;
+		return { input: array, length };
 	} catch {
 		return invalidType(path, 'array');
+	}
+}
+
+function readArrayItem(
+	view: ArrayView,
+	index: number,
+	path: string,
+): SchemaV1ValidationResult<unknown> {
+	try {
+		const descriptor = Object.getOwnPropertyDescriptor(
+			view.input,
+			String(index),
+		);
+		if (!descriptor || !('value' in descriptor))
+			return failure(
+				'invalid-type',
+				indexPath(path, index),
+				'array item has an invalid type',
+			);
+		return success(descriptor.value);
+	} catch {
+		return failure(
+			'invalid-type',
+			indexPath(path, index),
+			'array item has an invalid type',
+		);
 	}
 }
 
@@ -381,13 +396,15 @@ function validateSeenEvents(
 	input: unknown,
 	path: string,
 ): SchemaV1ValidationResult<SeenEventV1[]> {
-	const array = validateArray(input, path);
-	if (isValidationError(array)) return { ok: false, error: array };
+	const array = inspectArray(input, path);
+	if (!('input' in array)) return { ok: false, error: array };
 	const events: SeenEventV1[] = [];
 	for (let index = 0; index < array.length; index += 1) {
 		const eventPath = indexPath(path, index);
+		const item = readArrayItem(array, index, path);
+		if (!item.ok) return item;
 		const view = inspectRecord(
-			array[index],
+			item.value,
 			eventPath,
 			['id', 'createdAt'],
 			['id', 'createdAt'],
@@ -739,16 +756,17 @@ export function validatePersistedSettingsV1(
 
 	const followedPeopleValue = readField(view, 'followedPeople', '');
 	if (!followedPeopleValue.ok) return followedPeopleValue;
-	const peopleArray = validateArray(
+	const peopleArray = inspectArray(
 		followedPeopleValue.value,
 		'/followedPeople',
 	);
-	if (isValidationError(peopleArray))
-		return { ok: false, error: peopleArray };
+	if (!('input' in peopleArray)) return { ok: false, error: peopleArray };
 	const people: FollowedPersonV1[] = [];
 	for (let index = 0; index < peopleArray.length; index += 1) {
+		const item = readArrayItem(peopleArray, index, '/followedPeople');
+		if (!item.ok) return item;
 		const person = validateFollowedPerson(
-			peopleArray[index],
+			item.value,
 			indexPath('/followedPeople', index),
 			current.value,
 		);

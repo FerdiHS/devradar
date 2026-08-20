@@ -807,6 +807,43 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 		);
 	});
 
+	it('validates array items in stored index order', () => {
+		const people = [
+			validPerson({ username: 'octo--cat' }),
+			validPerson({
+				username: 'second',
+				githubAccountId: '2',
+				notePath: 'People/second.md',
+			}),
+		];
+		Object.defineProperty(people, '1', {
+			enumerable: true,
+			get: () => {
+				throw new Error('person 1 should not be read yet');
+			},
+		});
+		expectFailure(
+			validSettings({ followedPeople: people }),
+			'invalid-username',
+			'/followedPeople/0/username',
+		);
+
+		const seenEvents: Array<{ id: string; createdAt: string }> = [];
+		seenEvents.length = 2;
+		seenEvents[0] = { id: '01', createdAt: PROVIDER_TIME };
+		expectFailure(
+			validSettings({
+				followedPeople: [
+					validPerson({
+						syncState: { seenEvents, github: {} },
+					}),
+				],
+			}),
+			'invalid-provider-event-id',
+			'/followedPeople/0/syncState/seenEvents/0/id',
+		);
+	});
+
 	it('reports missing nested fields in schema order', () => {
 		expectFailure(
 			validSettings({
