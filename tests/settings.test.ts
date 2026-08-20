@@ -193,6 +193,26 @@ describe('schema-v1 persisted validation', () => {
 			'unexpected-field',
 			'/a~0b',
 		);
+		expectFailure(
+			{ schemaVersion: 1, followedPeople: [], ['\u0000']: true },
+			'unexpected-field',
+			'/\u0000',
+		);
+		const withUnexpectedFieldAndThrowingGetter = validSettings({
+			followedPeople: [],
+		}) as Record<string, unknown>;
+		Object.defineProperty(withUnexpectedFieldAndThrowingGetter, 'schemaVersion', {
+			enumerable: true,
+			get: () => {
+				throw new Error('schemaVersion should not be read');
+			},
+		});
+		withUnexpectedFieldAndThrowingGetter.z = true;
+		expectFailure(
+			withUnexpectedFieldAndThrowingGetter,
+			'unexpected-field',
+			'/z',
+		);
 	});
 
 	it('rejects unsafe values and present undefined fields', () => {
@@ -207,11 +227,11 @@ describe('schema-v1 persisted validation', () => {
 		withSymbol[symbolKey] = true;
 		expectFailure(withSymbol, 'invalid-type', '');
 		const withGetter = validSettings() as Record<string, unknown>;
-		Object.defineProperty(withGetter, 'danger', {
+		Object.defineProperty(withGetter, 'schemaVersion', {
 			enumerable: true,
 			get: () => true,
 		});
-		expectFailure(withGetter, 'invalid-type', '/danger');
+		expectFailure(withGetter, 'invalid-type', '/schemaVersion');
 	});
 
 	it('returns structured errors for revoked proxies', () => {
@@ -599,6 +619,20 @@ describe('schema-v1 uniqueness and nested state validation', () => {
 
 		for (const [input, path] of cases)
 			expectFailure(input, 'unexpected-field', path);
+	});
+
+	it('reports nested unexpected fields before known-field validation', () => {
+		expectFailure(
+			validSettings({
+				followedPeople: [
+					validPerson({
+						trackingStart: { mode: 'later', ['\u0000']: true },
+					}),
+				],
+			}),
+			'unexpected-field',
+			'/followedPeople/0/trackingStart/\u0000',
+		);
 	});
 
 	it('checks dataset uniqueness in the documented order', () => {

@@ -160,19 +160,6 @@ function inspectRecord(
 		}
 
 		const keys = Object.keys(objectInput).sort();
-		const entries: Array<[string, unknown]> = [];
-		for (const key of keys) {
-			if (containsForbiddenControl(key) || isUnpairedSurrogate(key))
-				return invalidType(path, 'object key');
-			const descriptor = Object.getOwnPropertyDescriptor(
-				objectInput,
-				key,
-			);
-			if (!descriptor || !('value' in descriptor))
-				return invalidType(fieldPath(path, key), 'property');
-			entries.push([key, descriptor.value]);
-		}
-
 		const unknown = keys.find((key) => !allowed.includes(key));
 		if (unknown)
 			return error(
@@ -188,6 +175,19 @@ function inspectRecord(
 				fieldPath(path, missing),
 				`required field ${missing} is missing`,
 			);
+
+		const entries: Array<[string, unknown]> = [];
+		for (const key of keys) {
+			if (containsForbiddenControl(key) || isUnpairedSurrogate(key))
+				return invalidType(path, 'object key');
+			const descriptor = Object.getOwnPropertyDescriptor(
+				objectInput,
+				key,
+			);
+			if (!descriptor || !('value' in descriptor))
+				return invalidType(fieldPath(path, key), 'property');
+			entries.push([key, descriptor.value]);
+		}
 
 		return {
 			record: Object.fromEntries(entries),
