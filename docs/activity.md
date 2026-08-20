@@ -178,7 +178,9 @@ they are not rendered as hidden Markdown metadata.
 ## Canonical provider timestamps
 
 Every provider activity timestamp is normalized by this document's algorithm.
-Parse a valid RFC 3339 instant, convert it to UTC, and emit
+Parse a timestamp in DevRadar's supported RFC 3339 profile: use uppercase `T`,
+uppercase `Z` or a numeric UTC offset, seconds `00`–`59`, and optional
+fractional seconds. Convert the instant to UTC and emit
 `YYYY-MM-DDTHH:mm:ssZ` when no fractional second is significant. When a
 fractional second is significant, retain its exact precision after removing
 trailing fractional zeroes and append `Z`; never round. Reject invalid
