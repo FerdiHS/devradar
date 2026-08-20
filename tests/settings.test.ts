@@ -282,6 +282,33 @@ describe('schema-v1 persisted validation', () => {
 		);
 	});
 
+	it('validates known fields in schema order before reading later fields', () => {
+		const earlierSemanticFailure = {
+			schemaVersion: '1',
+			followedPeople: [],
+		} as Record<string, unknown>;
+		Object.defineProperty(earlierSemanticFailure, 'followedPeople', {
+			enumerable: true,
+			get: () => {
+				throw new Error('followedPeople should not be read');
+			},
+		});
+		expectFailure(
+			earlierSemanticFailure,
+			'invalid-schema-version',
+			'/schemaVersion',
+		);
+
+		const missingRequiredField = {};
+		Object.defineProperty(missingRequiredField, 'schemaVersion', {
+			enumerable: true,
+			get: () => {
+				throw new Error('schemaVersion should not be read');
+			},
+		});
+		expectFailure(missingRequiredField, 'missing-field', '/followedPeople');
+	});
+
 	it('does not treat non-enumerable own fields as legacy absence', () => {
 		const input = {};
 		Object.defineProperty(input, 'schemaVersion', { value: 1 });

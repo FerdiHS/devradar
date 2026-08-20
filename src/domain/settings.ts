@@ -75,7 +75,7 @@ export type SchemaV1ValidationResult<T> =
 	| { readonly ok: false; readonly error: SchemaV1ValidationError };
 
 type RecordView = {
-	readonly record: Record<string, unknown>;
+	readonly input: object;
 	readonly keys: readonly string[];
 	readonly hasOwnKeys: boolean;
 };
@@ -176,21 +176,8 @@ function inspectRecord(
 				`required field ${missing} is missing`,
 			);
 
-		const entries: Array<[string, unknown]> = [];
-		for (const key of keys) {
-			if (containsForbiddenControl(key) || isUnpairedSurrogate(key))
-				return invalidType(path, 'object key');
-			const descriptor = Object.getOwnPropertyDescriptor(
-				objectInput,
-				key,
-			);
-			if (!descriptor || !('value' in descriptor))
-				return invalidType(fieldPath(path, key), 'property');
-			entries.push([key, descriptor.value]);
-		}
-
 		return {
-			record: Object.fromEntries(entries),
+			input: objectInput,
 			keys,
 			hasOwnKeys: ownKeys.length > 0,
 		};
@@ -201,6 +188,29 @@ function inspectRecord(
 
 function hasField(view: RecordView, field: string): boolean {
 	return view.keys.includes(field);
+}
+
+function readField(
+	view: RecordView,
+	field: string,
+	path: string,
+): SchemaV1ValidationResult<unknown> {
+	try {
+		const descriptor = Object.getOwnPropertyDescriptor(view.input, field);
+		if (!descriptor || !('value' in descriptor))
+			return failure(
+				'invalid-type',
+				fieldPath(path, field),
+				'property has an invalid type',
+			);
+		return success(descriptor.value);
+	} catch {
+		return failure(
+			'invalid-type',
+			fieldPath(path, field),
+			'property has an invalid type',
+		);
+	}
 }
 
 function validateArray(
@@ -358,12 +368,13 @@ function validatePluginTimestamp(
 
 function validateOptionalPluginTimestamp(
 	view: RecordView,
-	record: Record<string, unknown>,
 	field: string,
 	path: string,
 ): SchemaV1ValidationResult<string | undefined> {
 	if (!hasField(view, field)) return success(undefined);
-	return validatePluginTimestamp(record[field], fieldPath(path, field));
+	const value = readField(view, field, path);
+	if (!value.ok) return value;
+	return validatePluginTimestamp(value.value, fieldPath(path, field));
 }
 
 function validateSeenEvents(
@@ -381,16 +392,20 @@ function validateSeenEvents(
 			['id', 'createdAt'],
 			['id', 'createdAt'],
 		);
-		if (!('record' in view)) return { ok: false, error: view };
-		const eventId = view.record.id;
+		if (!('input' in view)) return { ok: false, error: view };
+		const eventIdValue = readField(view, 'id', eventPath);
+		if (!eventIdValue.ok) return eventIdValue;
+		const eventId = eventIdValue.value;
 		if (typeof eventId !== 'string' || !canonicalizeEventId(eventId).ok)
 			return failure(
 				'invalid-provider-event-id',
 				fieldPath(eventPath, 'id'),
 				'provider event ID is invalid',
 			);
+		const createdAtValue = readField(view, 'createdAt', eventPath);
+		if (!createdAtValue.ok) return createdAtValue;
 		const createdAt = validateProviderTimestamp(
-			view.record.createdAt,
+			createdAtValue.value,
 			fieldPath(eventPath, 'createdAt'),
 		);
 		if (!createdAt.ok) return createdAt;
@@ -417,10 +432,9 @@ function validateGitHubState(
 	path: string,
 ): SchemaV1ValidationResult<GitHubSyncStateV1> {
 	const view = inspectRecord(input, path, ['pollNotBefore'], []);
-	if (!('record' in view)) return { ok: false, error: view };
+	if (!('input' in view)) return { ok: false, error: view };
 	const pollNotBefore = validateOptionalPluginTimestamp(
 		view,
-		view.record,
 		'pollNotBefore',
 		path,
 	);
@@ -442,28 +456,30 @@ function validateSyncState(
 		['lastAttemptAt', 'lastSuccessfulSyncAt', 'seenEvents', 'github'],
 		['seenEvents', 'github'],
 	);
-	if (!('record' in view)) return { ok: false, error: view };
+	if (!('input' in view)) return { ok: false, error: view };
 	const lastAttemptAt = validateOptionalPluginTimestamp(
 		view,
-		view.record,
 		'lastAttemptAt',
 		path,
 	);
 	if (!lastAttemptAt.ok) return lastAttemptAt;
 	const lastSuccessfulSyncAt = validateOptionalPluginTimestamp(
 		view,
-		view.record,
 		'lastSuccessfulSyncAt',
 		path,
 	);
 	if (!lastSuccessfulSyncAt.ok) return lastSuccessfulSyncAt;
+	const seenEventsValue = readField(view, 'seenEvents', path);
+	if (!seenEventsValue.ok) return seenEventsValue;
 	const seenEvents = validateSeenEvents(
-		view.record.seenEvents,
+		seenEventsValue.value,
 		fieldPath(path, 'seenEvents'),
 	);
 	if (!seenEvents.ok) return seenEvents;
+	const githubValue = readField(view, 'github', path);
+	if (!githubValue.ok) return githubValue;
 	const github = validateGitHubState(
-		view.record.github,
+		githubValue.value,
 		fieldPath(path, 'github'),
 	);
 	if (!github.ok) return github;
@@ -485,8 +501,10 @@ function validateTrackingStart(
 	currentInstant: string,
 ): SchemaV1ValidationResult<TrackingStart> {
 	const view = inspectRecord(input, path, ['mode', 'at'], ['mode']);
-	if (!('record' in view)) return { ok: false, error: view };
-	const mode = view.record.mode;
+	if (!('input' in view)) return { ok: false, error: view };
+	const modeValue = readField(view, 'mode', path);
+	if (!modeValue.ok) return modeValue;
+	const mode = modeValue.value;
 	if (
 		mode !== 'from-now' &&
 		mode !== 'available-recent' &&
@@ -512,7 +530,9 @@ function validateTrackingStart(
 			fieldPath(path, 'at'),
 			'required field at is missing',
 		);
-	const at = validatePluginTimestamp(view.record.at, fieldPath(path, 'at'));
+	const atValue = readField(view, 'at', path);
+	if (!atValue.ok) return atValue;
+	const at = validatePluginTimestamp(atValue.value, fieldPath(path, 'at'));
 	if (!at.ok) return at;
 	if (mode === 'from-date' && at.value > currentInstant)
 		return failure(
@@ -546,38 +566,48 @@ function validateFollowedPerson(
 			'syncState',
 		],
 	);
-	if (!('record' in view)) return { ok: false, error: view };
-	if (!isCanonicalGitHubUsername(view.record.username))
+	if (!('input' in view)) return { ok: false, error: view };
+	const username = readField(view, 'username', path);
+	if (!username.ok) return username;
+	if (!isCanonicalGitHubUsername(username.value))
 		return failure(
 			'invalid-username',
 			fieldPath(path, 'username'),
 			'username is invalid',
 		);
-	if (!isCanonicalPositiveDecimalString(view.record.githubAccountId))
+	const githubAccountId = readField(view, 'githubAccountId', path);
+	if (!githubAccountId.ok) return githubAccountId;
+	if (!isCanonicalPositiveDecimalString(githubAccountId.value))
 		return failure(
 			'invalid-github-account-id',
 			fieldPath(path, 'githubAccountId'),
 			'GitHub account ID is invalid',
 		);
+	const notePathValue = readField(view, 'notePath', path);
+	if (!notePathValue.ok) return notePathValue;
 	const notePath = validatePersistedNotePath(
-		view.record.notePath,
+		notePathValue.value,
 		fieldPath(path, 'notePath'),
 	);
 	if (!notePath.ok) return notePath;
+	const trackingStartValue = readField(view, 'trackingStart', path);
+	if (!trackingStartValue.ok) return trackingStartValue;
 	const trackingStart = validateTrackingStart(
-		view.record.trackingStart,
+		trackingStartValue.value,
 		fieldPath(path, 'trackingStart'),
 		currentInstant,
 	);
 	if (!trackingStart.ok) return trackingStart;
+	const syncStateValue = readField(view, 'syncState', path);
+	if (!syncStateValue.ok) return syncStateValue;
 	const syncState = validateSyncState(
-		view.record.syncState,
+		syncStateValue.value,
 		fieldPath(path, 'syncState'),
 	);
 	if (!syncState.ok) return syncState;
 	return success({
-		username: view.record.username,
-		githubAccountId: view.record.githubAccountId,
+		username: username.value,
+		githubAccountId: githubAccountId.value,
 		notePath: notePath.value,
 		trackingStart: trackingStart.value,
 		syncState: syncState.value,
@@ -589,10 +619,9 @@ function validatePolicy(
 	path: string,
 ): SchemaV1ValidationResult<GitHubRequestPolicyV1> {
 	const view = inspectRecord(input, path, ['rateLimitNotBefore'], []);
-	if (!('record' in view)) return { ok: false, error: view };
+	if (!('input' in view)) return { ok: false, error: view };
 	const rateLimitNotBefore = validateOptionalPluginTimestamp(
 		view,
-		view.record,
 		'rateLimitNotBefore',
 		path,
 	);
@@ -675,7 +704,7 @@ export function validatePersistedSettingsV1(
 		['schemaVersion', 'followedPeople', 'githubRequestPolicy'],
 		[],
 	);
-	if (!('record' in view)) return { ok: false, error: view };
+	if (!('input' in view)) return { ok: false, error: view };
 	if (view.keys.length === 0 && !view.hasOwnKeys)
 		return success(createEmptySettingsV1());
 	const missing = ['schemaVersion', 'followedPeople'].find(
@@ -688,7 +717,9 @@ export function validatePersistedSettingsV1(
 			`required field ${missing} is missing`,
 		);
 
-	const schemaVersion = view.record.schemaVersion;
+	const schemaVersionValue = readField(view, 'schemaVersion', '');
+	if (!schemaVersionValue.ok) return schemaVersionValue;
+	const schemaVersion = schemaVersionValue.value;
 	if (typeof schemaVersion !== 'number' || !Number.isInteger(schemaVersion))
 		return failure(
 			'invalid-schema-version',
@@ -706,8 +737,10 @@ export function validatePersistedSettingsV1(
 				: 'schema version is invalid',
 		);
 
+	const followedPeopleValue = readField(view, 'followedPeople', '');
+	if (!followedPeopleValue.ok) return followedPeopleValue;
 	const peopleArray = validateArray(
-		view.record.followedPeople,
+		followedPeopleValue.value,
 		'/followedPeople',
 	);
 	if (isValidationError(peopleArray))
@@ -725,8 +758,10 @@ export function validatePersistedSettingsV1(
 
 	let githubRequestPolicy: GitHubRequestPolicyV1 | undefined;
 	if (hasField(view, 'githubRequestPolicy')) {
+		const policyValue = readField(view, 'githubRequestPolicy', '');
+		if (!policyValue.ok) return policyValue;
 		const policy = validatePolicy(
-			view.record.githubRequestPolicy,
+			policyValue.value,
 			'/githubRequestPolicy',
 		);
 		if (!policy.ok) return policy;
