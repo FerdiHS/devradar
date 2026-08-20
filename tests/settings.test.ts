@@ -36,6 +36,7 @@ function expectFailure(
 	code: string,
 	path: string,
 	currentInstant = NOW,
+	expectedMessage?: string,
 ) {
 	const result = validatePersistedSettingsV1(input, currentInstant);
 	expect(result).toMatchObject({
@@ -49,6 +50,8 @@ function expectFailure(
 		'message',
 		'path',
 	]);
+	if (expectedMessage !== undefined)
+		expect(result.error.message).toBe(expectedMessage);
 	return result.error;
 }
 
@@ -201,12 +204,16 @@ describe('schema-v1 persisted validation', () => {
 		const withUnexpectedFieldAndThrowingGetter = validSettings({
 			followedPeople: [],
 		}) as Record<string, unknown>;
-		Object.defineProperty(withUnexpectedFieldAndThrowingGetter, 'schemaVersion', {
-			enumerable: true,
-			get: () => {
-				throw new Error('schemaVersion should not be read');
+		Object.defineProperty(
+			withUnexpectedFieldAndThrowingGetter,
+			'schemaVersion',
+			{
+				enumerable: true,
+				get: () => {
+					throw new Error('schemaVersion should not be read');
+				},
 			},
-		});
+		);
 		withUnexpectedFieldAndThrowingGetter.z = true;
 		expectFailure(
 			withUnexpectedFieldAndThrowingGetter,
@@ -494,6 +501,243 @@ describe('schema-v1 field validation', () => {
 			'invalid-tracking-start',
 			'/followedPeople/0/trackingStart/mode',
 		);
+	});
+
+	it('keeps structured validation messages stable', () => {
+		const cases: Array<[unknown, string, string, string]> = [
+			[null, 'invalid-type', '', 'object has an invalid type'],
+			[
+				{ legacy: true },
+				'unexpected-field',
+				'/legacy',
+				'unexpected field',
+			],
+			[
+				{ schemaVersion: 1 },
+				'missing-field',
+				'/followedPeople',
+				'required field followedPeople is missing',
+			],
+			[
+				{ schemaVersion: '1', followedPeople: [] },
+				'invalid-schema-version',
+				'/schemaVersion',
+				'schema version is invalid',
+			],
+			[
+				{ schemaVersion: 2, followedPeople: [] },
+				'unsupported-schema-version',
+				'/schemaVersion',
+				'schema version is unsupported',
+			],
+			[
+				validSettings({
+					followedPeople: [validPerson({ username: 'octo--cat' })],
+				}),
+				'invalid-username',
+				'/followedPeople/0/username',
+				'username is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [validPerson({ githubAccountId: 583231 })],
+				}),
+				'invalid-github-account-id',
+				'/followedPeople/0/githubAccountId',
+				'GitHub account ID is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({ notePath: 'People/octocat.txt' }),
+					],
+				}),
+				'invalid-note-path',
+				'/followedPeople/0/notePath',
+				'note path is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({ notePath: 'People\\octocat.md' }),
+					],
+				}),
+				'noncanonical-note-path',
+				'/followedPeople/0/notePath',
+				'note path is not canonical',
+			],
+			[
+				validSettings({
+					githubRequestPolicy: {
+						rateLimitNotBefore: 'not-a-timestamp',
+					},
+				}),
+				'invalid-plugin-timestamp',
+				'/githubRequestPolicy/rateLimitNotBefore',
+				'plugin timestamp is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							trackingStart: {
+								mode: 'from-date',
+								at: '2026-08-01T00:00:00Z',
+							},
+						}),
+					],
+				}),
+				'noncanonical-plugin-timestamp',
+				'/followedPeople/0/trackingStart/at',
+				'plugin timestamp is not canonical',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{
+										id: '1',
+										createdAt: 'not-a-timestamp',
+									},
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'invalid-provider-timestamp',
+				'/followedPeople/0/syncState/seenEvents/0/createdAt',
+				'provider timestamp is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{
+										id: '1',
+										createdAt: '2026-08-19T12:00:00.000Z',
+									},
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'noncanonical-provider-timestamp',
+				'/followedPeople/0/syncState/seenEvents/0/createdAt',
+				'provider timestamp is not canonical',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({ trackingStart: { mode: 'later' } }),
+					],
+				}),
+				'invalid-tracking-start',
+				'/followedPeople/0/trackingStart/mode',
+				'tracking start mode is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							trackingStart: {
+								mode: 'from-date',
+								at: '2026-08-21T00:00:00.000Z',
+							},
+						}),
+					],
+				}),
+				'future-from-date',
+				'/followedPeople/0/trackingStart/at',
+				'from-date cannot be in the future',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{ id: '01', createdAt: PROVIDER_TIME },
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'invalid-provider-event-id',
+				'/followedPeople/0/syncState/seenEvents/0/id',
+				'provider event ID is invalid',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson(),
+						validPerson({
+							username: 'OCTOCAT',
+							githubAccountId: '2',
+						}),
+					],
+				}),
+				'duplicate-username',
+				'/followedPeople/1/username',
+				'duplicate username',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson(),
+						validPerson({
+							username: 'two',
+							githubAccountId: '583231',
+						}),
+					],
+				}),
+				'duplicate-github-account-id',
+				'/followedPeople/1/githubAccountId',
+				'duplicate GitHub account ID',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson(),
+						validPerson({
+							username: 'two',
+							githubAccountId: '2',
+							notePath: 'people/OCTOCAT.md',
+						}),
+					],
+				}),
+				'duplicate-note-path',
+				'/followedPeople/1/notePath',
+				'duplicate note path',
+			],
+			[
+				validSettings({
+					followedPeople: [
+						validPerson({
+							syncState: {
+								seenEvents: [
+									{ id: '1', createdAt: PROVIDER_TIME },
+									{ id: '1', createdAt: PROVIDER_TIME },
+								],
+								github: {},
+							},
+						}),
+					],
+				}),
+				'duplicate-seen-event-id',
+				'/followedPeople/0/syncState/seenEvents/1/id',
+				'duplicate provider event ID',
+			],
+		];
+
+		for (const [input, code, path, message] of cases)
+			expectFailure(input, code, path, NOW, message);
 	});
 });
 
