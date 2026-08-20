@@ -252,7 +252,7 @@ export function canonicalizeTimestamp(
 	if (!parsed)
 		return failure(
 			'invalid-timestamp',
-			'timestamp must be a valid RFC 3339 instant',
+			"timestamp must match DevRadar's supported RFC 3339 profile",
 		);
 	const date = new Date(parsed.epoch);
 	if (date.getUTCFullYear() < 0 || date.getUTCFullYear() > 9999)

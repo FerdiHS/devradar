@@ -224,6 +224,47 @@ describe('activity construction', () => {
 });
 
 describe('timestamps, eligibility, and ordering', () => {
+	it("enforces DevRadar's supported RFC 3339 profile", () => {
+		const invalidInputs = [
+			'2026-08-18t01:02:03Z',
+			'2026-08-18T01:02:03z',
+			'2026-08-18T01:02:60Z',
+			'2026-08-18T01:02:03+24:00',
+			'2026-08-18T01:02:03-24:00',
+			'2026-08-18T01:02:03+01:60',
+			'2026-08-18T01:02:03-00:60',
+			'2026-08-18T01:02:03+0100',
+			'2026-08-18T01:02:03+01',
+			'0000-01-01T00:00:00+01:00',
+		];
+
+		for (const input of invalidInputs) {
+			const result = canonicalizeTimestamp(input);
+			expect(result).toMatchObject({
+				ok: false,
+				error: { code: 'invalid-timestamp' },
+			});
+		}
+
+		const genericFailure = canonicalizeTimestamp('2026-08-18t01:02:03Z');
+		if (genericFailure.ok) throw new Error('expected invalid timestamp');
+		expect(genericFailure.error.message).toContain(
+			"DevRadar's supported RFC 3339 profile",
+		);
+	});
+
+	it('preserves positive and negative numeric offset boundaries', () => {
+		expect(ok(canonicalizeTimestamp('2026-08-18T01:02:03-05:30'))).toBe(
+			'2026-08-18T06:32:03Z',
+		);
+		expect(ok(canonicalizeTimestamp('2026-08-18T01:02:03+23:59'))).toBe(
+			'2026-08-17T01:03:03Z',
+		);
+		expect(ok(canonicalizeTimestamp('2026-08-18T01:02:03-23:59'))).toBe(
+			'2026-08-19T01:01:03Z',
+		);
+	});
+
 	it('normalizes equivalent timestamps without rounding precision', () => {
 		expect(ok(canonicalizeTimestamp('0000-02-29T00:00:00Z'))).toBe(
 			'0000-02-29T00:00:00Z',
