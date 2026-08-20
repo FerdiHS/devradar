@@ -258,7 +258,7 @@ export function canonicalizeTimestamp(
 	if (date.getUTCFullYear() < 0 || date.getUTCFullYear() > 9999)
 		return failure(
 			'invalid-timestamp',
-			'timestamp must remain within the four-digit UTC year range',
+			"timestamp must match DevRadar's supported RFC 3339 profile, including the four-digit UTC year range",
 		);
 	const iso = date.toISOString().replace(/\.\d{3}Z$/, '');
 	const value = parsed.fraction ? `${iso}.${parsed.fraction}Z` : `${iso}Z`;

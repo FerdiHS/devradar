@@ -235,7 +235,6 @@ describe('timestamps, eligibility, and ordering', () => {
 			'2026-08-18T01:02:03-00:60',
 			'2026-08-18T01:02:03+0100',
 			'2026-08-18T01:02:03+01',
-			'0000-01-01T00:00:00+01:00',
 		];
 
 		for (const input of invalidInputs) {
@@ -245,6 +244,21 @@ describe('timestamps, eligibility, and ordering', () => {
 				error: { code: 'invalid-timestamp' },
 			});
 		}
+
+		const lowerYearOverflow = canonicalizeTimestamp(
+			'0000-01-01T00:00:00+01:00',
+		);
+		expect(lowerYearOverflow).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-timestamp' },
+		});
+		if (lowerYearOverflow.ok) throw new Error('expected UTC year overflow');
+		expect(lowerYearOverflow.error.message).toContain(
+			"DevRadar's supported RFC 3339 profile",
+		);
+		expect(lowerYearOverflow.error.message).toContain(
+			'four-digit UTC year range',
+		);
 
 		const genericFailure = canonicalizeTimestamp('2026-08-18t01:02:03Z');
 		if (genericFailure.ok) throw new Error('expected invalid timestamp');
