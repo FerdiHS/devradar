@@ -83,21 +83,39 @@ infers username changes or silently retargets notes and activity.
 Persist note paths as canonical, non-empty, vault-relative Markdown paths using
 `/` separators and ending in `.md`, such as `People/octocat.md`.
 
-Normalize only harmless syntax such as separators and `.` components before
-persistence. Reject:
+Draft/pre-persistence canonicalization may normalize only harmless syntax.
+Reject prohibited raw forms before any separator normalization. In particular,
+reject POSIX absolute paths, UNC/network paths, and drive-qualified forms such
+as `C:foo`, `C:/foo`, and `C:\\foo`. Also reject:
 
 - empty paths;
-- POSIX absolute paths;
-- drive-letter absolute paths;
-- UNC or other network-style paths;
 - NUL characters;
+- ASCII control characters;
 - `..` traversal or vault-escaping paths;
+- trailing separators or empty final components;
 - paths without the `.md` extension.
+
+Permitted backslashes become `/`, repeated separators collapse, and `.`
+components are removed. The required extension is the exact lowercase `.md`.
+Persisted paths must already equal their canonicalized representation and are
+rejected when they are merely repairable. Use case-insensitive comparison of
+canonical paths for uniqueness. Do not invent unrelated operating-system
+filename restrictions.
 
 Effective note paths are unique case-insensitively after canonicalization.
 Equivalent paths such as `People/Alice.md` and `people/alice.md` cannot belong
-to different followed people. Do not invent operating-system restrictions
-unrelated to vault containment.
+to different followed people.
+
+## Timestamp representations
+
+Plugin-owned persisted timestamps use the exact UTC millisecond form
+`YYYY-MM-DDTHH:mm:ss.sssZ`. This includes tracking-start values and sync or
+request-policy boundaries. They must already be canonical and are never
+silently rewritten during persisted-settings validation.
+
+Provider activity timestamps, including `seenEvents.createdAt`, use the
+canonical precision-preserving algorithm defined by [`activity.md`](activity.md)
+and must already equal that canonical representation when persisted.
 
 ## Tracking start
 

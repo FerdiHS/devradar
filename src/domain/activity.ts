@@ -1,3 +1,8 @@
+import {
+	isCanonicalGitHubUsername,
+	isCanonicalPositiveDecimalString,
+} from './primitives';
+
 export type ActivityFamily = 'push' | 'pull-request' | 'issue';
 export type PullRequestAction = 'opened' | 'reopened' | 'closed' | 'merged';
 export type IssueAction = 'opened' | 'reopened' | 'closed';
@@ -25,9 +30,6 @@ const failure = <T>(code: string, message: string): ValidationResult<T> => ({
 	error: { code, message },
 });
 
-const EVENT_ID = /^[1-9]\d*$/;
-const NUMBER = /^[1-9]\d*$/;
-const OWNER = /^(?=.{1,39}$)(?!.*--)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/;
 const REPOSITORY = /^[A-Za-z0-9._-]{1,100}$/;
 const COMMIT = /^[0-9a-fA-F]{40}$/;
 
@@ -69,7 +71,7 @@ export function canonicalizeEventId(
 			'invalid-event-id',
 			'event ID must be a positive decimal string without leading zeroes',
 		);
-	if (!EVENT_ID.test(input))
+	if (!isCanonicalPositiveDecimalString(input))
 		return failure(
 			'invalid-event-id',
 			'event ID must be a positive decimal string without leading zeroes',
@@ -93,7 +95,7 @@ export function canonicalizePositiveNumber(
 			'invalid-number',
 			'number must be a positive decimal string without leading zeroes',
 		);
-	if (!NUMBER.test(input))
+	if (!isCanonicalPositiveDecimalString(input))
 		return failure(
 			'invalid-number',
 			'number must be a positive decimal string without leading zeroes',
@@ -115,7 +117,7 @@ export function canonicalizeRepository(
 		parts.length !== 2 ||
 		owner === undefined ||
 		repository === undefined ||
-		!OWNER.test(owner) ||
+		!isCanonicalGitHubUsername(owner) ||
 		!REPOSITORY.test(repository) ||
 		parts.some((part) => part === '.' || part === '..') ||
 		containsForbiddenControl(input) ||
