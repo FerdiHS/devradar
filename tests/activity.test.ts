@@ -254,6 +254,9 @@ describe('timestamps, eligibility, and ordering', () => {
 	});
 
 	it('preserves positive and negative numeric offset boundaries', () => {
+		expect(ok(canonicalizeTimestamp('2026-08-18T01:02:03+00:30'))).toBe(
+			'2026-08-18T00:32:03Z',
+		);
 		expect(ok(canonicalizeTimestamp('2026-08-18T01:02:03-05:30'))).toBe(
 			'2026-08-18T06:32:03Z',
 		);
