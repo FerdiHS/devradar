@@ -63,8 +63,12 @@ User-Agent: DevRadar/<plugin-version> (https://github.com/FerdiHS/devradar)
 X-GitHub-Api-Version: 2026-03-10
 ```
 
-The Events request uses `per_page=100`. The pinned API version is deliberate;
-changing it is a compatibility change, not an incidental implementation edit.
+The Events request uses `per_page=100`. GitHub's documented public Events
+timeline exposes at most 300 recent events, so one complete retrieval requests
+at most three pages. A `rel="next"` target from page 3 that requires page 4 is
+a provider-contract incompatibility and must fail closed rather than being
+followed indefinitely. The pinned API version is deliberate; changing it is a
+compatibility change, not an incidental implementation edit.
 
 The [GitHub Events REST documentation](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)
 defines the public user-events endpoint, `X-Poll-Interval`,
@@ -115,6 +119,22 @@ relations, duplicate query parameters, parameter drift, and any other invalid
 next link are safe retrieval failures. They must not mutate the note, advance
 successful state, or cause DevRadar to follow an arbitrary external origin.
 
+Each page must be a JSON array. Each entry must be a non-null object with a
+non-empty string `type` before it can be classified. Unknown event types and
+documented deferred event families are ignored after that minimum check; their
+irrelevant payload fields are not validated. `PushEvent`, `PullRequestEvent`,
+and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
+`actor.id`/`actor.login` envelope plus their mapping-specific fields. A
+malformed supported event is provider data failure for that person, not an
+unsupported event. The v0.2.0 Push mapping consumes `payload.ref` and may use
+`payload.head`; `payload.before` is optional semantic metadata but is not an
+adapter requirement.
+
+The page ceiling is separate from the one-retry-total budget for one logical
+Events operation. A valid next link from page 3 that would request page 4 is a
+provider-wide incompatibility because equivalent remaining requests cannot be
+trusted under the approved public-feed contract.
+
 All pages required for one person's attempt must succeed before that attempt
 can commit note changes, new deduplication state, or `lastSuccessfulSyncAt`.
 A page-2 or page-3 failure leaves that person at its previous last-known-good
@@ -128,11 +148,15 @@ unconditional first-page request and follows the validated `Link` chain from
 each response. A `304 Not Modified` response is not an accepted Events result
 in v0.2.0 and must fail closed for that person.
 
-Honor `X-Poll-Interval` through the per-person `pollNotBefore` state. If a
-manual sync starts before that boundary, make no Events request and return a
-successful operational `skipped` outcome with the earliest permitted time
-when available. Pagination for an already-started retrieval is part of that
-same polling operation.
+Honor `X-Poll-Interval` through the per-person `pollNotBefore` state. On every
+successful Events page, parse the supported header as a non-negative integer
+number of seconds and compute the boundary from the response-observation time.
+Missing or malformed required values fail closed. Preserve the latest/maximum
+valid boundary across pages and report it with success or an applicable later
+failure. A newly observed boundary never blocks page 2 or page 3 of the same
+already-started retrieval. If a manual sync starts before that boundary, make
+no Events request and return a successful operational `skipped` outcome with
+the earliest permitted time when available.
 
 ## Rate-limit observation
 
@@ -158,18 +182,32 @@ the response before choosing a future boundary:
 
 1. For any recognized rate limit, parse a valid non-negative `Retry-After`
    value as a delay in seconds and honor the resulting future boundary.
-2. When `x-ratelimit-remaining` is zero, treat the response as a primary limit.
+2. For a `403` or `429` with a valid `x-ratelimit-remaining` value of zero,
+   treat the response as a primary limit.
    Honor a valid future `x-ratelimit-reset` value. If that reset value is
    missing, malformed, or expired, persist a conservative boundary at least
    one hour after the rate-limited response. Stop the current run, do not
    schedule an automatic retry, and do not substitute a one-minute permission.
-3. When the response is identified as a secondary limit and no valid
+3. When primary exhaustion is not established, identify a secondary limit only
+   for a `403` or `429` whose parsed GitHub error message explicitly indicates
+   a secondary rate limit or whose supported response representation contains
+   a valid non-negative `Retry-After`. A status code alone, remaining quota
+   alone, arbitrary error text, or missing primary headers is insufficient.
+   When the response is identified as a secondary limit and no valid
    `Retry-After` is available, use at least one minute as the earliest
    next-attempt boundary.
 
-If the headers do not establish that a response is secondary, use the
-conservative primary-boundary behavior. Missing, malformed, or expired headers
-must never authorize another request during the current Sync All run.
+Ordinary or ambiguous `403`/`429` responses are not secondary limits. If the
+response does not establish secondary limiting, use the conservative
+primary-boundary behavior. Missing, malformed, or expired headers must never
+authorize another request during the current Sync All run.
+
+For any identity or Events response, a valid `x-ratelimit-remaining` value of
+zero records a global future-request boundary from the applicable valid reset
+or retry timing, even when the response is otherwise successful. A successful
+final Events page may complete while returning that boundary. If another page
+is required, stop before requesting it and fail without returning partial
+activity success.
 
 The manual MVP does not sleep until the boundary or retry later inside the same
 operation. The current incomplete person fails, further GitHub requests stop,
@@ -179,11 +217,37 @@ successful results.
 If the final required page for a person succeeds while remaining quota becomes
 zero, that person may commit successfully; later requests still stop.
 
-At most one automatic retry is allowed for transient transport/network
-failures and `5xx` responses. Do not retry ordinary `4xx`, primary rate
-limits, or secondary rate limits. A failed permitted retry becomes a
-person-scoped failure unless the response demonstrates a provider-wide request
-contract problem.
+At most one automatic retry total is allowed for transient
+transport/network failures and `5xx` responses for each identity operation and
+for each complete logical Events operation, including all of its pages. Do not
+retry ordinary `4xx`, primary rate limits, secondary rate limits, malformed
+provider data, invalid pagination, `304`, or pinned API-version failures. A
+failed permitted retry becomes a person-scoped failure unless the response
+demonstrates a provider-wide request contract problem.
+
+## Pinned API version and transport compatibility
+
+Treat a pinned API-version incompatibility as provider-wide only with
+documented evidence that equivalent remaining requests are incompatible. This
+includes a `400` or `410` response whose supported response data explicitly says
+the requested API version is unsupported or retired. A generic `400` or `410`,
+or a broad provider-error heuristic, is not sufficient.
+
+Before relying on Obsidian `requestUrl()` behavior, perform one bounded
+implementation-time verification of its supported status/error/header/body and
+redirect behavior. Determine whether redirects are followed, whether the
+original or final URL/origin is observable, and whether the approved origin,
+followed identity/rename, and validated-pagination guarantees can be preserved.
+If they cannot, stop the affected implementation path and document the
+dedicated contract blocker. Do not broaden this into a general networking
+investigation or use browser, Node.js, Electron-only, or private APIs.
+
+Production remains `isDesktopOnly: false`. Verify every Obsidian API used by
+the adapter, including `requestUrl()`, against the declared minimum Obsidian
+version on Desktop and Mobile; current TypeScript declarations alone are not
+compatibility evidence. If a required API is unavailable, raise the minimum
+deliberately through the appropriate release-compatibility change rather than
+silently weakening the contract.
 
 ## Failure classification
 
