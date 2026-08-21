@@ -755,10 +755,11 @@ function validateNextUrl(
 	username: string,
 	currentPage: number,
 ): NextPage | undefined {
-	const rawPath = value.slice(
-		0,
-		value.indexOf('?') < 0 ? value.length : value.indexOf('?'),
-	);
+	const queryIndex = value.indexOf('?');
+	const expectedBase = `${API_ORIGIN}/users/${username}/events/public`;
+	if (queryIndex < 0 || value.slice(0, queryIndex) !== expectedBase)
+		return undefined;
+	const rawPath = value.slice(0, queryIndex);
 	if (
 		/\s/.test(value) ||
 		value.includes('\\') ||

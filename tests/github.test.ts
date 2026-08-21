@@ -683,6 +683,7 @@ describe('GitHub Events pagination and completeness', () => {
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"; garbage',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next!"',
 			'<https://api.github.com\\users/octocat/events/public?page=2&per_page=100>; rel="next"',
+			'<https://api.github.com/users/%2e/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'< https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100 >; rel="next"',
 			'<https://api.github.com/users/octocat/users/../events/public?page=2&per_page=100>; rel="next"',
