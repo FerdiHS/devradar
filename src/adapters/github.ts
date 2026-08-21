@@ -541,7 +541,7 @@ function classifyUnexpectedResponse(
 	};
 }
 
-function parseGitHubId(value: unknown): string | undefined {
+function parseGitHubEventId(value: unknown): string | undefined {
 	if (typeof value === 'number')
 		return Number.isSafeInteger(value) && value > 0
 			? String(value)
@@ -551,12 +551,20 @@ function parseGitHubId(value: unknown): string | undefined {
 	return undefined;
 }
 
+function parseGitHubAccountId(value: unknown): string | undefined {
+	return typeof value === 'number' &&
+		Number.isSafeInteger(value) &&
+		value > 0
+		? String(value)
+		: undefined;
+}
+
 function validateCommonEvent(
 	event: Record<string, unknown>,
 	username: string,
 	githubAccountId: string,
 ): CommonEventResult {
-	const providerEventId = parseGitHubId(readOwn(event, 'id'));
+	const providerEventId = parseGitHubEventId(readOwn(event, 'id'));
 	const timestamp = readOwn(event, 'created_at');
 	const repositoryRecord = asRecord(readOwn(event, 'repo'));
 	const repository =
@@ -565,7 +573,9 @@ function validateCommonEvent(
 			: readOwn(repositoryRecord, 'name');
 	const actor = asRecord(readOwn(event, 'actor'));
 	const actorId =
-		actor === undefined ? undefined : parseGitHubId(readOwn(actor, 'id'));
+		actor === undefined
+			? undefined
+			: parseGitHubAccountId(readOwn(actor, 'id'));
 	const actorLogin =
 		actor === undefined ? undefined : readOwn(actor, 'login');
 	const canonicalTimestamp =
@@ -920,7 +930,7 @@ export class GitHubAdapter {
 				observedState,
 			);
 		const login = readOwn(body, 'login');
-		const id = parseGitHubId(readOwn(body, 'id'));
+		const id = parseGitHubAccountId(readOwn(body, 'id'));
 		const type = readOwn(body, 'type');
 		if (
 			typeof login !== 'string' ||
@@ -977,7 +987,7 @@ export class GitHubAdapter {
 			return resultNoRequest(policy.boundary ?? '', state);
 		if (
 			!isCanonicalGitHubUsername(input.username) ||
-			parseGitHubId(input.githubAccountId) !== input.githubAccountId
+			!isCanonicalPositiveDecimalString(input.githubAccountId)
 		)
 			return resultPersonFailure(
 				failure('invalid-input', 'invalid followed-person identity'),

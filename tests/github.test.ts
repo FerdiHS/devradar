@@ -28,7 +28,7 @@ function response(
 }
 
 function identity(overrides: Record<string, unknown> = {}) {
-	return { login: USERNAME, id: ACCOUNT_ID, type: 'User', ...overrides };
+	return { login: USERNAME, id: Number(ACCOUNT_ID), type: 'User', ...overrides };
 }
 
 function event(
@@ -39,7 +39,7 @@ function event(
 		type: 'PushEvent',
 		created_at: '2026-08-20T12:00:00Z',
 		repo: { name: 'octocat/hello-world' },
-		actor: { id: ACCOUNT_ID, login: USERNAME },
+		actor: { id: Number(ACCOUNT_ID), login: USERNAME },
 		payload: { ref: 'refs/heads/main', head: 'a'.repeat(40) },
 		...overrides,
 	};
@@ -268,13 +268,28 @@ describe('GitHub adapter request and identity boundaries', () => {
 			const result = await github.resolveIdentity({ username: USERNAME });
 			expect(result.kind).toBe('person-failure');
 		}
-		const { adapter: github } = adapter([
+		const unsafeStringId = adapter([
 			response(identity({ id: '9007199254740993' })),
 		]);
-		const result = await github.resolveIdentity({ username: USERNAME });
-		expect(result).toMatchObject({
+		const unsafeStringResult = await unsafeStringId.adapter.resolveIdentity({
+			username: USERNAME,
+		});
+		expect(unsafeStringResult).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+
+		const eventId = adapter([
+			response([event({ id: '9007199254740993' })]),
+		]);
+		const eventIdResult = await eventId.adapter.retrieveEvents(
+			eventsRequest(),
+		);
+		expect(eventIdResult).toMatchObject({
 			kind: 'success',
-			data: { githubAccountId: '9007199254740993' },
+			data: {
+				activities: [{ providerEventId: '9007199254740993' }],
+			},
 		});
 	});
 
@@ -400,7 +415,7 @@ describe('GitHub Events validation and mapping', () => {
 		expect(result.data.activities[1]).toMatchObject({ action: 'merged' });
 
 		const caseOnly = adapter([
-			response([event({ actor: { id: ACCOUNT_ID, login: 'Octocat' } })]),
+			response([event({ actor: { id: Number(ACCOUNT_ID), login: 'Octocat' } })]),
 		]);
 		const caseOnlyResult =
 			await caseOnly.adapter.retrieveEvents(eventsRequest());
@@ -474,7 +489,7 @@ describe('GitHub Events validation and mapping', () => {
 			[null],
 			[{ type: '' }],
 			[event({ payload: {} })],
-			[event({ actor: { id: '999', login: USERNAME } })],
+			[event({ actor: { id: 999, login: USERNAME } })],
 			[
 				event({
 					type: 'PullRequestEvent',
@@ -492,7 +507,7 @@ describe('GitHub Events validation and mapping', () => {
 		}
 
 		const mismatch = adapter([
-			response([event({ actor: { id: '999', login: USERNAME } })]),
+			response([event({ actor: { id: 999, login: USERNAME } })]),
 		]);
 		const mismatchResult =
 			await mismatch.adapter.retrieveEvents(eventsRequest());
