@@ -571,7 +571,7 @@ describe('GitHub Events validation and mapping', () => {
 				event({
 					type: 'PullRequestEvent',
 					payload: {
-						action: 'synchronize',
+						action: 'assigned',
 						number: 4,
 						pull_request: { title: 'Title', merged: false },
 					},
@@ -611,7 +611,23 @@ describe('GitHub Events validation and mapping', () => {
 		for (const page of [
 			[null],
 			[{ type: '' }],
+			[{ type: '   ' }],
+			[{ type: 'Future Event' }],
+			[{ type: 'Future\u0000Event' }],
 			[event({ payload: {} })],
+			[event({ type: 'PullRequestEvent', payload: { action: ' ' } })],
+			[
+				event({
+					type: 'PullRequestEvent',
+					payload: { action: 'opened\u0000' },
+				}),
+			],
+			[
+				event({
+					type: 'PullRequestEvent',
+					payload: { action: ' opened ' },
+				}),
+			],
 			[event({ actor: { id: 999, login: USERNAME } })],
 			[
 				event({
@@ -665,6 +681,9 @@ describe('GitHub Events pagination and completeness', () => {
 			'<https://evil.example/users/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100> rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"; garbage',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel=" next"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next\tprev"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel=""',
 			'<https://api.github.com/users/octocat/events/public?page=3&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next", <https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=99>; rel="next"',
@@ -703,6 +722,19 @@ describe('GitHub Events pagination and completeness', () => {
 			await caseInsensitive.adapter.retrieveEvents(eventsRequest());
 		expect(caseInsensitiveResult).toMatchObject({ kind: 'success' });
 		expect(caseInsensitive.requests).toHaveLength(2);
+
+		const quotedPair = adapter([
+			response([event()], {
+				headers: {
+					link: `<https://api.github.com/users/${USERNAME}/events/public?page=2&per_page=100>; rel="n\\ext"`,
+				},
+			}),
+			response([event({ id: '2' })]),
+		]);
+		const quotedPairResult =
+			await quotedPair.adapter.retrieveEvents(eventsRequest());
+		expect(quotedPairResult).toMatchObject({ kind: 'success' });
+		expect(quotedPair.requests).toHaveLength(2);
 
 		const twoPage = adapter([
 			response([event()], { headers: { link: pageLink(2) } }),
@@ -954,6 +986,8 @@ describe('GitHub policy and status handling', () => {
 		for (const message of [
 			'This is not a secondary rate limit.',
 			'Secondary rate limit information is available.',
+			'You have not exceeded a secondary rate limit.',
+			'If you have exceeded a secondary rate limit, wait.',
 		]) {
 			const ambiguous = adapter([response({ message }, { status: 403 })]);
 			const ambiguousResult =

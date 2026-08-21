@@ -327,12 +327,9 @@ function secondaryLimitMessage(json: unknown): boolean {
 		record === undefined ? undefined : readOwn(record, 'message');
 	return (
 		typeof message === 'string' &&
-		(/\b(?:you\s+have\s+)?exceeded\s+(?:a\s+)?secondary\s+rate\s+limit\b/i.test(
+		/^\s*you\s+have\s+exceeded\s+a\s+secondary\s+rate\s+limit\b/i.test(
 			message,
-		) ||
-			/\bsecondary\s+rate\s+limit\s+(?:has\s+been\s+)?(?:exceeded|reached)\b/i.test(
-				message,
-			))
+		)
 	);
 }
 
@@ -560,6 +557,14 @@ function parseGitHubAccountId(value: unknown): string | undefined {
 		: undefined;
 }
 
+function isUsableProviderToken(value: unknown): value is string {
+	return (
+		typeof value === 'string' &&
+		value.length > 0 &&
+		!/[\s\u0000-\u001f\u007f]/.test(value)
+	);
+}
+
 function validateCommonEvent(
 	event: Record<string, unknown>,
 	username: string,
@@ -639,8 +644,7 @@ function mapSupportedEvent(
 	}
 
 	const action = readOwn(payload, 'action');
-	if (typeof action !== 'string' || action.length === 0)
-		return { kind: 'invalid' };
+	if (!isUsableProviderToken(action)) return { kind: 'invalid' };
 
 	if (type === 'PullRequestEvent') {
 		if (!['opened', 'reopened', 'closed', 'merged'].includes(action))
@@ -708,8 +712,7 @@ function mapEvent(
 	const record = asRecord(event);
 	if (record === undefined) return { kind: 'invalid' };
 	const type = readOwn(record, 'type');
-	if (typeof type !== 'string' || type.length === 0)
-		return { kind: 'invalid' };
+	if (!isUsableProviderToken(type)) return { kind: 'invalid' };
 	if (!['PushEvent', 'PullRequestEvent', 'IssuesEvent'].includes(type))
 		return { kind: 'ignored' };
 	return mapSupportedEvent(record, type, username, githubAccountId);
@@ -809,14 +812,23 @@ function parseNextPage(
 			const value = parameterMatch[2] ?? parameterMatch[3];
 			if (name?.toLowerCase() === 'rel') {
 				if (relation !== undefined) return { ok: false };
-				relation = value;
+				if (value === undefined) return { ok: false };
+				const unquoted =
+					parameterMatch[2] === undefined
+						? value
+						: value.replace(/\\([\s\S])/g, '$1');
+				if (
+					!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+(?: [!#$%&'*+\-.^_`|~0-9A-Za-z]+)*$/.test(
+						unquoted,
+					)
+				)
+					return { ok: false };
+				relation = unquoted;
 			}
 		}
 		if (relation === undefined) return { ok: false };
 		if (
-			relation
-				.split(/\s+/)
-				.some((token) => token.toLowerCase() === 'next')
+			relation.split(' ').some((token) => token.toLowerCase() === 'next')
 		) {
 			if (next !== undefined) return { ok: false };
 			next = validateNextUrl(target, username, currentPage);
