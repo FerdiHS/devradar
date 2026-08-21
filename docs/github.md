@@ -233,9 +233,9 @@ includes a `400` or `410` response whose supported response data explicitly says
 the requested API version is unsupported or retired. A generic `400` or `410`,
 or a broad provider-error heuristic, is not sufficient.
 
-Before relying on Obsidian `requestUrl()` behavior, perform one bounded
-implementation-time verification of its supported status/error/header/body and
-redirect behavior. Determine whether redirects are followed, whether the
+Before relying on Obsidian `requestUrl()` behavior in production, perform one
+bounded post-merge production-enablement verification of its supported
+status/error/header/body and redirect behavior. Determine whether redirects are followed, whether the
 original or final URL/origin is observable, and whether the approved origin,
 followed identity/rename, and validated-pagination guarantees can be preserved.
 If they cannot, stop the affected implementation path and document the
