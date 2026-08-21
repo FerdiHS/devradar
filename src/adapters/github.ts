@@ -778,9 +778,13 @@ function parseNextPage(
 		const target = match[1];
 		const rawParameters = match[2];
 		if (
+			rawParameters === undefined ||
+			(rawParameters.trim() !== '' && !/^\s*;/.test(rawParameters))
+		)
+			return { ok: false };
+		if (
 			target === undefined ||
-			target.length === 0 ||
-			rawParameters === undefined
+			target.length === 0
 		)
 			return { ok: false };
 		const parameters = rawParameters
@@ -895,6 +899,7 @@ export class GitHubAdapter {
 				);
 				state.rateLimitNotBeforeMs =
 					retryObservation.boundary.rateLimitNotBeforeMs;
+				if (retryObservation.quotaExhausted) break;
 				response = undefined;
 				retryUsed = true;
 			}
@@ -1038,6 +1043,7 @@ export class GitHubAdapter {
 					);
 					state.rateLimitNotBeforeMs =
 						retryObservation.boundary.rateLimitNotBeforeMs;
+					if (retryObservation.quotaExhausted) break;
 					response = undefined;
 					retryUsed = true;
 				}

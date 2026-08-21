@@ -326,12 +326,12 @@ describe('GitHub adapter request and identity boundaries', () => {
 			username: USERNAME,
 		});
 		expect(quotaResult).toMatchObject({
-			kind: 'success',
+			kind: 'person-failure',
 			policy: {
 				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
 			},
 		});
-		expect(quota.requests).toHaveLength(2);
+		expect(quota.requests).toHaveLength(1);
 	});
 
 	it('samples identity response time once for status classification', async () => {
@@ -600,6 +600,7 @@ describe('GitHub Events pagination and completeness', () => {
 	it('rejects untrusted, skipped, duplicated, and drifting next links', async () => {
 		const links = [
 			'<https://evil.example/users/octocat/events/public?page=2&per_page=100>; rel="next"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100> rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"; garbage',
 			'<https://api.github.com/users/octocat/events/public?page=3&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next", <https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
@@ -671,7 +672,7 @@ describe('GitHub Events pagination and completeness', () => {
 		expect(requests).toHaveLength(3);
 	});
 
-	it('preserves a quota-zero boundary before retrying a transient Events failure', async () => {
+	it('stops after a transient Events failure establishes a quota-zero boundary', async () => {
 		const { adapter: github, requests } = adapter([
 			response(
 				{ message: 'temporary' },
@@ -689,12 +690,12 @@ describe('GitHub Events pagination and completeness', () => {
 		const result = await github.retrieveEvents(eventsRequest());
 
 		expect(result).toMatchObject({
-			kind: 'success',
+			kind: 'person-failure',
 			policy: {
 				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
 			},
 		});
-		expect(requests).toHaveLength(2);
+		expect(requests).toHaveLength(1);
 	});
 
 	it('collapses equal duplicates and rejects conflicting duplicates', async () => {
