@@ -21,13 +21,17 @@ state may cross the adapter boundary. Raw payloads stay inside the adapter.
    two approved GET endpoints, exact headers, supplied plugin version,
    `per_page=100`, no authentication, ETags, `/rate_limit`, generic HTTP or
    retry frameworks, or new dependencies.
-2. Make redirect behavior and supported response representation a bounded hard
-   feasibility gate. If `requestUrl()` cannot preserve approved origin,
-   identity/rename, and pagination guarantees, stop and document the blocker;
-   do not use fetch, Node, Electron-only, or private APIs.
-3. Keep `isDesktopOnly: false` and verify every used Obsidian API against the
-   declared minimum Desktop/Mobile compatibility boundary, not only TypeScript
-   declarations. Do not silently ship with an unavailable minimum-version API.
+2. Keep redirect behavior and supported response representation fail-closed by
+   default. Treat the bounded redirect/origin verification as a post-merge
+   production-enablement check; if `requestUrl()` cannot preserve approved
+   origin, identity/rename, and pagination guarantees, keep the transport
+   disabled and document the blocker. Do not use fetch, Node, Electron-only, or
+   private APIs.
+3. Keep `isDesktopOnly: false`. Before production enablement, verify every used
+   Obsidian API against the declared minimum Desktop/Mobile compatibility
+   boundary, not only TypeScript declarations. Do not silently enable an
+   unavailable minimum-version API; raise the minimum through a separate
+   release-compatibility change when required.
 4. Validate provider-policy boundaries before requests: global boundary for
    identity, global plus per-person polling boundary for Events, and zero
    requests when blocked.
@@ -80,42 +84,44 @@ events, unknown/deferred events, page/list/event-entry validation, pagination
 trust boundaries, the three-page ceiling, complete retrieval/no partial
 success, duplicate conflicts, retry budgets, polling timing, primary/secondary
 and ordinary-403 policy, successful quota-zero responses, 304, pinned-version
-failures, result scope/request-attempted state, raw-payload containment,
-redirect feasibility, and Desktop/Mobile/minimum-version compatibility.
+failures, result scope/request-attempted state, raw-payload containment, and
+the fail-closed post-merge production-enablement boundaries. Do not claim that
+redirect feasibility or minimum-runtime compatibility has been verified by the
+implementation issue's automated tests.
 
 Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run format:check`,
 `npm run build`, and `npm run check`.
 
 ## Acceptance matrix
 
-| ID  | Criterion                                        | Authority                 | Evidence                                                                   | Status                     |
-| --- | ------------------------------------------------ | ------------------------- | -------------------------------------------------------------------------- | -------------------------- |
-| A1  | REST through `requestUrl()` only                 | #74, github, architecture | Adapter + request tests                                                    | Verified                   |
-| A2  | Minimal injected seam; no framework/dependency   | #74                       | Diff/dependency review                                                     | Verified                   |
-| A3  | Exact headers and supplied version               | #74, github               | Header assertions                                                          | Verified                   |
-| A4  | `per_page=100`, no auth/ETag/preflight           | #74, github               | Negative request tests                                                     | Verified                   |
-| A5  | Safe `User` identity validation                  | #74, settings             | Identity tests                                                             | Verified                   |
-| A6  | Actor ID/login binding                           | #74, github               | Mismatch tests                                                             | Verified                   |
-| A7  | Canonical #71 Push/PR/Issue mapping              | #74, activity, #71        | Factory/output tests                                                       | Verified                   |
-| A8  | Unknown/deferred safe; malformed supported fails | #74, activity             | Structural tests                                                           | Verified                   |
-| A9  | Validated pagination origin/path/identity        | #74, github               | Link matrix                                                                | Verified                   |
-| A10 | Three-page ceiling and page-4 failure            | #74, github               | Ceiling tests                                                              | Verified                   |
-| A11 | Complete retrieval before success/state          | #74, sync                 | Later-page tests                                                           | Verified                   |
-| A12 | Deterministic duplicate handling                 | #74, sync                 | Duplicate tests                                                            | Verified                   |
-| A13 | Policy blocks make zero requests                 | #74, settings             | Request-count tests                                                        | Verified                   |
-| A14 | Poll/rate boundaries use observation/max timing  | #74, github               | Boundary tests                                                             | Verified                   |
-| A15 | Deterministic rate-limit evidence/fallbacks      | #74, github               | Header/message matrix                                                      | Verified                   |
-| A16 | Quota-zero final/non-final behavior              | #74, github               | Successful-response tests                                                  | Verified                   |
-| A17 | 304 fails                                        | #74, github               | Regression test                                                            | Verified                   |
-| A18 | One retry total per logical operation            | #74, github               | Retry tests                                                                | Verified                   |
-| A19 | Narrow pinned-version incompatibility            | #74, github               | 400/410 tests                                                              | Verified                   |
-| A20 | Four outcomes/minimum safe data                  | #74, architecture         | Result tests                                                               | Verified                   |
-| A21 | Raw payload containment                          | #74, architecture         | Boundary inspection                                                        | Verified                   |
-| A22 | Redirect feasibility gate                        | #74, architecture         | Desktop bundle follows redirects; no final URL/origin; fail-closed gate    | Blocked: contract blocker  |
-| A23 | Desktop/Mobile/minimum compatibility             | #74, architecture         | Historical API contract predates minima; min-runtime execution unavailable | Blocked: external evidence |
-| A24 | No live requests in tests                        | #74, AGENTS.md            | Test review                                                                | Verified                   |
-| A25 | Clarifications added to contracts                | #74, github               | Docs diff/reread                                                           | Verified                   |
-| A26 | `npm run check` passes                           | #74, AGENTS.md            | Command output                                                             | Verified                   |
+| ID  | Criterion                                        | Authority                 | Evidence                                                                 | Status                          |
+| --- | ------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------ | ------------------------------- |
+| A1  | REST through `requestUrl()` only                 | #74, github, architecture | Adapter + request tests                                                  | Verified                        |
+| A2  | Minimal injected seam; no framework/dependency   | #74                       | Diff/dependency review                                                   | Verified                        |
+| A3  | Exact headers and supplied version               | #74, github               | Header assertions                                                        | Verified                        |
+| A4  | `per_page=100`, no auth/ETag/preflight           | #74, github               | Negative request tests                                                   | Verified                        |
+| A5  | Safe `User` identity validation                  | #74, settings             | Identity tests                                                           | Verified                        |
+| A6  | Actor ID/login binding                           | #74, github               | Mismatch tests                                                           | Verified                        |
+| A7  | Canonical #71 Push/PR/Issue mapping              | #74, activity, #71        | Factory/output tests                                                     | Verified                        |
+| A8  | Unknown/deferred safe; malformed supported fails | #74, activity             | Structural tests                                                         | Verified                        |
+| A9  | Validated pagination origin/path/identity        | #74, github               | Link matrix                                                              | Verified                        |
+| A10 | Three-page ceiling and page-4 failure            | #74, github               | Ceiling tests                                                            | Verified                        |
+| A11 | Complete retrieval before success/state          | #74, sync                 | Later-page tests                                                         | Verified                        |
+| A12 | Deterministic duplicate handling                 | #74, sync                 | Duplicate tests                                                          | Verified                        |
+| A13 | Policy blocks make zero requests                 | #74, settings             | Request-count tests                                                      | Verified                        |
+| A14 | Poll/rate boundaries use observation/max timing  | #74, github               | Boundary tests                                                           | Verified                        |
+| A15 | Deterministic rate-limit evidence/fallbacks      | #74, github               | Header/message matrix                                                    | Verified                        |
+| A16 | Quota-zero final/non-final behavior              | #74, github               | Successful-response tests                                                | Verified                        |
+| A17 | 304 fails                                        | #74, github               | Regression test                                                          | Verified                        |
+| A18 | One retry total per logical operation            | #74, github               | Retry tests                                                              | Verified                        |
+| A19 | Narrow pinned-version incompatibility            | #74, github               | 400/410 tests                                                            | Verified                        |
+| A20 | Four outcomes/minimum safe data                  | #74, architecture         | Result tests                                                             | Verified                        |
+| A21 | Raw payload containment                          | #74, architecture         | Boundary inspection                                                      | Verified                        |
+| A22 | Redirect/origin production enablement            | #74, architecture         | Post-merge manual verification; transport remains fail-closed by default | Deferred: post-merge enablement |
+| A23 | Desktop/Mobile/minimum compatibility             | #74, architecture         | Post-merge minimum-runtime verification before production enablement     | Deferred: post-merge enablement |
+| A24 | No live requests in tests                        | #74, AGENTS.md            | Test review                                                              | Verified                        |
+| A25 | Clarifications added to contracts                | #74, github               | Docs diff/reread                                                         | Verified                        |
+| A26 | `npm run check` passes                           | #74, AGENTS.md            | Command output                                                           | Verified                        |
 
 ## Sequencing
 
@@ -123,7 +129,7 @@ Run `npm run test`, `npm run typecheck`, `npm run lint`, `npm run format:check`,
 feasibility work; #72 is downstream; #73 is not a hard prerequisite for this
 adapter. These tracks converge later for end-to-end Sync One.
 
-## External compatibility evidence
+## Post-merge production-enablement evidence
 
 - `manifest.json` declares `minAppVersion: 1.0.0` and `isDesktopOnly: false`.
 - The official `obsidian-api` contract at commit
@@ -132,9 +138,9 @@ adapter. These tracks converge later for end-to-end Sync One.
   That predates the official Desktop 1.0.0 release (2022-10-13) and Mobile
   1.4.0 release (2022-10-19), but it is API-contract evidence rather than
   minimum-runtime execution evidence.
-- The installed desktop bundle routes its request bridge with automatic
-  redirect following and returns status, headers, and body without exposing the
-  final URL/origin. Therefore the approved redirect-origin guarantee cannot be
-  preserved by this supported response representation. The transport remains
-  fail-closed until a supported behavior that preserves the contract is
-  demonstrated; do not enable the explicit gate based on the current bundle.
+- The installed desktop bundle currently routes its request bridge with
+  automatic redirect following and returns status, headers, and body without
+  exposing the final URL/origin. The transport therefore remains fail-closed
+  by default. After the implementation merges, manually verify whether a
+  supported behavior preserves the approved redirect/origin, followed-person
+  identity, rename, and pagination guarantees before production enablement.

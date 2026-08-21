@@ -782,11 +782,7 @@ function parseNextPage(
 			(rawParameters.trim() !== '' && !/^\s*;/.test(rawParameters))
 		)
 			return { ok: false };
-		if (
-			target === undefined ||
-			target.length === 0
-		)
-			return { ok: false };
+		if (target === undefined || target.length === 0) return { ok: false };
 		const parameters = rawParameters
 			.split(';')
 			.map((parameter) => parameter.trim());
