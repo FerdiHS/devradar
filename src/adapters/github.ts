@@ -546,9 +546,7 @@ function parseGitHubEventId(value: unknown): string | undefined {
 }
 
 function parseGitHubAccountId(value: unknown): string | undefined {
-	return typeof value === 'number' &&
-		Number.isSafeInteger(value) &&
-		value > 0
+	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 		? String(value)
 		: undefined;
 }
@@ -785,7 +783,9 @@ function parseNextPage(
 			rawParameters === undefined
 		)
 			return { ok: false };
-		const parameters = rawParameters.split(';').map((parameter) => parameter.trim());
+		const parameters = rawParameters
+			.split(';')
+			.map((parameter) => parameter.trim());
 		if (parameters[0] === '') parameters.shift();
 		if (parameters.some((parameter) => parameter.length === 0))
 			return { ok: false };

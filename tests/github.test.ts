@@ -28,7 +28,12 @@ function response(
 }
 
 function identity(overrides: Record<string, unknown> = {}) {
-	return { login: USERNAME, id: Number(ACCOUNT_ID), type: 'User', ...overrides };
+	return {
+		login: USERNAME,
+		id: Number(ACCOUNT_ID),
+		type: 'User',
+		...overrides,
+	};
 }
 
 function event(
@@ -271,9 +276,11 @@ describe('GitHub adapter request and identity boundaries', () => {
 		const unsafeStringId = adapter([
 			response(identity({ id: '9007199254740993' })),
 		]);
-		const unsafeStringResult = await unsafeStringId.adapter.resolveIdentity({
-			username: USERNAME,
-		});
+		const unsafeStringResult = await unsafeStringId.adapter.resolveIdentity(
+			{
+				username: USERNAME,
+			},
+		);
 		expect(unsafeStringResult).toMatchObject({
 			kind: 'person-failure',
 			failure: { category: 'malformed-provider-data' },
@@ -282,9 +289,8 @@ describe('GitHub adapter request and identity boundaries', () => {
 		const eventId = adapter([
 			response([event({ id: '9007199254740993' })]),
 		]);
-		const eventIdResult = await eventId.adapter.retrieveEvents(
-			eventsRequest(),
-		);
+		const eventIdResult =
+			await eventId.adapter.retrieveEvents(eventsRequest());
 		expect(eventIdResult).toMatchObject({
 			kind: 'success',
 			data: {
@@ -448,7 +454,9 @@ describe('GitHub Events validation and mapping', () => {
 		]);
 
 		const caseOnly = adapter([
-			response([event({ actor: { id: Number(ACCOUNT_ID), login: 'Octocat' } })]),
+			response([
+				event({ actor: { id: Number(ACCOUNT_ID), login: 'Octocat' } }),
+			]),
 		]);
 		const caseOnlyResult =
 			await caseOnly.adapter.retrieveEvents(eventsRequest());
