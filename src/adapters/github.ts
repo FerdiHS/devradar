@@ -755,6 +755,17 @@ function validateNextUrl(
 	username: string,
 	currentPage: number,
 ): NextPage | undefined {
+	const rawPath = value.slice(
+		0,
+		value.indexOf('?') < 0 ? value.length : value.indexOf('?'),
+	);
+	if (
+		/\s/.test(value) ||
+		value.includes('\\') ||
+		value.includes('#') ||
+		/(?:^|\/)\.\.?(?:\/|$)/.test(rawPath)
+	)
+		return undefined;
 	let url: URL;
 	try {
 		url = new URL(value);

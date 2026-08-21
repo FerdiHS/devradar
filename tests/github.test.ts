@@ -682,6 +682,10 @@ describe('GitHub Events pagination and completeness', () => {
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100> rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"; garbage',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next!"',
+			'<https://api.github.com\\users/octocat/events/public?page=2&per_page=100>; rel="next"',
+			'< https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100 >; rel="next"',
+			'<https://api.github.com/users/octocat/users/../events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel=" next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next\tprev"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel=""',
@@ -693,6 +697,7 @@ describe('GitHub Events pagination and completeness', () => {
 			'<https://api.github.com/repos/octocat/hello-world?page=2&per_page=100>; rel="next"',
 			'<https://user:pass@api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100#fragment>; rel="next"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100#>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=1&per_page=100>; rel="next"',
 		];
