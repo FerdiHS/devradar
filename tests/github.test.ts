@@ -399,7 +399,13 @@ describe('GitHub Events validation and mapping', () => {
 		});
 		const { adapter: github } = adapter([
 			response([
-				event({ payload: { ref: 'refs/heads/main', before: 123 } }),
+				event({
+					payload: {
+						ref: 'refs/heads/main',
+						head: 'a'.repeat(40),
+						before: 123,
+					},
+				}),
 				pullRequest,
 				issue,
 			]),
@@ -409,10 +415,37 @@ describe('GitHub Events validation and mapping', () => {
 
 		expect(result.kind).toBe('success');
 		if (result.kind !== 'success') return;
-		expect(
-			result.data.activities.map((activity) => activity.family),
-		).toEqual(['push', 'pull-request', 'issue']);
-		expect(result.data.activities[1]).toMatchObject({ action: 'merged' });
+		expect(result.data.activities).toEqual([
+			{
+				family: 'push',
+				action: 'pushed',
+				providerEventId: '1',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				ref: 'refs/heads/main',
+				pushSourceUrl: `https://github.com/octocat/hello-world/commit/${'a'.repeat(40)}`,
+			},
+			{
+				family: 'pull-request',
+				action: 'merged',
+				providerEventId: '2',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '4',
+				title: 'Improve docs',
+				sourceUrl: 'https://github.com/octocat/hello-world/pull/4',
+			},
+			{
+				family: 'issue',
+				action: 'opened',
+				providerEventId: '3',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '5',
+				title: 'Fix bug',
+				sourceUrl: 'https://github.com/octocat/hello-world/issues/5',
+			},
+		]);
 
 		const caseOnly = adapter([
 			response([event({ actor: { id: Number(ACCOUNT_ID), login: 'Octocat' } })]),
