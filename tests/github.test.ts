@@ -756,22 +756,22 @@ describe('GitHub policy and status handling', () => {
 			);
 		}
 
-		const overflowRetryAfter = adapter([
-			response(
-				{ message: 'forbidden' },
-				{
-					status: 403,
-					headers: {
-						'retry-after': String(Number.MAX_SAFE_INTEGER),
+		for (const retryAfter of ['1.5', String(Number.MAX_SAFE_INTEGER)]) {
+			const invalidRetryAfter = adapter([
+				response(
+					{ message: 'forbidden' },
+					{
+						status: 403,
+						headers: { 'retry-after': retryAfter },
 					},
-				},
-			),
-		]);
-		const overflowRetryAfterResult =
-			await overflowRetryAfter.adapter.retrieveEvents(eventsRequest());
-		expect(overflowRetryAfterResult.policy.rateLimitNotBefore).toBe(
-			new Date(NOW + 60 * 60 * 1000).toISOString(),
-		);
+				),
+			]);
+			const invalidRetryAfterResult =
+				await invalidRetryAfter.adapter.retrieveEvents(eventsRequest());
+			expect(invalidRetryAfterResult.policy.rateLimitNotBefore).toBe(
+				new Date(NOW + 60 * 60 * 1000).toISOString(),
+			);
+		}
 
 		const secondary = adapter([
 			response(

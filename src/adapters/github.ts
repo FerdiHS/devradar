@@ -201,10 +201,7 @@ function parseSafeNonNegativeInteger(
 }
 
 function parseDelaySeconds(value: string | undefined): number | undefined {
-	if (value === undefined || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value))
-		return undefined;
-	const parsed = Number(value);
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+	return parseSafeNonNegativeInteger(value);
 }
 
 function parseEpochSeconds(value: string | undefined): number | undefined {
