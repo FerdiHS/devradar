@@ -36,8 +36,9 @@ state may cross the adapter boundary. Raw payloads stay inside the adapter.
    identity, global plus per-person polling boundary for Events, and zero
    requests when blocked.
 5. Validate identity usernames, canonical logins, `User` account type, and
-   positive IDs. Numeric IDs require exactly `Number.isSafeInteger(id) && id > 0`;
-   preserved decimal strings are validated without unsafe numeric conversion.
+   positive IDs. Account and actor IDs require exactly
+   `Number.isSafeInteger(id) && id > 0`; provider event IDs preserve their
+   validated decimal-string representation without unsafe numeric conversion.
 6. Retrieve Events completely through validated `Link rel="next"` targets.
    Validate page/list and minimal event-entry structure; ignore unknown or
    deferred events only after that validation; fail malformed supported events.

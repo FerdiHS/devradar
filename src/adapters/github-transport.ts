@@ -17,8 +17,8 @@ export type ObsidianGitHubTransportOptions = {
 /**
  * Production-only Obsidian boundary. The provider adapter remains pure and
  * testable by receiving this transport as an injected dependency. The
- * redirect verification is a deliberate implementation-time gate because the
- * supported response type does not expose final URL/origin information.
+ * redirect verification remains a post-merge production-enablement gate because
+ * the supported response type does not expose final URL/origin information.
  */
 export function createObsidianGitHubTransport(
 	options: ObsidianGitHubTransportOptions = {},
