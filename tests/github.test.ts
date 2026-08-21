@@ -334,6 +334,25 @@ describe('GitHub adapter request and identity boundaries', () => {
 		expect(quota.requests).toHaveLength(2);
 	});
 
+	it('samples identity response time once for status classification', async () => {
+		let nowCalls = 0;
+		const { adapter: github } = adapter(
+			[response({}, { status: 404 })],
+			() => {
+				nowCalls += 1;
+				return NOW;
+			},
+		);
+
+		const result = await github.resolveIdentity({ username: USERNAME });
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'not-found' },
+		});
+		expect(nowCalls).toBe(2);
+	});
+
 	it('persists a conservative boundary after successful zero-quota identity response', async () => {
 		const { adapter: github } = adapter([
 			response(identity(), {
