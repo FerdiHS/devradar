@@ -212,7 +212,11 @@ function parseEpochSeconds(value: string | undefined): number | undefined {
 
 function validMilliseconds(value: number | undefined): number | undefined {
 	if (value === undefined || !Number.isFinite(value)) return undefined;
-	return Number.isNaN(new Date(value).getTime()) ? undefined : value;
+	const date = new Date(value);
+	const year = date.getUTCFullYear();
+	return Number.isNaN(date.getTime()) || year < 0 || year > 9999
+		? undefined
+		: value;
 }
 
 function maxBoundary(
@@ -323,7 +327,12 @@ function secondaryLimitMessage(json: unknown): boolean {
 		record === undefined ? undefined : readOwn(record, 'message');
 	return (
 		typeof message === 'string' &&
-		/\bsecondary\s+rate\s+limit\b/i.test(message)
+		(/\b(?:you\s+have\s+)?exceeded\s+(?:a\s+)?secondary\s+rate\s+limit\b/i.test(
+			message,
+		) ||
+			/\bsecondary\s+rate\s+limit\s+(?:has\s+been\s+)?(?:exceeded|reached)\b/i.test(
+				message,
+			))
 	);
 }
 
@@ -332,14 +341,14 @@ function pinnedApiVersionFailure(status: number, json: unknown): boolean {
 	const message =
 		record === undefined ? undefined : readOwn(record, 'message');
 	if (typeof message !== 'string') return false;
-	if (status === 410)
-		return /\b(?:api\s+)?version\b.*\b(?:retired|unsupported|no longer supported)\b/i.test(
+	const unsupportedVersion =
+		/\bapi\s+version\b.*\b(?:retired|unsupported|not supported|no longer supported)\b/i.test(
 			message,
 		);
+	if (!unsupportedVersion) return false;
+	if (status === 410) return true;
 	if (status !== 400) return false;
-	return /\b(?:api\s+)?version\b.*\b(?:not supported|unsupported|no longer supported)\b/i.test(
-		message,
-	);
+	return true;
 }
 
 function observeResponse(
@@ -804,7 +813,11 @@ function parseNextPage(
 			}
 		}
 		if (relation === undefined) return { ok: false };
-		if (relation.split(/\s+/).includes('next')) {
+		if (
+			relation
+				.split(/\s+/)
+				.some((token) => token.toLowerCase() === 'next')
+		) {
 			if (next !== undefined) return { ok: false };
 			next = validateNextUrl(target, username, currentPage);
 			if (next === undefined) return { ok: false };
@@ -859,6 +872,8 @@ export class GitHubAdapter {
 		const url = `${API_ORIGIN}/users/${input.username}`;
 		let retryUsed = false;
 		let response: GitHubTransportResponse | undefined;
+		let responseObservation: ResponseObservation | undefined;
+		let responseTime: number | undefined;
 		while (response === undefined) {
 			try {
 				response = await this.transport({
@@ -888,21 +903,28 @@ export class GitHubAdapter {
 				response.status <= 599 &&
 				!retryUsed
 			) {
+				const retryResponseTime = this.now();
 				const retryObservation = observeResponse(
 					response,
-					this.now(),
+					retryResponseTime,
 					state,
 				);
 				state.rateLimitNotBeforeMs =
 					retryObservation.boundary.rateLimitNotBeforeMs;
-				if (retryObservation.quotaExhausted) break;
+				if (retryObservation.quotaExhausted) {
+					responseObservation = retryObservation;
+					responseTime = retryResponseTime;
+					break;
+				}
 				response = undefined;
 				retryUsed = true;
 			}
 		}
 
-		const responseTime = this.now();
-		const observation = observeResponse(response, responseTime, state);
+		responseTime ??= this.now();
+		const observation =
+			responseObservation ??
+			observeResponse(response, responseTime, state);
 		const observedState = observation.boundary;
 		if (response.status !== 200) {
 			const classified = classifyUnexpectedResponse(
@@ -1003,6 +1025,8 @@ export class GitHubAdapter {
 
 		while (true) {
 			let response: GitHubTransportResponse | undefined;
+			let responseObservation: ResponseObservation | undefined;
+			let responseTime: number | undefined;
 			while (response === undefined) {
 				try {
 					response = await this.transport({
@@ -1032,24 +1056,31 @@ export class GitHubAdapter {
 					response.status <= 599 &&
 					!retryUsed
 				) {
+					const retryResponseTime = this.now();
 					const retryObservation = observeResponse(
 						response,
-						this.now(),
+						retryResponseTime,
 						{ ...state, pollNotBeforeMs },
 					);
 					state.rateLimitNotBeforeMs =
 						retryObservation.boundary.rateLimitNotBeforeMs;
-					if (retryObservation.quotaExhausted) break;
+					if (retryObservation.quotaExhausted) {
+						responseObservation = retryObservation;
+						responseTime = retryResponseTime;
+						break;
+					}
 					response = undefined;
 					retryUsed = true;
 				}
 			}
 
-			const responseTime = this.now();
-			const observation = observeResponse(response, responseTime, {
-				...state,
-				pollNotBeforeMs,
-			});
+			responseTime ??= this.now();
+			const observation =
+				responseObservation ??
+				observeResponse(response, responseTime, {
+					...state,
+					pollNotBeforeMs,
+				});
 			state.rateLimitNotBeforeMs =
 				observation.boundary.rateLimitNotBeforeMs;
 			if (observation.failure !== undefined)

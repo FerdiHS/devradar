@@ -334,6 +334,41 @@ describe('GitHub adapter request and identity boundaries', () => {
 		expect(quota.requests).toHaveLength(1);
 	});
 
+	it('uses one response timestamp when quota exhaustion stops a 5xx retry', async () => {
+		const identityTimes = [NOW, NOW + 1_000, NOW + 2_000];
+		const identityCase = adapter(
+			[
+				response(
+					{ message: 'temporary' },
+					{ status: 503, headers: { 'x-ratelimit-remaining': '0' } },
+				),
+			],
+			() => identityTimes.shift() ?? NOW,
+		);
+		const identityResult = await identityCase.adapter.resolveIdentity({
+			username: USERNAME,
+		});
+		expect(identityResult.policy.rateLimitNotBefore).toBe(
+			new Date(NOW + 1_000 + 60 * 60 * 1_000).toISOString(),
+		);
+
+		const eventsTimes = [NOW, NOW + 1_000, NOW + 2_000];
+		const eventsCase = adapter(
+			[
+				response(
+					{ message: 'temporary' },
+					{ status: 503, headers: { 'x-ratelimit-remaining': '0' } },
+				),
+			],
+			() => eventsTimes.shift() ?? NOW,
+		);
+		const eventsResult =
+			await eventsCase.adapter.retrieveEvents(eventsRequest());
+		expect(eventsResult.policy.rateLimitNotBefore).toBe(
+			new Date(NOW + 1_000 + 60 * 60 * 1_000).toISOString(),
+		);
+	});
+
 	it('samples identity response time once for status classification', async () => {
 		let nowCalls = 0;
 		const { adapter: github } = adapter(
@@ -530,6 +565,34 @@ describe('GitHub Events validation and mapping', () => {
 		).toEqual(['opened', 'reopened', 'closed', 'merged', 'merged']);
 	});
 
+	it('ignores valid known events with unsupported actions', async () => {
+		const { adapter: github } = adapter([
+			response([
+				event({
+					type: 'PullRequestEvent',
+					payload: {
+						action: 'synchronize',
+						number: 4,
+						pull_request: { title: 'Title', merged: false },
+					},
+				}),
+				event({
+					type: 'IssuesEvent',
+					payload: {
+						action: 'labeled',
+						issue: { number: 5, title: 'Issue' },
+					},
+				}),
+			]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: { activities: [] },
+		});
+	});
+
 	it('ignores structurally valid unknown/deferred events without over-validation', async () => {
 		const { adapter: github } = adapter([
 			response([
@@ -628,6 +691,19 @@ describe('GitHub Events pagination and completeness', () => {
 	it('completes valid two- and three-page retrievals', async () => {
 		const pageLink = (page: number) =>
 			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;
+		const caseInsensitive = adapter([
+			response([event()], {
+				headers: {
+					link: `<https://api.github.com/users/${USERNAME}/events/public?page=2&per_page=100>; rel="NEXT"`,
+				},
+			}),
+			response([event({ id: '2' })]),
+		]);
+		const caseInsensitiveResult =
+			await caseInsensitive.adapter.retrieveEvents(eventsRequest());
+		expect(caseInsensitiveResult).toMatchObject({ kind: 'success' });
+		expect(caseInsensitive.requests).toHaveLength(2);
+
 		const twoPage = adapter([
 			response([event()], { headers: { link: pageLink(2) } }),
 			response([event({ id: '2' })]),
@@ -720,6 +796,29 @@ describe('GitHub Events pagination and completeness', () => {
 			kind: 'person-failure',
 			failure: { category: 'malformed-provider-data' },
 		});
+
+		const link = `<https://api.github.com/users/${USERNAME}/events/public?page=2&per_page=100>; rel="next"`;
+		const crossPageEqual = adapter([
+			response([same], { headers: { link } }),
+			response([same]),
+		]);
+		const crossPageEqualResult =
+			await crossPageEqual.adapter.retrieveEvents(eventsRequest());
+		expect(crossPageEqualResult).toMatchObject({
+			kind: 'success',
+			data: { activities: [expect.anything()] },
+		});
+
+		const crossPageConflict = adapter([
+			response([same], { headers: { link } }),
+			response([event({ payload: { ref: 'refs/heads/other' } })]),
+		]);
+		const crossPageConflictResult =
+			await crossPageConflict.adapter.retrieveEvents(eventsRequest());
+		expect(crossPageConflictResult).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
 	});
 });
 
@@ -753,6 +852,7 @@ describe('GitHub policy and status handling', () => {
 			'-1',
 			'1.5',
 			'abc',
+			'253402300800',
 			String(Number.MAX_SAFE_INTEGER),
 		]) {
 			const headers =
@@ -800,6 +900,7 @@ describe('GitHub policy and status handling', () => {
 			undefined,
 			'not-an-epoch',
 			String((NOW - 120_000) / 1000),
+			'253402300800',
 			String(Number.MAX_SAFE_INTEGER),
 		]) {
 			const headers: Record<string, string> = {
@@ -849,6 +950,18 @@ describe('GitHub policy and status handling', () => {
 		expect(secondaryResult.policy.rateLimitNotBefore).toBe(
 			new Date(NOW + 60_000).toISOString(),
 		);
+
+		for (const message of [
+			'This is not a secondary rate limit.',
+			'Secondary rate limit information is available.',
+		]) {
+			const ambiguous = adapter([response({ message }, { status: 403 })]);
+			const ambiguousResult =
+				await ambiguous.adapter.retrieveEvents(eventsRequest());
+			expect(ambiguousResult.policy.rateLimitNotBefore).toBe(
+				new Date(NOW + 60 * 60 * 1_000).toISOString(),
+			);
+		}
 
 		const secondaryWithPrimaryReset = adapter([
 			response(
@@ -1050,6 +1163,22 @@ describe('GitHub policy and status handling', () => {
 			kind: 'person-failure',
 			failure: { category: 'unexpected-status' },
 		});
+
+		for (const [status, message] of [
+			[400, 'Schema version not supported.'],
+			[410, 'Repository version is unsupported.'],
+			[400, 'Client version is unsupported.'],
+		] as const) {
+			const unrelatedVersion = adapter([
+				response({ message }, { status }),
+			]);
+			const unrelatedVersionResult =
+				await unrelatedVersion.adapter.retrieveEvents(eventsRequest());
+			expect(unrelatedVersionResult).toMatchObject({
+				kind: 'person-failure',
+				failure: { category: 'unexpected-status' },
+			});
+		}
 	});
 
 	it('classifies invalid JSON as provider data, not transport retry', async () => {
