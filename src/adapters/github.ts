@@ -903,12 +903,13 @@ export class GitHubAdapter {
 			}
 		}
 
-		const observation = observeResponse(response, this.now(), state);
+		const responseTime = this.now();
+		const observation = observeResponse(response, responseTime, state);
 		const observedState = observation.boundary;
 		if (response.status !== 200) {
 			const classified = classifyUnexpectedResponse(
 				response,
-				this.now(),
+				responseTime,
 				observedState,
 			);
 			return classified.failure.scope === 'provider'
