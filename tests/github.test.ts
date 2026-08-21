@@ -540,6 +540,7 @@ describe('GitHub Events pagination and completeness', () => {
 	it('rejects untrusted, skipped, duplicated, and drifting next links', async () => {
 		const links = [
 			'<https://evil.example/users/octocat/events/public?page=2&per_page=100>; rel="next"',
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"; garbage',
 			'<https://api.github.com/users/octocat/events/public?page=3&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next", <https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"',
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=99>; rel="next"',

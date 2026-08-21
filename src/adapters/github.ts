@@ -791,18 +791,22 @@ function parseNextPage(
 			rawParameters === undefined
 		)
 			return { ok: false };
-		const parameters = rawParameters
-			.split(';')
-			.map((parameter) => parameter.trim())
-			.filter((parameter) => parameter.length > 0);
+		const parameters = rawParameters.split(';').map((parameter) => parameter.trim());
+		if (parameters[0] === '') parameters.shift();
+		if (parameters.some((parameter) => parameter.length === 0))
+			return { ok: false };
 		let relation: string | undefined;
 		for (const parameter of parameters) {
-			const relationMatch = /^rel\s*=\s*(?:"([^"]*)"|([^\s]+))$/i.exec(
-				parameter,
-			);
-			if (relationMatch !== null) {
+			const parameterMatch =
+				/^([!#$%&'*+\-.^_`|~0-9A-Za-z]+)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([!#$%&'*+\-.^_`|~0-9A-Za-z]+))$/.exec(
+					parameter,
+				);
+			if (parameterMatch === null) return { ok: false };
+			const name = parameterMatch[1];
+			const value = parameterMatch[2] ?? parameterMatch[3];
+			if (name?.toLowerCase() === 'rel') {
 				if (relation !== undefined) return { ok: false };
-				relation = relationMatch[1] ?? relationMatch[2];
+				relation = value;
 			}
 		}
 		if (relation === undefined) return { ok: false };
