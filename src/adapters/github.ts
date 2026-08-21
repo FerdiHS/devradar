@@ -339,7 +339,7 @@ function pinnedApiVersionFailure(status: number, json: unknown): boolean {
 		record === undefined ? undefined : readOwn(record, 'message');
 	if (typeof message !== 'string') return false;
 	const unsupportedVersion =
-		/\bapi\s+version\b.*\b(?:retired|unsupported|not supported|no longer supported)\b/i.test(
+		/^\s*(?:the\s+)?(?:requested\s+)?api\s+version(?:\s+requested)?\s+(?:(?:is|has\s+been)\s+)?(?:retired|unsupported|not\s+supported|no\s+longer\s+supported)\b/i.test(
 			message,
 		);
 	if (!unsupportedVersion) return false;
@@ -566,6 +566,13 @@ function isUsableProviderToken(value: unknown): value is string {
 			const code = character.charCodeAt(0);
 			return code < 32 || code === 127;
 		})
+	);
+}
+
+function isRelationType(value: string): boolean {
+	return (
+		/^[A-Za-z][A-Za-z0-9.-]*$/.test(value) ||
+		/^[A-Za-z][A-Za-z0-9+.-]*:\S+$/.test(value)
 	);
 }
 
@@ -821,9 +828,10 @@ function parseNextPage(
 					parameterMatch[2] === undefined
 						? value
 						: value.replace(/\\([\s\S])/g, '$1');
+				const relationTypes = unquoted.split(' ');
 				if (
-					!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+(?: [!#$%&'*+\-.^_`|~0-9A-Za-z]+)*$/.test(
-						unquoted,
+					relationTypes.some(
+						(relationType) => !isRelationType(relationType),
 					)
 				)
 					return { ok: false };
