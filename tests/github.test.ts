@@ -708,6 +708,20 @@ describe('GitHub Events pagination and completeness', () => {
 		}
 	});
 
+	it('rejects anchored next links without following them', async () => {
+		const link = `<https://api.github.com/users/${USERNAME}/events/public?page=2&per_page=100>; rel="next"; anchor="https://example.com/something"`;
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(1);
+	});
+
 	it('completes valid two- and three-page retrievals', async () => {
 		const pageLink = (page: number) =>
 			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;

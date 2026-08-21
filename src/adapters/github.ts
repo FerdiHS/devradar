@@ -821,6 +821,7 @@ function parseNextPage(
 			if (parameterMatch === null) return { ok: false };
 			const name = parameterMatch[1];
 			const value = parameterMatch[2] ?? parameterMatch[3];
+			if (name?.toLowerCase() === 'anchor') return { ok: false };
 			if (name?.toLowerCase() === 'rel') {
 				if (relation !== undefined) return { ok: false };
 				if (value === undefined) return { ok: false };
