@@ -789,10 +789,41 @@ describe('GitHub policy and status handling', () => {
 			new Date(NOW + 60_000).toISOString(),
 		);
 
+		const secondaryWithPrimaryReset = adapter([
+			response(
+				{ message: 'You have exceeded a secondary rate limit.' },
+				{
+					status: 403,
+					headers: {
+						'x-ratelimit-remaining': '10',
+						'x-ratelimit-reset': String(
+							(NOW + 60 * 60 * 1000) / 1000,
+						),
+					},
+				},
+			),
+		]);
+		const secondaryWithPrimaryResetResult =
+			await secondaryWithPrimaryReset.adapter.retrieveEvents(
+				eventsRequest(),
+			);
+		expect(secondaryWithPrimaryResetResult.policy.rateLimitNotBefore).toBe(
+			new Date(NOW + 60_000).toISOString(),
+		);
+
 		const retryAfter = adapter([
 			response(
 				{ message: 'forbidden' },
-				{ status: 429, headers: { 'retry-after': '90' } },
+				{
+					status: 429,
+					headers: {
+						'x-ratelimit-remaining': '10',
+						'x-ratelimit-reset': String(
+							(NOW + 60 * 60 * 1000) / 1000,
+						),
+						'retry-after': '90',
+					},
+				},
 			),
 		]);
 		const retryAfterResult =

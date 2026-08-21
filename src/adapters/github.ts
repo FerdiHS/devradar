@@ -420,10 +420,7 @@ function observeResponse(
 			retryAfterMilliseconds === undefined
 				? nowMilliseconds + SECONDARY_FALLBACK_MS
 				: undefined;
-		const secondaryTimingBoundary = maxBoundary(
-			latestTimingBoundary,
-			retryAfterMilliseconds,
-		);
+		const secondaryTimingBoundary = retryAfterMilliseconds;
 		rateLimitNotBeforeMs = maxBoundary(
 			rateLimitNotBeforeMs,
 			maxBoundary(secondaryTimingBoundary, secondaryFallback),
