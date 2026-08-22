@@ -162,7 +162,7 @@ The MVP is local-first. It has no requirement for:
 
 Notes remain private unless the user independently publishes or synchronises their vault.
 
-Obsidian Desktop and Mobile are both MVP requirements. DevRadar should avoid unnecessary Node.js, Electron, and desktop-only APIs so that the supported workflow remains practical on mobile.
+Obsidian Desktop and Mobile are both MVP and product-support requirements. For the `v0.2.0` implementation slice, Desktop is the designated and required runtime-validation target, while Mobile remains an intended compatibility target rather than a runtime-validation closure gate. DevRadar should avoid unnecessary Node.js, Electron, and desktop-only APIs so that the supported workflow remains practical on mobile.
 
 ## MVP success criteria
 
@@ -183,7 +183,7 @@ fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
 - handles invalid users, unavailable accounts, API failures, malformed settings, and rate limits safely;
 - continues Sync All after individual failures and reports partial success;
 - prevents overlapping synchronisation;
-- works on Obsidian Desktop and Mobile;
+- supports the intended Obsidian Desktop and Mobile product targets, subject to each capability's applicable runtime and compatibility contract;
 - passes repository quality checks;
 - remains eligible for the Obsidian Community Plugin workflow.
 

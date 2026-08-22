@@ -193,10 +193,13 @@ contract. Implementations must not assume that returning unchanged content from
 that behavior. The combination of commit-time current-content validation and
 zero physical writes for true no-op transformations is an implementation
 feasibility gate, not an assumed adapter detail. Note-writing implementation
-must not begin or merge until a documented Desktop/Mobile-safe Obsidian strategy
-demonstrates both properties. If the supported API cannot provide both, stop
-before implementation and revisit the person-note and synchronization contracts
-rather than silently weakening either invariant.
+must not begin or merge until a documented strategy demonstrates both properties
+on the designated Desktop validation target. The implementation must remain
+Mobile-compatible, but Mobile runtime validation is not a v0.2.0 closure gate;
+any runtime-sensitive path without its applicable validation remains fail-closed.
+If the supported API cannot provide both, stop before implementation and revisit
+the person-note and synchronization contracts rather than silently weakening
+either invariant.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
@@ -220,9 +223,14 @@ simulate atomicity across the vault and persisted settings.
 
 ## Compatibility and MVP slice
 
-DevRadar supports Obsidian Desktop and Mobile and declares
-`isDesktopOnly: false`. The unauthenticated MVP uses Obsidian's `requestUrl()`
-with documented GitHub REST APIs. Runtime code must remain browser-compatible:
+DevRadar remains an intended Obsidian Desktop and Mobile product target and
+declares `isDesktopOnly: false`. For the `v0.2.0` implementation slice, Desktop
+is the designated and required runtime-validation target; Mobile is a
+compatibility target, not a runtime-validation closure gate. A capability-
+specific Desktop PASS makes only that capability eligible for later downstream
+production integration; it does not itself enable production behavior or
+authorize an equivalent Mobile path. The unauthenticated MVP uses Obsidian's
+`requestUrl()` with documented GitHub REST APIs. Runtime code must remain browser-compatible:
 it excludes Node.js filesystem APIs, Electron-only APIs, shell execution, and
 desktop-only dependencies, authentication, private-data access, GraphQL,
 scraping, webhooks, and hidden background collection. Network processing stays
