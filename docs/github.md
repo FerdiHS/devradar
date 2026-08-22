@@ -254,7 +254,7 @@ absence of prohibited desktop-only dependencies; this review is not iOS or
 Android runtime validation and is not a prerequisite for Desktop eligibility.
 Mobile GitHub transport remains fail-closed until its applicable runtime
 contract is separately validated or otherwise authorized by an approved
-downstream implementation. Current TypeScript declarations alone are not
+downstream contract. Current TypeScript declarations alone are not
 compatibility evidence. If a required API is unavailable, raise the minimum
 deliberately through the appropriate release-compatibility change rather than
 silently weakening the contract.
