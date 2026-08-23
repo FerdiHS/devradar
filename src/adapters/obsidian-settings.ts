@@ -113,6 +113,7 @@ function classifyValidationFailure(
 	raw: unknown,
 ): SettingsRecoveryClassification {
 	try {
+		if (hasUnsafeReflection(raw)) return 'unclassifiable';
 		if (raw === null || typeof raw !== 'object' || Array.isArray(raw))
 			return 'ordinary-malformed';
 		const prototype = Reflect.getPrototypeOf(raw);
@@ -133,5 +134,30 @@ function classifyValidationFailure(
 		return 'ordinary-malformed';
 	} catch {
 		return 'unclassifiable';
+	}
+}
+
+function hasUnsafeReflection(
+	value: unknown,
+	seen = new WeakSet<object>(),
+): boolean {
+	if (value === null || typeof value !== 'object') return false;
+	if (seen.has(value)) return false;
+	seen.add(value);
+
+	try {
+		Reflect.getPrototypeOf(value);
+		for (const key of Reflect.ownKeys(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (!descriptor || !('value' in descriptor)) return true;
+			if (
+				descriptor.enumerable &&
+				hasUnsafeReflection(descriptor.value, seen)
+			)
+				return true;
+		}
+		return false;
+	} catch {
+		return true;
 	}
 }

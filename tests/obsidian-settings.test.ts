@@ -134,6 +134,49 @@ describe('ObsidianSettingsPersistence', () => {
 		});
 	});
 
+	it('fails closed for an accessor nested in followedPeople', async () => {
+		const person = {};
+		Object.defineProperty(person, 'username', {
+			enumerable: true,
+			get: () => 'octocat',
+		});
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => ({ schemaVersion: 1, followedPeople: [person] })),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'unclassifiable',
+			},
+		});
+	});
+
+	it('fails closed for a proxy nested in followedPeople', async () => {
+		const person = new Proxy(
+			{},
+			{
+				getPrototypeOf() {
+					throw new Error('reflection blocked');
+				},
+			},
+		);
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => ({ schemaVersion: 1, followedPeople: [person] })),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'unclassifiable',
+			},
+		});
+	});
+
 	it('does not write when a candidate fails validation', async () => {
 		const dataStore = store(async () => null);
 		const persistence = new ObsidianSettingsPersistence(

@@ -50,6 +50,54 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		});
 	});
 
+	it('does not reset non-resettable recovery states', async () => {
+		const cases = [
+			{
+				loadData: async () => {
+					throw new Error('unavailable');
+				},
+				diagnostic: { kind: 'read-failure' },
+			},
+			{
+				loadData: async () => ({
+					schemaVersion: 2,
+					followedPeople: [],
+				}),
+				diagnostic: {
+					kind: 'validation',
+					classification: 'future-schema',
+				},
+			},
+			{
+				loadData: async () => {
+					const input = {};
+					Object.defineProperty(input, 'schemaVersion', {
+						enumerable: true,
+						get: () => 1,
+					});
+					return input;
+				},
+				diagnostic: {
+					kind: 'validation',
+					classification: 'unclassifiable',
+				},
+			},
+		];
+
+		for (const scenario of cases) {
+			const saveData = vi.fn(async () => undefined);
+			const plugin = fakePlugin(scenario.loadData, saveData);
+			await plugin.onload();
+			await plugin.resetSettings();
+
+			expect(plugin.getSettingsState()).toMatchObject({
+				kind: 'recovery',
+				diagnostic: scenario.diagnostic,
+			});
+			expect(saveData).not.toHaveBeenCalled();
+		}
+	});
+
 	it('serializes concurrent retries without a global operation guard', async () => {
 		let release!: (value: unknown) => void;
 		const pending = new Promise<unknown>((resolve) => {
@@ -98,6 +146,11 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		await plugin.onload();
 		await plugin.resetSettings();
 
+		expect(plugin.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'write-failure' },
+		});
+		await plugin.resetSettings();
 		expect(plugin.getSettingsState()).toEqual({
 			kind: 'recovery',
 			diagnostic: { kind: 'write-failure' },
