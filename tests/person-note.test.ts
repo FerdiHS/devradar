@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+	parseCanonicalActivityEntries,
 	parsePersonNote,
+	renderActivityEntry,
 	renderManagedContent,
+	renderManagedEntries,
 	renderManagedSection,
 	renderNewPersonNote,
 	associatePersonNote,
@@ -10,7 +13,12 @@ import {
 	type PersonNoteInspection,
 	type PersonNoteResult,
 } from '../src/domain/person-note';
-import { createIssueActivity, type Activity } from '../src/domain/activity';
+import {
+	createIssueActivity,
+	createPullRequestActivity,
+	createPushActivity,
+	type Activity,
+} from '../src/domain/activity';
 
 const identity: PersonIdentity = { username: 'octocat', githubId: '583231' };
 const begin = '<!-- devradar:begin github="octocat" github-id="583231" -->';
@@ -20,6 +28,12 @@ const ok = <T>(result: PersonNoteResult<T>): T => {
 	expect(result.ok).toBe(true);
 	if (!result.ok) throw new Error('expected successful result');
 	return result.value;
+};
+
+const value = <T>(result: { ok: boolean; value?: T }): T => {
+	expect(result.ok).toBe(true);
+	if (!result.ok) throw new Error('expected successful validation');
+	return result.value as T;
 };
 
 const activity = (
@@ -335,6 +349,106 @@ describe('person-note parsing', () => {
 });
 
 describe('person-note rendering', () => {
+	it('recognizes only exact canonical activity entries', () => {
+		const canonical = activity('1', '2026-08-18T03:00:00Z');
+		const canonicalLine = renderActivityEntry(canonical);
+		const retained = parseCanonicalActivityEntries(
+			['## DevRadar activity', '', canonicalLine, 'edited activity'].join(
+				'\n',
+			),
+		);
+		expect(retained).toEqual([
+			{ timestamp: canonical.timestamp, markdown: canonicalLine },
+		]);
+	});
+
+	it('recognizes every canonical family shape and rejects altered links', () => {
+		const push = value(
+			createPushActivity({
+				providerEventId: '10',
+				timestamp: '2026-08-18T03:00:00Z',
+				repository: 'octocat/hello-world',
+				ref: 'refs/heads/main',
+			}),
+		);
+		const pull = value(
+			createPullRequestActivity({
+				providerEventId: '11',
+				timestamp: '2026-08-18T02:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '4',
+				title: 'Improve [docs] `safely`',
+				action: 'merged',
+			}),
+		);
+		const issueEntry = renderActivityEntry(
+			activity('12', '2026-08-18T01:00:00Z', 'Fix [bug]'),
+		);
+		const content = [
+			'## DevRadar activity',
+			'',
+			renderActivityEntry(push),
+			renderActivityEntry(pull),
+			issueEntry,
+		].join('\n');
+		expect(parseCanonicalActivityEntries(content)).toHaveLength(3);
+
+		const wrongHost = renderActivityEntry(pull).replace(
+			'https://github.com/octocat/hello-world/pull/4',
+			'https://example.com/octocat/hello-world/pull/4',
+		);
+		const wrongPath = renderActivityEntry(pull).replace(
+			'https://github.com/octocat/hello-world/pull/4',
+			'https://github.com/octocat/hello-world/pull/5',
+		);
+		expect(
+			parseCanonicalActivityEntries(
+				['## DevRadar activity', '', wrongHost, wrongPath].join('\n'),
+			),
+		).toEqual([]);
+	});
+
+	it('rejects uppercase push commit links and unpaired surrogates', () => {
+		const timestamp = '2026-08-18T03:00:00Z';
+		const uppercaseCommit = `- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [refs/heads/main](https://github.com/octocat/hello-world/commit/ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD)`;
+		const unpairedSurrogate = `- \`${timestamp}\` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): bad\ud800`;
+
+		expect(
+			parseCanonicalActivityEntries(
+				[
+					'## DevRadar activity',
+					'',
+					uppercaseCommit,
+					unpairedSurrogate,
+				].join('\n'),
+			),
+		).toEqual([]);
+	});
+
+	it('renders retained entries before new entries without reordering equal retained timestamps', () => {
+		const first = activity('1', '2026-08-18T03:00:00Z', 'first');
+		const second = activity('2', '2026-08-18T03:00:00Z', 'second');
+		const newer = activity('3', '2026-08-18T04:00:00Z', 'newer');
+		const retained = [first, second].map((item) => ({
+			timestamp: item.timestamp,
+			markdown: renderActivityEntry(item),
+		}));
+		const rendered = renderManagedEntries(
+			[
+				{ kind: 'retained', entry: retained[0]! },
+				{ kind: 'retained', entry: retained[1]! },
+				{ kind: 'new', activity: newer },
+			],
+			'\n',
+		);
+		expect(rendered.indexOf('first')).toBeLessThan(
+			rendered.indexOf('second'),
+		);
+		expect(rendered.indexOf('second')).toBeLessThan(
+			rendered.indexOf('newer'),
+		);
+	});
+
 	it('renders the exact empty managed section and new-note template', () => {
 		expect(ok(renderManagedSection(identity, [], '\n'))).toBe(
 			`${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`,

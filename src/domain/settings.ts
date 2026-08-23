@@ -42,6 +42,10 @@ export type GitHubSyncStateV1 = {
 	readonly pollNotBefore?: string;
 };
 
+export type CanonicalPluginTimestamp = string & {
+	readonly __brand: 'plugin-timestamp';
+};
+
 export type SchemaV1ValidationCode =
 	| 'invalid-type'
 	| 'unexpected-field'
@@ -361,10 +365,10 @@ function validateProviderTimestamp(
 	return success(input as string);
 }
 
-function validatePluginTimestamp(
+export function validateCanonicalPluginTimestamp(
 	input: unknown,
-	path: string,
-): SchemaV1ValidationResult<string> {
+	path = '',
+): SchemaV1ValidationResult<CanonicalPluginTimestamp> {
 	const canonical = canonicalizeTimestamp(input);
 	if (!canonical.ok)
 		return failure(
@@ -378,7 +382,14 @@ function validatePluginTimestamp(
 			path,
 			'plugin timestamp is not canonical',
 		);
-	return success(input);
+	return success(input as CanonicalPluginTimestamp);
+}
+
+function validatePluginTimestamp(
+	input: unknown,
+	path: string,
+): SchemaV1ValidationResult<string> {
+	return validateCanonicalPluginTimestamp(input, path);
 }
 
 function validateOptionalPluginTimestamp(

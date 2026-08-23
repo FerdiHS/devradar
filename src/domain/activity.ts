@@ -230,7 +230,10 @@ function timestampParts(
 	};
 }
 
-function compareTimestamps(left: string, right: string): number {
+export function compareCanonicalTimestamps(
+	left: string,
+	right: string,
+): number {
 	const a = timestampParts(left);
 	const b = timestampParts(right);
 	if (!a || !b) return 0;
@@ -452,11 +455,13 @@ export function isActivityEligible(
 	if (start.mode === 'available-recent') return success(true);
 	const trackingStart = canonicalizeTimestamp(start.at);
 	if (!trackingStart.ok) return trackingStart;
-	return success(compareTimestamps(activity.value, trackingStart.value) >= 0);
+	return success(
+		compareCanonicalTimestamps(activity.value, trackingStart.value) >= 0,
+	);
 }
 
 export function compareActivities(a: Activity, b: Activity): number {
-	const timestampOrder = compareTimestamps(a.timestamp, b.timestamp);
+	const timestampOrder = compareCanonicalTimestamps(a.timestamp, b.timestamp);
 	if (timestampOrder !== 0) return timestampOrder > 0 ? -1 : 1;
 	return a.providerEventId < b.providerEventId
 		? -1

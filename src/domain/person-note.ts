@@ -1,7 +1,16 @@
 import {
+	canonicalizePositiveNumber,
+	canonicalizeRepository,
+	canonicalizeTimestamp,
 	compareActivities,
+	issueUrl,
+	pullRequestUrl,
+	repositoryUrl,
 	serializeActivityFragment,
+	validateRef,
 	type Activity,
+	type CanonicalRepository,
+	type CanonicalTimestamp,
 } from './activity';
 import {
 	isCanonicalGitHubUsername,
@@ -22,6 +31,15 @@ export interface ManagedSection {
 	readonly managedContent: string;
 	readonly lineEnding: LineEnding;
 }
+
+export interface RetainedActivityEntry {
+	readonly timestamp: CanonicalTimestamp;
+	readonly markdown: string;
+}
+
+export type ManagedActivityEntry =
+	| { readonly kind: 'retained'; readonly entry: RetainedActivityEntry }
+	| { readonly kind: 'new'; readonly activity: Activity };
 
 export type PersonNoteFailure =
 	| {
@@ -430,20 +448,250 @@ export function renderManagedContent(
 	activities: readonly Activity[],
 	lineEnding: LineEnding,
 ): string {
+	return renderManagedEntries(
+		activities
+			.slice()
+			.sort(compareActivities)
+			.map((activity) => ({ kind: 'new' as const, activity })),
+		lineEnding,
+	);
+}
+
+export function renderActivityEntry(activity: Activity): string {
+	return `- \`${activity.timestamp}\` — ${serializeActivityFragment(activity)}`;
+}
+
+export function renderManagedEntries(
+	entries: readonly ManagedActivityEntry[],
+	lineEnding: LineEnding,
+): string {
 	const lines = ['## DevRadar activity', ''];
-	if (activities.length === 0)
+	if (entries.length === 0)
 		lines.push('_No activity recorded by DevRadar yet._');
 	else
 		lines.push(
-			...activities
-				.slice()
-				.sort(compareActivities)
-				.map(
-					(activity) =>
-						`- \`${activity.timestamp}\` — ${serializeActivityFragment(activity)}`,
-				),
+			...entries.map((entry) =>
+				entry.kind === 'retained'
+					? entry.entry.markdown
+					: renderActivityEntry(entry.activity),
+			),
 		);
 	return lines.join(lineEnding);
+}
+
+const CANONICAL_PUNCTUATION = new Set(
+	Array.from('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'),
+);
+
+interface MarkdownLink {
+	readonly label: string;
+	readonly url: string;
+	readonly end: number;
+}
+
+function readMarkdownLink(
+	input: string,
+	start: number,
+): MarkdownLink | undefined {
+	if (input[start] !== '[') return undefined;
+	let index = start + 1;
+	let label = '';
+	while (index < input.length) {
+		const character = input[index];
+		if (character === '\\' && index + 1 < input.length) {
+			label += character + input[index + 1];
+			index += 2;
+			continue;
+		}
+		if (character === ']' && input[index + 1] === '(') break;
+		label += character;
+		index += 1;
+	}
+	if (input[index] !== ']' || input[index + 1] !== '(') return undefined;
+	const urlStart = index + 2;
+	const close = input.indexOf(')', urlStart);
+	if (close === -1) return undefined;
+	return {
+		label,
+		url: input.slice(urlStart, close),
+		end: close + 1,
+	};
+}
+
+function isCanonicalProviderText(input: string): boolean {
+	if (input.length === 0) return false;
+	for (let index = 0; index < input.length; index += 1) {
+		const character = input[index];
+		if (!character) return false;
+		const codeUnit = character.charCodeAt(0);
+		if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+			const next = input.charCodeAt(index + 1);
+			if (Number.isNaN(next) || next < 0xdc00 || next > 0xdfff)
+				return false;
+			index += 1;
+			continue;
+		}
+		if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) return false;
+		const code = character.codePointAt(0) ?? 0;
+		if (
+			(code >= 0 && code <= 0x1f) ||
+			code === 0x7f ||
+			code === 0x2028 ||
+			code === 0x2029 ||
+			code === 0x061c ||
+			code === 0x200e ||
+			code === 0x200f ||
+			(code >= 0x202a && code <= 0x202e) ||
+			(code >= 0x2066 && code <= 0x2069)
+		)
+			return false;
+		if (character === '\\') {
+			const escaped = input[index + 1];
+			if (!escaped || !CANONICAL_PUNCTUATION.has(escaped)) return false;
+			index += 1;
+			continue;
+		}
+		if (CANONICAL_PUNCTUATION.has(character)) return false;
+	}
+	return true;
+}
+
+function decodeProviderText(input: string): string {
+	let decoded = '';
+	for (let index = 0; index < input.length; index += 1) {
+		if (input[index] === '\\' && index + 1 < input.length) {
+			decoded += input[index + 1];
+			index += 1;
+		} else decoded += input[index] ?? '';
+	}
+	return decoded;
+}
+
+function encodePathComponent(value: string): string {
+	return encodeURIComponent(value).replace(
+		/[!'()*]/g,
+		(character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+	);
+}
+
+function canonicalRepositoryLink(
+	input: string,
+	start: number,
+):
+	| { readonly repository: CanonicalRepository; readonly end: number }
+	| undefined {
+	const link = readMarkdownLink(input, start);
+	if (!link) return undefined;
+	const repository = canonicalizeRepository(link.label);
+	if (!repository.ok || link.url !== repositoryUrl(repository.value))
+		return undefined;
+	return { repository: repository.value, end: link.end };
+}
+
+function canonicalObjectFragment(
+	input: string,
+	family: 'pull-request' | 'issue',
+): boolean {
+	const prefix = family === 'pull-request' ? 'Pull request ' : 'Issue ';
+	if (!input.startsWith(prefix)) return false;
+	const numberLink = readMarkdownLink(input, prefix.length);
+	if (!numberLink || !numberLink.label.startsWith('#')) return false;
+	const number = canonicalizePositiveNumber(numberLink.label.slice(1));
+	if (!number.ok) return false;
+	const actionStart = numberLink.end + 1;
+	const actions =
+		family === 'pull-request'
+			? ['opened', 'reopened', 'closed', 'merged']
+			: ['opened', 'reopened', 'closed'];
+	const action = actions.find((candidate) =>
+		input.startsWith(`${candidate} in `, actionStart),
+	);
+	if (!action) return false;
+	const repositoryStart = actionStart + action.length + 4;
+	const repositoryLink = canonicalRepositoryLink(input, repositoryStart);
+	if (!repositoryLink) return false;
+	const expectedUrl =
+		family === 'pull-request'
+			? pullRequestUrl(repositoryLink.repository, number.value)
+			: issueUrl(repositoryLink.repository, number.value);
+	if (numberLink.url !== expectedUrl) return false;
+	if (!input.startsWith(': ', repositoryLink.end)) return false;
+	const title = input.slice(repositoryLink.end + 2);
+	return title.length > 0 && isCanonicalProviderText(title);
+}
+
+function canonicalPushFragment(input: string): boolean {
+	if (!input.startsWith('Push to ')) return false;
+	const repositoryLink = canonicalRepositoryLink(input, 'Push to '.length);
+	if (!repositoryLink || !input.startsWith(' at ', repositoryLink.end))
+		return false;
+	const valueStart = repositoryLink.end + 4;
+	const value = input.slice(valueStart);
+	if (value.startsWith('[')) {
+		const link = readMarkdownLink(value, 0);
+		if (
+			!link ||
+			link.end !== value.length ||
+			!isCanonicalProviderText(link.label)
+		)
+			return false;
+		const ref = decodeProviderText(link.label);
+		if (!validateRef(ref).ok) return false;
+		const treePrefix = ref.startsWith('refs/heads/')
+			? 'refs/heads/'
+			: ref.startsWith('refs/tags/')
+				? 'refs/tags/'
+				: undefined;
+		const expectedTree = treePrefix
+			? `${repositoryUrl(repositoryLink.repository)}/tree/${ref
+					.slice(treePrefix.length)
+					.split('/')
+					.map(encodePathComponent)
+					.join('/')}`
+			: undefined;
+		const commitPrefix = `${repositoryUrl(repositoryLink.repository)}/commit/`;
+		const commitId = link.url.startsWith(commitPrefix)
+			? link.url.slice(commitPrefix.length)
+			: undefined;
+		return (
+			link.url === expectedTree ||
+			(commitId !== undefined && /^[0-9a-f]{40}$/.test(commitId))
+		);
+	}
+	return (
+		isCanonicalProviderText(value) &&
+		validateRef(decodeProviderText(value)).ok
+	);
+}
+
+function isCanonicalActivityFragment(input: string): boolean {
+	return (
+		canonicalPushFragment(input) ||
+		canonicalObjectFragment(input, 'pull-request') ||
+		canonicalObjectFragment(input, 'issue')
+	);
+}
+
+export function parseCanonicalActivityEntries(
+	managedContent: string,
+): readonly RetainedActivityEntry[] {
+	const entries: RetainedActivityEntry[] = [];
+	for (const line of splitLines(managedContent)) {
+		const match = /^- `([^`\r\n]+)` — (.+)$/.exec(line.text);
+		if (!match) continue;
+		const timestampText = match[1];
+		const fragment = match[2];
+		if (timestampText === undefined || fragment === undefined) continue;
+		const timestamp = canonicalizeTimestamp(timestampText);
+		if (
+			!timestamp.ok ||
+			timestamp.value !== timestampText ||
+			!isCanonicalActivityFragment(fragment)
+		)
+			continue;
+		entries.push({ timestamp: timestamp.value, markdown: line.text });
+	}
+	return entries;
 }
 
 export function renderManagedSection(
