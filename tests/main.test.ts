@@ -139,7 +139,7 @@ describe('DevRadarPlugin settings lifecycle', () => {
 	});
 
 	it('requires confirmation before resetting settings', async () => {
-		const confirm = vi.fn(() => false);
+		const confirm = vi.fn<(message: string) => boolean>(() => false);
 		vi.stubGlobal('window', { confirm });
 		const saveData = vi.fn(async () => undefined);
 		const plugin = fakePlugin(async () => ({ malformed: true }), saveData);
