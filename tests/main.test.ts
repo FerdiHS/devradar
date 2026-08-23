@@ -192,4 +192,32 @@ describe('DevRadarPlugin settings lifecycle', () => {
 			diagnostic: { kind: 'write-failure' },
 		});
 	});
+
+	it('keeps reset candidate validation failures non-resettable', async () => {
+		const plugin = fakePlugin(async () => ({ malformed: true }));
+		await plugin.onload();
+
+		const persistence = (
+			plugin as unknown as {
+				persistence: {
+					save(candidate: unknown): Promise<unknown>;
+				};
+			}
+		).persistence;
+		persistence.save = async () => ({
+			kind: 'candidate-validation-failure',
+			error: {
+				code: 'invalid-type',
+				path: '',
+				message: 'candidate is invalid',
+			},
+		});
+
+		await plugin.resetSettings();
+
+		expect(plugin.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'internal-failure' },
+		});
+	});
 });

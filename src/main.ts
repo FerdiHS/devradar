@@ -89,12 +89,5 @@ function toRuntimeStateFromSave(
 		return { kind: 'recovery', diagnostic: { kind: 'write-failure' } };
 	if (result.kind === 'internal-failure')
 		return { kind: 'recovery', diagnostic: { kind: 'internal-failure' } };
-	return {
-		kind: 'recovery',
-		diagnostic: {
-			kind: 'validation',
-			classification: 'ordinary-malformed',
-			error: result.error,
-		},
-	};
+	return { kind: 'recovery', diagnostic: { kind: 'internal-failure' } };
 }
