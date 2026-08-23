@@ -67,10 +67,12 @@ export default class DevRadarPlugin extends Plugin {
 const RESET_WARNING =
 	'DevRadar settings are malformed. Reset them?\n\n' +
 	'This will replace the persisted DevRadar settings with a fresh empty value; ' +
-	'discard followed-person configuration and sync history stored in those settings; ' +
+	'discard followed-person configuration and synchronization history, deduplication state, ' +
+	'and provider-policy state stored in those settings; ' +
 	'you will need to follow people again afterward; ' +
 	'leave all existing notes untouched; make no GitHub requests; and not delete, rename, ' +
-	'move, or overwrite any notes. Cancel leaves the persisted settings unchanged.';
+	'move, or overwrite any notes; existing DevRadar activity remains in those notes. ' +
+	'Cancel leaves the persisted settings unchanged.';
 
 function toRuntimeState(result: SettingsLoadResult): SettingsRuntimeState {
 	return result.kind === 'loaded'

@@ -151,12 +151,17 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		expect(confirm.mock.calls[0]?.[0]).toContain(
 			'followed-person configuration',
 		);
-		expect(confirm.mock.calls[0]?.[0]).toContain('sync history');
+		expect(confirm.mock.calls[0]?.[0]).toContain('synchronization history');
+		expect(confirm.mock.calls[0]?.[0]).toContain('deduplication state');
+		expect(confirm.mock.calls[0]?.[0]).toContain('provider-policy state');
 		expect(confirm.mock.calls[0]?.[0]).toContain(
 			'follow people again afterward',
 		);
 		expect(confirm.mock.calls[0]?.[0]).toContain(
 			'existing notes untouched',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'existing DevRadar activity remains',
 		);
 		expect(confirm.mock.calls[0]?.[0]).toContain('no GitHub requests');
 		expect(confirm.mock.calls[0]?.[0]).toContain(
