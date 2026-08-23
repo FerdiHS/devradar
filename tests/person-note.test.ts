@@ -438,10 +438,10 @@ describe('person-note rendering', () => {
 		).toEqual([]);
 	});
 
-	it('renders retained entries before new entries without reordering equal retained timestamps', () => {
+	it('preserves retained-before-new order for equal timestamps', () => {
 		const first = activity('1', '2026-08-18T03:00:00Z', 'first');
 		const second = activity('2', '2026-08-18T03:00:00Z', 'second');
-		const newer = activity('3', '2026-08-18T04:00:00Z', 'newer');
+		const newActivity = activity('3', '2026-08-18T03:00:00Z', 'new');
 		const retained = [first, second].map((item) => ({
 			timestamp: item.timestamp,
 			markdown: renderActivityEntry(item),
@@ -450,7 +450,7 @@ describe('person-note rendering', () => {
 			[
 				{ kind: 'retained', entry: retained[0]! },
 				{ kind: 'retained', entry: retained[1]! },
-				{ kind: 'new', activity: newer },
+				{ kind: 'new', activity: newActivity },
 			],
 			'\n',
 		);
@@ -458,7 +458,7 @@ describe('person-note rendering', () => {
 			rendered.indexOf('second'),
 		);
 		expect(rendered.indexOf('second')).toBeLessThan(
-			rendered.indexOf('newer'),
+			rendered.indexOf('new'),
 		);
 	});
 
