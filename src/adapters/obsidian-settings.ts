@@ -62,9 +62,8 @@ export class ObsidianSettingsPersistence {
 		}
 
 		try {
-			// Obsidian exposes an absent data.json as null and provides no presence bit.
-			// A literal persisted JSON null is therefore indistinguishable here and is
-			// intentionally treated as the same absence sentinel.
+			// Obsidian Desktop 1.13.7 returns null both for absent data.json and for
+			// literal persisted JSON null; see docs/settings.md.
 			const result = validatePersistedSettingsV1(
 				raw === null ? undefined : raw,
 				this.now(),

@@ -56,6 +56,16 @@ validated strictly before normal operation. A future schema version fails
 closed: it is not partially interpreted, downgraded, discarded, or replaced
 with defaults.
 
+### Obsidian plugin-data boundary evidence
+
+On 2026-08-23, a temporary probe plugin was run in a disposable Obsidian
+Desktop 1.13.7 vault. With no plugin `data.json`, `await loadData()` returned
+`null` (`isNull: true`, `isUndefined: false`). After creating the same plugin's
+`data.json` with the literal JSON value `null` and restarting the vault,
+`await loadData()` returned the same result. The supported runtime therefore
+provides no presence bit at this boundary, so the adapter intentionally treats
+`null` as the absence sentinel and validates it as fresh empty settings.
+
 ## Followed-person identity
 
 The canonical GitHub `login` returned by the documented identity lookup is the
