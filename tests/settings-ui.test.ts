@@ -131,13 +131,15 @@ describe('DevRadarSettingTab recovery UI', () => {
 		}
 	});
 
-	it('invokes Retry and disables recovery actions while pending', async () => {
+	it('invokes Retry', async () => {
 		const view = tabFor(ordinaryMalformed);
 		view.tab.display();
 		view.root.children.find((child) => child.text === 'Retry')?.click();
 		expect(view.retrySettingsLoad).toHaveBeenCalledTimes(1);
 		await Promise.resolve();
+	});
 
+	it('disables recovery actions when the host reports pending', () => {
 		const pending = tabFor(ordinaryMalformed, true);
 		pending.tab.display();
 		expect(
