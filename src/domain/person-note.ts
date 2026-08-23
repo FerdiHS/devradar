@@ -7,6 +7,7 @@ import {
 	issueUrl,
 	pullRequestUrl,
 	repositoryUrl,
+	normalizeProviderText,
 	serializeActivityFragment,
 	validateRef,
 	type Activity,
@@ -568,6 +569,47 @@ function decodeProviderText(input: string): string {
 	return decoded;
 }
 
+function decodeCanonicalPath(input: string): string | undefined {
+	const segments = input.split('/');
+	if (segments.some((segment) => segment.length === 0)) return undefined;
+	let decoded: string[];
+	try {
+		decoded = segments.map((segment) => decodeURIComponent(segment));
+	} catch {
+		return undefined;
+	}
+	if (decoded.map(encodePathComponent).join('/') !== input) return undefined;
+	return decoded.join('/');
+}
+
+function canonicalTreeRef(
+	link: MarkdownLink,
+	label: string,
+	repository: CanonicalRepository,
+): string | undefined {
+	const displayedRef = decodeProviderText(label);
+	const prefix = displayedRef.startsWith('refs/heads/')
+		? 'refs/heads/'
+		: displayedRef.startsWith('refs/tags/')
+			? 'refs/tags/'
+			: undefined;
+	if (!prefix) return undefined;
+	const treeUrlPrefix = `${repositoryUrl(repository)}/tree/`;
+	if (!link.url.startsWith(treeUrlPrefix)) return undefined;
+	const suffix = decodeCanonicalPath(link.url.slice(treeUrlPrefix.length));
+	if (suffix === undefined) return undefined;
+	const ref = `${prefix}${suffix}`;
+	if (!validateRef(ref).ok) return undefined;
+	const expectedUrl = `${treeUrlPrefix}${ref
+		.slice(prefix.length)
+		.split('/')
+		.map(encodePathComponent)
+		.join('/')}`;
+	return expectedUrl === link.url && normalizeProviderText(ref) === label
+		? ref
+		: undefined;
+}
+
 function canonicalRepositoryLink(
 	input: string,
 	start: number,
@@ -630,26 +672,17 @@ function canonicalPushFragment(input: string): boolean {
 			!isCanonicalProviderText(link.label)
 		)
 			return false;
-		const ref = decodeProviderText(link.label);
-		if (!validateRef(ref).ok) return false;
-		const treePrefix = ref.startsWith('refs/heads/')
-			? 'refs/heads/'
-			: ref.startsWith('refs/tags/')
-				? 'refs/tags/'
-				: undefined;
-		const expectedTree = treePrefix
-			? `${repositoryUrl(repositoryLink.repository)}/tree/${ref
-					.slice(treePrefix.length)
-					.split('/')
-					.map(encodePathComponent)
-					.join('/')}`
-			: undefined;
+		const treeRef = canonicalTreeRef(
+			link,
+			link.label,
+			repositoryLink.repository,
+		);
 		const commitPrefix = `${repositoryUrl(repositoryLink.repository)}/commit/`;
 		const commitId = link.url.startsWith(commitPrefix)
 			? link.url.slice(commitPrefix.length)
 			: undefined;
 		return (
-			link.url === expectedTree ||
+			treeRef !== undefined ||
 			(commitId !== undefined && /^[0-9a-f]{40}$/.test(commitId))
 		);
 	}

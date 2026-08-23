@@ -401,6 +401,24 @@ describe('person-note rendering', () => {
 		).toEqual([]);
 	});
 
+	it('round-trips normalized tree-link refs', () => {
+		for (const replacement of ['\u2028', '\u202e']) {
+			const push = ok(
+				createPushActivity({
+					providerEventId: '13',
+					timestamp: '2026-08-18T03:00:00Z',
+					repository: 'octocat/hello-world',
+					ref: `refs/heads/feature${replacement}x`,
+				}),
+			);
+			const line = renderActivityEntry(push);
+
+			expect(parseCanonicalActivityEntries(line)).toEqual([
+				{ timestamp: push.timestamp, markdown: line },
+			]);
+		}
+	});
+
 	it('rejects object fragments without the required separator', () => {
 		const timestamp = '2026-08-18T03:00:00Z';
 		const malformed = [
