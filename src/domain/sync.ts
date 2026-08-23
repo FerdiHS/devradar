@@ -108,25 +108,15 @@ function uniqueActivities(
 	return { ok: true, value: [...byId.values()] };
 }
 
-function compareRetainedEntries(
-	left: { readonly entry: RetainedActivityEntry; readonly index: number },
-	right: { readonly entry: RetainedActivityEntry; readonly index: number },
-): number {
-	const timestampOrder = compareCanonicalTimestamps(
-		left.entry.timestamp,
-		right.entry.timestamp,
-	);
-	if (timestampOrder !== 0) return timestampOrder > 0 ? -1 : 1;
-	return left.index - right.index;
-}
-
 function sortRetainedEntries(
 	entries: readonly RetainedActivityEntry[],
 ): RetainedActivityEntry[] {
 	return entries
-		.map((entry, index) => ({ entry, index }))
-		.sort(compareRetainedEntries)
-		.map(({ entry }) => ({ ...entry }));
+		.map((entry) => ({ ...entry }))
+		.sort(
+			(left, right) =>
+				-compareCanonicalTimestamps(left.timestamp, right.timestamp),
+		);
 }
 
 function mergeEntries(
