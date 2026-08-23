@@ -234,20 +234,37 @@ the requested API version is unsupported or retired. A generic `400` or `410`,
 or a broad provider-error heuristic, is not sufficient.
 
 Before relying on Obsidian `requestUrl()` behavior in production, perform one
-bounded post-merge production-enablement verification of its supported
-status/error/header/body and redirect behavior. Determine whether redirects are followed, whether the
-original or final URL/origin is observable, and whether the approved origin,
-followed identity/rename, and validated-pagination guarantees can be preserved.
-If they cannot, stop the affected implementation path and document the
-dedicated contract blocker. Do not broaden this into a general networking
-investigation or use browser, Node.js, Electron-only, or private APIs.
+bounded post-merge production-enablement verification on the designated Desktop
+validation target. Verify its supported status/error/header/body and redirect
+behavior, including whether redirects are followed, whether the original or
+final URL/origin is observable, and whether the approved origin, followed
+identity/rename, and validated-pagination guarantees can be preserved. A PASS
+is evidence only that the validated Desktop GitHub capability is eligible for
+later downstream production integration; it does not itself enable production
+transport. If the guarantees cannot be preserved, stop the affected
+implementation path and document the dedicated contract blocker. Do not
+broaden this into a general networking investigation or use browser, Node.js,
+Electron-only, or private APIs.
 
 Production remains `isDesktopOnly: false`. Verify every Obsidian API used by
-the adapter, including `requestUrl()`, against the declared minimum Obsidian
-version on Desktop and Mobile; current TypeScript declarations alone are not
+the adapter, including `requestUrl()`, against the declared minimum through
+the required Desktop evidence or authoritative supported-API/version evidence.
+Review Mobile compatibility through supported cross-platform APIs and the
+absence of prohibited desktop-only dependencies; this review is not iOS or
+Android runtime validation and is not a prerequisite for Desktop eligibility.
+Mobile GitHub transport remains fail-closed until its applicable runtime
+contract is separately validated or otherwise authorized by an approved
+downstream contract. Current TypeScript declarations alone are not
 compatibility evidence. If a required API is unavailable, raise the minimum
 deliberately through the appropriate release-compatibility change rather than
 silently weakening the contract.
+
+After this contract alignment merges, revise GitHub Issue #83 before executing
+it: require Desktop evidence for the relevant GitHub transport capability,
+replace mandatory iOS/Android runtime evidence with a Mobile compatibility
+review, keep Mobile transport unvalidated and fail-closed, and make a Desktop
+PASS eligible only for later Desktop-only production integration of that
+validated capability. Do not modify or execute #83 as part of this issue.
 
 ## Failure classification
 
