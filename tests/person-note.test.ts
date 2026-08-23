@@ -11,7 +11,6 @@ import {
 	replaceManagedContent,
 	type PersonIdentity,
 	type PersonNoteInspection,
-	type PersonNoteResult,
 } from '../src/domain/person-note';
 import {
 	createIssueActivity,
@@ -24,15 +23,9 @@ const identity: PersonIdentity = { username: 'octocat', githubId: '583231' };
 const begin = '<!-- devradar:begin github="octocat" github-id="583231" -->';
 const end = '<!-- devradar:end github="octocat" github-id="583231" -->';
 
-const ok = <T>(result: PersonNoteResult<T>): T => {
+const ok = <T>(result: { ok: boolean; value?: T }): T => {
 	expect(result.ok).toBe(true);
 	if (!result.ok) throw new Error('expected successful result');
-	return result.value;
-};
-
-const value = <T>(result: { ok: boolean; value?: T }): T => {
-	expect(result.ok).toBe(true);
-	if (!result.ok) throw new Error('expected successful validation');
 	return result.value as T;
 };
 
@@ -363,7 +356,7 @@ describe('person-note rendering', () => {
 	});
 
 	it('recognizes every canonical family shape and rejects altered links', () => {
-		const push = value(
+		const push = ok(
 			createPushActivity({
 				providerEventId: '10',
 				timestamp: '2026-08-18T03:00:00Z',
@@ -371,7 +364,7 @@ describe('person-note rendering', () => {
 				ref: 'refs/heads/main',
 			}),
 		);
-		const pull = value(
+		const pull = ok(
 			createPullRequestActivity({
 				providerEventId: '11',
 				timestamp: '2026-08-18T02:00:00Z',
