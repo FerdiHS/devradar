@@ -411,6 +411,16 @@ describe('person-note rendering', () => {
 		expect(parseCanonicalActivityEntries(malformed)).toEqual([]);
 	});
 
+	it('rejects unlinked branch and tag push refs', () => {
+		const timestamp = '2026-08-18T03:00:00Z';
+		const malformed = [
+			`- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at refs\\/heads\\/main`,
+			`- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at refs\\/tags\\/v1`,
+		].join('\n');
+
+		expect(parseCanonicalActivityEntries(malformed)).toEqual([]);
+	});
+
 	it('rejects uppercase push commit links and unpaired surrogates', () => {
 		const timestamp = '2026-08-18T03:00:00Z';
 		const uppercaseCommit = `- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [refs/heads/main](https://github.com/octocat/hello-world/commit/ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD)`;

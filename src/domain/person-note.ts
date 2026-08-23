@@ -653,9 +653,12 @@ function canonicalPushFragment(input: string): boolean {
 			(commitId !== undefined && /^[0-9a-f]{40}$/.test(commitId))
 		);
 	}
+	const ref = decodeProviderText(value);
 	return (
 		isCanonicalProviderText(value) &&
-		validateRef(decodeProviderText(value)).ok
+		!ref.startsWith('refs/heads/') &&
+		!ref.startsWith('refs/tags/') &&
+		validateRef(ref).ok
 	);
 }
 
