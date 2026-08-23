@@ -42,7 +42,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 		const diagnostic = state.diagnostic;
 		containerEl.createEl('p', {
-			text: 'DevRadar settings need attention.',
+			text: 'Settings need attention for DevRadar.',
 		});
 		containerEl.createEl('p', {
 			text: 'Settings-dependent configuration and synchronization are disabled until recovery succeeds. Existing notes remain untouched.',
