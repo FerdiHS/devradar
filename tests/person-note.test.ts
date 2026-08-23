@@ -408,6 +408,16 @@ describe('person-note rendering', () => {
 		).toEqual([]);
 	});
 
+	it('rejects object fragments without the required separator', () => {
+		const timestamp = '2026-08-18T03:00:00Z';
+		const malformed = [
+			`- \`${timestamp}\` — Pull request [#4](https://github.com/octocat/hello-world/pull/4)Xmerged in [octocat/hello-world](https://github.com/octocat/hello-world): title`,
+			`- \`${timestamp}\` — Issue [#5](https://github.com/octocat/hello-world/issues/5)Xopened in [octocat/hello-world](https://github.com/octocat/hello-world): title`,
+		].join('\n');
+
+		expect(parseCanonicalActivityEntries(malformed)).toEqual([]);
+	});
+
 	it('rejects uppercase push commit links and unpaired surrogates', () => {
 		const timestamp = '2026-08-18T03:00:00Z';
 		const uppercaseCommit = `- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [refs/heads/main](https://github.com/octocat/hello-world/commit/ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD)`;

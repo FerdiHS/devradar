@@ -598,6 +598,7 @@ function canonicalObjectFragment(
 	if (!numberLink || !numberLink.label.startsWith('#')) return false;
 	const number = canonicalizePositiveNumber(numberLink.label.slice(1));
 	if (!number.ok) return false;
+	if (input[numberLink.end] !== ' ') return false;
 	const actionStart = numberLink.end + 1;
 	const actions =
 		family === 'pull-request'
