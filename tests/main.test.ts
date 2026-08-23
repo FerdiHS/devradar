@@ -4,6 +4,7 @@ const obsidianPlatform = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock('obsidian', () => ({
 	Plugin: class {},
+	normalizePath: (path: string) => path,
 	Platform: obsidianPlatform,
 	PluginSettingTab: class {
 		constructor(
@@ -22,24 +23,33 @@ type FakePlugin = DevRadarPlugin & {
 	app: {
 		vault: {
 			adapter: { exists: () => Promise<boolean> };
-			configDir: string;
 		};
 	};
+	manifest: { id: string; dir?: string };
 	saveData: (data: unknown) => Promise<void>;
 	addSettingTab: ReturnType<typeof vi.fn>;
+};
+
+type FakePluginOptions = {
+	exists?: () => Promise<boolean>;
+	pluginDir?: string;
 };
 
 function fakePlugin(
 	loadData: () => Promise<unknown>,
 	saveData: (data: unknown) => Promise<void> = async () => undefined,
+	options: FakePluginOptions = {},
 ): FakePlugin {
 	const plugin = new DevRadarPlugin({} as never, {} as never) as FakePlugin;
 	plugin.app = {
 		vault: {
-			adapter: { exists: async () => false },
-			configDir: '.obsidian',
+			adapter: { exists: options.exists ?? (async () => false) },
 		},
 	} as FakePlugin['app'];
+	plugin.manifest = {
+		id: 'devradar',
+		dir: options.pluginDir ?? '.test-config/plugins/devradar-local',
+	} as FakePlugin['manifest'];
 	plugin.loadData = loadData;
 	plugin.saveData = saveData;
 	plugin.addSettingTab = vi.fn() as FakePlugin['addSettingTab'];
@@ -70,6 +80,31 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		expect(plugin.getSettingsState()).toEqual({
 			kind: 'recovery',
 			diagnostic: { kind: 'unsupported-platform' },
+		});
+	});
+
+	it('checks the actual plugin directory for persisted-data presence', async () => {
+		const exists = vi.fn(async () => true);
+		const plugin = fakePlugin(
+			async () => null,
+			async () => undefined,
+			{
+				exists,
+				pluginDir: '.custom/plugins/devradar-local',
+			},
+		);
+
+		await plugin.onload();
+
+		expect(exists).toHaveBeenCalledWith(
+			'.custom/plugins/devradar-local/data.json',
+		);
+		expect(plugin.getSettingsState()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'ordinary-malformed',
+			},
 		});
 	});
 
