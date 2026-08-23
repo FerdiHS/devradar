@@ -672,6 +672,12 @@ function canonicalPushFragment(input: string): boolean {
 			!isCanonicalProviderText(link.label)
 		)
 			return false;
+		const displayedRef = decodeProviderText(link.label);
+		if (
+			!validateRef(displayedRef).ok ||
+			normalizeProviderText(displayedRef) !== link.label
+		)
+			return false;
 		const treeRef = canonicalTreeRef(
 			link,
 			link.label,

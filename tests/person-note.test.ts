@@ -456,19 +456,30 @@ describe('person-note rendering', () => {
 
 	it('rejects uppercase push commit links and unpaired surrogates', () => {
 		const timestamp = '2026-08-18T03:00:00Z';
-		const uppercaseCommit = `- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [refs/heads/main](https://github.com/octocat/hello-world/commit/ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD)`;
+		const commitId = 'a'.repeat(40);
+		const linkedPush = ok(
+			createPushActivity({
+				providerEventId: '15',
+				timestamp,
+				repository: 'octocat/hello-world',
+				ref: 'refs/heads/main',
+				head: commitId,
+			}),
+		);
+		const canonicalCommit = renderActivityEntry(linkedPush);
+		expect(parseCanonicalActivityEntries(canonicalCommit)).toEqual([
+			{ timestamp: linkedPush.timestamp, markdown: canonicalCommit },
+		]);
+		const uppercaseCommit = canonicalCommit.replace(
+			`/commit/${commitId}`,
+			`/commit/${commitId.toUpperCase()}`,
+		);
+		const invalidCommitRef = `- \`${timestamp}\` — Push to [octocat/hello-world](https://github.com/octocat/hello-world) at [bad ref](https://github.com/octocat/hello-world/commit/${commitId})`;
 		const unpairedSurrogate = `- \`${timestamp}\` — Issue [#5](https://github.com/octocat/hello-world/issues/5) opened in [octocat/hello-world](https://github.com/octocat/hello-world): bad\ud800`;
 
-		expect(
-			parseCanonicalActivityEntries(
-				[
-					'## DevRadar activity',
-					'',
-					uppercaseCommit,
-					unpairedSurrogate,
-				].join('\n'),
-			),
-		).toEqual([]);
+		expect(parseCanonicalActivityEntries(uppercaseCommit)).toEqual([]);
+		expect(parseCanonicalActivityEntries(invalidCommitRef)).toEqual([]);
+		expect(parseCanonicalActivityEntries(unpairedSurrogate)).toEqual([]);
 	});
 
 	it('preserves retained-before-new order for equal timestamps', () => {
