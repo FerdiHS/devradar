@@ -177,6 +177,32 @@ describe('ObsidianSettingsPersistence', () => {
 		});
 	});
 
+	it('fails closed for unsafe values in non-enumerable array slots', async () => {
+		const person = {};
+		Object.defineProperty(person, 'username', {
+			enumerable: true,
+			get: () => 'octocat',
+		});
+		const followedPeople: unknown[] = [];
+		Object.defineProperty(followedPeople, '0', {
+			configurable: true,
+			value: person,
+			writable: true,
+		});
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => ({ schemaVersion: 1, followedPeople })),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'unclassifiable',
+			},
+		});
+	});
+
 	it('does not write when a candidate fails validation', async () => {
 		const dataStore = store(async () => null);
 		const persistence = new ObsidianSettingsPersistence(

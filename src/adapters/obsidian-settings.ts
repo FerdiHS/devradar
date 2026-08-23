@@ -150,11 +150,7 @@ function hasUnsafeReflection(
 		for (const key of Reflect.ownKeys(value)) {
 			const descriptor = Object.getOwnPropertyDescriptor(value, key);
 			if (!descriptor || !('value' in descriptor)) return true;
-			if (
-				descriptor.enumerable &&
-				hasUnsafeReflection(descriptor.value, seen)
-			)
-				return true;
+			if (hasUnsafeReflection(descriptor.value, seen)) return true;
 		}
 		return false;
 	} catch {
