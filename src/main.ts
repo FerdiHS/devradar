@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Platform, Plugin } from 'obsidian';
 import {
 	ObsidianSettingsPersistence,
 	isResettableSettingsDiagnostic,
@@ -25,7 +25,9 @@ export default class DevRadarPlugin extends Plugin {
 			},
 			() => new Date().toISOString(),
 		);
-		this.settingsState = toRuntimeState(await this.persistence.load());
+		this.settingsState = Platform.isMobile
+			? { kind: 'recovery', diagnostic: { kind: 'unsupported-platform' } }
+			: toRuntimeState(await this.persistence.load());
 		this.addSettingTab(new DevRadarSettingTab(this.app, this, this));
 	}
 
@@ -38,6 +40,7 @@ export default class DevRadarPlugin extends Plugin {
 	}
 
 	async retrySettingsLoad(): Promise<void> {
+		if (Platform.isMobile) return;
 		await this.runRecoveryAction(async () => {
 			this.settingsState = toRuntimeState(await this.persistence.load());
 		});

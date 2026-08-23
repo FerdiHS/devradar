@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const obsidianPlatform = vi.hoisted(() => ({ isMobile: false }));
+
 vi.mock('obsidian', () => ({
 	Plugin: class {},
+	Platform: obsidianPlatform,
 	PluginSettingTab: class {
 		constructor(
 			readonly app: unknown,
@@ -46,7 +49,28 @@ function fakePlugin(
 describe('DevRadarPlugin settings lifecycle', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
+		obsidianPlatform.isMobile = false;
 		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+	});
+
+	it('keeps persistence fail-closed on Mobile without reading data', async () => {
+		obsidianPlatform.isMobile = true;
+		let reads = 0;
+		const saveData = vi.fn(async () => undefined);
+		const plugin = fakePlugin(async () => {
+			reads += 1;
+			return EMPTY;
+		}, saveData);
+
+		await plugin.onload();
+		await plugin.retrySettingsLoad();
+
+		expect(reads).toBe(0);
+		expect(saveData).not.toHaveBeenCalled();
+		expect(plugin.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'unsupported-platform' },
+		});
 	});
 
 	it('registers the settings tab when initial reading fails', async () => {

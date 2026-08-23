@@ -50,6 +50,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl.createEl('p', { text: diagnosticText(diagnostic) });
 
 		const pending = this.host.isRecoveryActionPending();
+		if (diagnostic.kind === 'unsupported-platform') return;
 		const retry = containerEl.createEl('button', { text: 'Retry' });
 		retry.disabled = pending;
 		retry.addEventListener('click', () => {
@@ -82,6 +83,8 @@ function diagnosticText(diagnostic: SettingsRecoveryDiagnostic): string {
 			return 'DevRadar could not save its settings. Retry to reload them.';
 		case 'internal-failure':
 			return 'DevRadar could not safely process its settings. Retry to try again.';
+		case 'unsupported-platform':
+			return 'DevRadar settings persistence is not enabled on Obsidian Mobile until its runtime contract is validated. Use Obsidian Desktop for now.';
 		case 'validation':
 			return validationText(diagnostic.classification, diagnostic.error);
 	}

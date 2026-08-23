@@ -132,6 +132,21 @@ describe('DevRadarSettingTab recovery UI', () => {
 		}
 	});
 
+	it('does not offer recovery actions on an unsupported platform', () => {
+		const view = tabFor({
+			kind: 'recovery',
+			diagnostic: { kind: 'unsupported-platform' },
+		});
+		view.tab.display();
+
+		expect(view.root.children.map((child) => child.text)).not.toContain(
+			'Retry',
+		);
+		expect(view.root.children.map((child) => child.text)).not.toContain(
+			'Reset',
+		);
+	});
+
 	it('invokes Retry', async () => {
 		const view = tabFor(ordinaryMalformed);
 		view.tab.display();

@@ -17,6 +17,7 @@ export type SettingsRecoveryDiagnostic =
 	| { readonly kind: 'read-failure' }
 	| { readonly kind: 'write-failure' }
 	| { readonly kind: 'internal-failure' }
+	| { readonly kind: 'unsupported-platform' }
 	| {
 			readonly kind: 'validation';
 			readonly classification: SettingsRecoveryClassification;
