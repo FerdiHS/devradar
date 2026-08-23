@@ -53,16 +53,23 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		const retry = containerEl.createEl('button', { text: 'Retry' });
 		retry.disabled = pending;
 		retry.addEventListener('click', () => {
-			void this.host.retrySettingsLoad().then(() => this.display());
+			this.rerenderAfterAction(this.host.retrySettingsLoad());
 		});
 
 		if (isResettableSettingsDiagnostic(diagnostic)) {
 			const reset = containerEl.createEl('button', { text: 'Reset' });
 			reset.disabled = pending;
 			reset.addEventListener('click', () => {
-				void this.host.resetSettings().then(() => this.display());
+				this.rerenderAfterAction(this.host.resetSettings());
 			});
 		}
+	}
+
+	private rerenderAfterAction(action: Promise<void>): void {
+		void action.then(
+			() => this.display(),
+			() => this.display(),
+		);
 	}
 }
 

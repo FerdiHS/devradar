@@ -43,18 +43,19 @@ class FakeElement {
 	}
 }
 
-function tabFor(state: SettingsRuntimeState) {
+function tabFor(state: SettingsRuntimeState, pending = false) {
 	const resetSettings = vi.fn(async () => undefined);
+	const retrySettingsLoad = vi.fn(async () => undefined);
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
-		isRecoveryActionPending: () => false,
-		retrySettingsLoad: vi.fn(async () => undefined),
+		isRecoveryActionPending: () => pending,
+		retrySettingsLoad,
 		resetSettings,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
 	const root = new FakeElement();
 	(tab as unknown as { containerEl: FakeElement }).containerEl = root;
-	return { host, tab, root, resetSettings };
+	return { host, tab, root, resetSettings, retrySettingsLoad };
 }
 
 const ordinaryMalformed = {
@@ -128,6 +129,41 @@ describe('DevRadarSettingTab recovery UI', () => {
 				'Reset',
 			);
 		}
+	});
+
+	it('invokes Retry and disables recovery actions while pending', async () => {
+		const view = tabFor(ordinaryMalformed);
+		view.tab.display();
+		view.root.children.find((child) => child.text === 'Retry')?.click();
+		expect(view.retrySettingsLoad).toHaveBeenCalledTimes(1);
+		await Promise.resolve();
+
+		const pending = tabFor(ordinaryMalformed, true);
+		pending.tab.display();
+		expect(
+			pending.root.children
+				.filter(
+					(child) => child.text === 'Retry' || child.text === 'Reset',
+				)
+				.every((child) => child.disabled),
+		).toBe(true);
+	});
+
+	it('re-renders after a recovery action rejects', async () => {
+		const view = tabFor({
+			kind: 'recovery',
+			diagnostic: { kind: 'read-failure' },
+		});
+		view.retrySettingsLoad.mockRejectedValue(
+			new Error('unexpected failure'),
+		);
+		view.tab.display();
+		const display = vi.spyOn(view.tab, 'display');
+		view.root.children.find((child) => child.text === 'Retry')?.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(display).toHaveBeenCalledTimes(1);
 	});
 
 	it('renders hostile validation details and invokes reset', async () => {
