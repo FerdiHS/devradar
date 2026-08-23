@@ -39,7 +39,7 @@ function fakePlugin(
 			adapter: { exists: async () => false },
 			configDir: '.obsidian',
 		},
-	};
+	} as FakePlugin['app'];
 	plugin.loadData = loadData;
 	plugin.saveData = saveData;
 	plugin.addSettingTab = vi.fn() as FakePlugin['addSettingTab'];
