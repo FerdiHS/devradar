@@ -56,6 +56,26 @@ validated strictly before normal operation. A future schema version fails
 closed: it is not partially interpreted, downgraded, discarded, or replaced
 with defaults.
 
+### Obsidian plugin-data boundary evidence
+
+On 2026-08-23, a temporary probe plugin was run in a disposable Obsidian
+Desktop 1.13.7 vault. The probe observed:
+
+- no plugin `data.json`: `await loadData()` returned `null`;
+- `data.json` containing literal JSON `null`: `await loadData()` returned
+  `null`;
+- malformed `data.json` containing `{`: `await loadData()` returned `null`.
+
+The first case had no data file; the latter two had a data file. Therefore
+`loadData()` alone provides no presence bit, and the production boundary pairs
+it with the public vault `DataAdapter.exists()` check. Only a missing file maps
+to the domain absence sentinel; present `null` or malformed data remains a
+validation failure.
+
+This Desktop evidence does not authorize the Mobile path. Settings persistence
+remains fail-closed on Obsidian Mobile until its capability-specific runtime
+contract is separately validated.
+
 ## Followed-person identity
 
 The canonical GitHub `login` returned by the documented identity lookup is the
