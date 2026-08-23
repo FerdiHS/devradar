@@ -96,6 +96,21 @@ describe('synchronization reconciliation', () => {
 		});
 	});
 
+	it('collapses equivalent repeated provider IDs', () => {
+		const result = ok(
+			reconcileActivities(
+				planInput([
+					issue('1', '2026-08-18T03:00:00Z'),
+					issue('1', '2026-08-18T03:00:00Z'),
+				]),
+			),
+		);
+
+		expect(
+			result.newActivities.map((item) => item.providerEventId),
+		).toEqual(['1']);
+	});
+
 	it('fails when a prior seen event timestamp conflicts with current activity', () => {
 		const state: PersonSyncState = {
 			seenEvents: [{ id: '1', createdAt: '2026-08-18T02:00:00Z' }],
@@ -138,6 +153,51 @@ describe('synchronization reconciliation', () => {
 
 		expect(result.finalEntries).toHaveLength(1);
 		expect(result.finalEntries[0]).toMatchObject({ kind: 'retained' });
+	});
+
+	it('merges retained and new entries in the settled timestamp order', () => {
+		const retainedFirst = issue(
+			'10',
+			'2026-08-18T03:00:00Z',
+			'retained-first',
+		);
+		const retainedSecond = issue(
+			'11',
+			'2026-08-18T03:00:00Z',
+			'retained-second',
+		);
+		const retainedOlder = issue(
+			'12',
+			'2026-08-18T02:00:00Z',
+			'retained-old',
+		);
+		const newNewer = issue('2', '2026-08-18T04:00:00Z', 'new-newer');
+		const newEqual = issue('1', '2026-08-18T03:00:00Z', 'new-equal');
+		const newOlder = issue('3', '2026-08-18T02:00:00Z', 'new-older');
+		const result = ok(
+			reconcileActivities(
+				planInput(
+					[newNewer, newEqual, newOlder],
+					undefined,
+					retained(retainedFirst, retainedSecond, retainedOlder),
+				),
+			),
+		);
+
+		expect(
+			result.finalEntries.map((entry) =>
+				entry.kind === 'retained'
+					? entry.entry.markdown
+					: renderActivityEntry(entry.activity),
+			),
+		).toEqual([
+			renderActivityEntry(newNewer),
+			renderActivityEntry(retainedFirst),
+			renderActivityEntry(retainedSecond),
+			renderActivityEntry(newEqual),
+			renderActivityEntry(retainedOlder),
+			renderActivityEntry(newOlder),
+		]);
 	});
 });
 
