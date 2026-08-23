@@ -17,6 +17,10 @@ export default class DevRadarPlugin extends Plugin {
 		this.persistence = new ObsidianSettingsPersistence(
 			{
 				loadData: () => this.loadData(),
+				hasData: () =>
+					this.app.vault.adapter.exists(
+						`${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`,
+					),
 				saveData: (data) => this.saveData(data),
 			},
 			() => new Date().toISOString(),

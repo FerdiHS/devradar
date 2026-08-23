@@ -6,6 +6,7 @@ import {
 
 export type PluginDataStore = {
 	loadData(): Promise<unknown>;
+	hasData(): Promise<boolean>;
 	saveData(data: unknown): Promise<void>;
 };
 
@@ -57,17 +58,19 @@ export class ObsidianSettingsPersistence {
 		let raw: unknown;
 		try {
 			raw = await this.dataStore.loadData();
+			if (raw === null || raw === undefined) {
+				const hasData = await this.dataStore.hasData();
+				if (!hasData) raw = undefined;
+				else if (raw === undefined) raw = null;
+			}
 		} catch {
 			return { kind: 'recovery', diagnostic: { kind: 'read-failure' } };
 		}
 
 		try {
-			// Obsidian Desktop 1.13.7 returns null both for absent data.json and for
-			// literal persisted JSON null; see docs/settings.md.
-			const result = validatePersistedSettingsV1(
-				raw === null ? undefined : raw,
-				this.now(),
-			);
+			// Obsidian Desktop 1.13.7 returns null for absent, literal-null, and
+			// malformed data.json; hasData() preserves the storage boundary.
+			const result = validatePersistedSettingsV1(raw, this.now());
 			if (result.ok) return { kind: 'loaded', settings: result.value };
 
 			return {

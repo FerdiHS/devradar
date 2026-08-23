@@ -7,13 +7,15 @@ import { createEmptySettingsV1 } from '../src/domain/settings';
 
 const NOW = '2026-08-23T00:00:00.000Z';
 
-function store(loadData: () => Promise<unknown>): PluginDataStore & {
-	saved: unknown[];
-} {
+function store(
+	loadData: () => Promise<unknown>,
+	hasData: () => Promise<boolean> = async () => false,
+): PluginDataStore & { saved: unknown[] } {
 	const saved: unknown[] = [];
 	return {
 		saved,
 		loadData,
+		hasData,
 		saveData: vi.fn(async (data: unknown) => {
 			saved.push(data);
 		}),
@@ -51,6 +53,27 @@ describe('ObsidianSettingsPersistence', () => {
 		expect(await persistence.load()).toEqual({
 			kind: 'loaded',
 			settings: createEmptySettingsV1(),
+		});
+		expect(dataStore.saved).toEqual([]);
+	});
+
+	it('fails closed when present malformed data is returned as null', async () => {
+		const dataStore = store(
+			async () => null,
+			async () => true,
+		);
+		const persistence = new ObsidianSettingsPersistence(
+			dataStore,
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'ordinary-malformed',
+				error: { code: 'invalid-type', path: '' },
+			},
 		});
 		expect(dataStore.saved).toEqual([]);
 	});

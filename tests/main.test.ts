@@ -16,9 +16,14 @@ const EMPTY = { schemaVersion: 1, followedPeople: [] };
 
 type FakePlugin = DevRadarPlugin & {
 	loadData: () => Promise<unknown>;
+	app: {
+		vault: {
+			adapter: { exists: () => Promise<boolean> };
+			configDir: string;
+		};
+	};
 	saveData: (data: unknown) => Promise<void>;
 	addSettingTab: ReturnType<typeof vi.fn>;
-	app: unknown;
 };
 
 function fakePlugin(
@@ -26,7 +31,12 @@ function fakePlugin(
 	saveData: (data: unknown) => Promise<void> = async () => undefined,
 ): FakePlugin {
 	const plugin = new DevRadarPlugin({} as never, {} as never) as FakePlugin;
-	plugin.app = {} as never;
+	plugin.app = {
+		vault: {
+			adapter: { exists: async () => false },
+			configDir: '.obsidian',
+		},
+	};
 	plugin.loadData = loadData;
 	plugin.saveData = saveData;
 	plugin.addSettingTab = vi.fn() as FakePlugin['addSettingTab'];
