@@ -1,0 +1,139 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('obsidian', () => ({
+	Plugin: class {},
+	PluginSettingTab: class {
+		containerEl!: FakeElement;
+		constructor(
+			readonly app: unknown,
+			readonly plugin: unknown,
+		) {}
+	},
+}));
+
+import { DevRadarSettingTab, type SettingsTabHost } from '../src/settings';
+
+class FakeElement {
+	children: FakeElement[] = [];
+	text = '';
+	disabled = false;
+	private listeners = new Map<string, () => void>();
+
+	empty(): void {
+		this.children = [];
+	}
+
+	createEl(_tag: string, options?: { text?: string }): FakeElement {
+		const child = new FakeElement();
+		child.text = options?.text ?? '';
+		this.children.push(child);
+		return child;
+	}
+
+	addEventListener(event: string, listener: () => void): void {
+		this.listeners.set(event, listener);
+	}
+
+	click(): void {
+		this.listeners.get('click')?.();
+	}
+}
+
+function tabFor(
+	state: SettingsTabHost['getSettingsState'] extends () => infer T
+		? T
+		: never,
+) {
+	const resetSettings = vi.fn(async () => undefined);
+	const host: SettingsTabHost = {
+		getSettingsState: () => state,
+		isRecoveryActionPending: () => false,
+		retrySettingsLoad: vi.fn(async () => undefined),
+		resetSettings,
+	};
+	const tab = new DevRadarSettingTab({} as never, {} as never, host);
+	const root = new FakeElement();
+	(tab as unknown as { containerEl: FakeElement }).containerEl = root;
+	return { host, tab, root, resetSettings };
+}
+
+const ordinaryMalformed = {
+	kind: 'recovery' as const,
+	diagnostic: {
+		kind: 'validation' as const,
+		classification: 'ordinary-malformed' as const,
+		error: {
+			code: 'invalid-type' as const,
+			path: '/x<script>',
+			message: '<img src=x onerror=alert(1)>',
+		},
+	},
+};
+
+describe('DevRadarSettingTab recovery UI', () => {
+	beforeEach(() => {
+		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+	});
+
+	it('always shows Retry but only offers Reset for ordinary malformed data', () => {
+		const ordinary = tabFor(ordinaryMalformed);
+		ordinary.tab.display();
+		expect(ordinary.root.children.map((child) => child.text)).toContain(
+			'Retry',
+		);
+		expect(ordinary.root.children.map((child) => child.text)).toContain(
+			'Reset',
+		);
+
+		const future = tabFor({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'future-schema',
+				error: {
+					code: 'unexpected-field',
+					path: '/unknownField',
+					message: 'unexpected field',
+				},
+			},
+		});
+		future.tab.display();
+		expect(future.root.children.map((child) => child.text)).toContain(
+			'Retry',
+		);
+		expect(future.root.children.map((child) => child.text)).not.toContain(
+			'Reset',
+		);
+	});
+
+	it('renders hostile validation details as text and keeps reset cancelable', async () => {
+		const view = tabFor(ordinaryMalformed);
+		view.tab.display();
+		const text = view.root.children.map((child) => child.text).join('\n');
+		expect(text).toContain('<img src=x onerror=alert(1)>');
+		expect(text).toContain('/x<script>');
+		expect(text).toContain('Existing notes remain untouched.');
+
+		const confirm = vi.fn((_message: string) => false);
+		vi.stubGlobal('window', { confirm });
+		view.root.children.find((child) => child.text === 'Reset')?.click();
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'followed-person configuration',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain('sync history');
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'follow people again afterward',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'existing notes untouched',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain('no GitHub requests');
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'not delete, rename, move, or overwrite',
+		);
+		expect(view.resetSettings).not.toHaveBeenCalled();
+		await Promise.resolve();
+	});
+});
