@@ -20,6 +20,26 @@ function store(loadData: () => Promise<unknown>): PluginDataStore & {
 	};
 }
 
+function validSettings(fromDate = '2026-08-23T00:00:00.000Z') {
+	return {
+		schemaVersion: 1,
+		followedPeople: [
+			{
+				username: 'octocat',
+				githubAccountId: '583231',
+				notePath: 'People/octocat.md',
+				trackingStart: { mode: 'from-date', at: fromDate },
+				syncState: {
+					seenEvents: [
+						{ id: '123', createdAt: '2026-08-22T00:00:00Z' },
+					],
+					github: {},
+				},
+			},
+		],
+	};
+}
+
 describe('ObsidianSettingsPersistence', () => {
 	it('maps Obsidian null absence to fresh empty settings without writing', async () => {
 		const dataStore = store(async () => null);
@@ -47,6 +67,38 @@ describe('ObsidianSettingsPersistence', () => {
 			settings: createEmptySettingsV1(),
 		});
 		expect(dataStore.saved).toEqual([]);
+	});
+
+	it('loads valid populated settings as a fresh canonical value', async () => {
+		const input = validSettings();
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => input),
+			() => NOW,
+		);
+
+		const result = await persistence.load();
+
+		expect(result).toEqual({ kind: 'loaded', settings: input });
+		if (result.kind === 'loaded') expect(result.settings).not.toBe(input);
+	});
+
+	it('uses a fresh current instant for each load', async () => {
+		const input = validSettings('2026-08-23T01:00:00.000Z');
+		const currentInstant = vi
+			.fn<() => string>()
+			.mockReturnValueOnce(NOW)
+			.mockReturnValueOnce('2026-08-23T02:00:00.000Z');
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => input),
+			currentInstant,
+		);
+
+		expect((await persistence.load()).kind).toBe('recovery');
+		expect(await persistence.load()).toEqual({
+			kind: 'loaded',
+			settings: input,
+		});
+		expect(currentInstant).toHaveBeenCalledTimes(2);
 	});
 
 	it('returns a recovery result for a read failure', async () => {
