@@ -252,13 +252,6 @@ function mergePollNotBefore(
 	return current;
 }
 
-function hasOwn<T extends object, K extends PropertyKey>(
-	object: T,
-	key: K,
-): object is T & Record<K, unknown> {
-	return Object.prototype.hasOwnProperty.call(object, key);
-}
-
 export function applySuccessfulSyncTransition(
 	previous: PersonSyncState,
 	confirmation: ConfirmedAccounting,
@@ -293,9 +286,7 @@ export function applySuccessfulSyncTransition(
 		});
 		existing.set(activity.providerEventId, activity.timestamp);
 	}
-	const lastAttemptAt = hasOwn(options, 'lastAttemptAt')
-		? options.lastAttemptAt
-		: previous.lastAttemptAt;
+	const lastAttemptAt = options.lastAttemptAt ?? previous.lastAttemptAt;
 	const pollNotBefore = mergePollNotBefore(
 		previous.github.pollNotBefore,
 		options.pollNotBefore,
@@ -317,9 +308,7 @@ export function applyFailedSyncTransition(
 		readonly pollNotBefore?: CanonicalPluginTimestamp;
 	},
 ): SyncResult<PersonSyncState> {
-	const lastAttemptAt = hasOwn(options, 'lastAttemptAt')
-		? options.lastAttemptAt
-		: previous.lastAttemptAt;
+	const lastAttemptAt = options.lastAttemptAt ?? previous.lastAttemptAt;
 	const pollNotBefore = mergePollNotBefore(
 		previous.github.pollNotBefore,
 		options.pollNotBefore,

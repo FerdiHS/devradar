@@ -63,7 +63,7 @@ const planInput = (
 describe('synchronization reconciliation', () => {
 	it('reconciles one retained occurrence per unseen provider event', () => {
 		const first = issue('1', '2026-08-18T03:00:00Z', 'same');
-		const second = issue('2', '2026-08-18T02:00:00Z', 'same');
+		const second = issue('2', '2026-08-18T03:00:00Z', 'same');
 		const result = ok(
 			reconcileActivities(
 				planInput([first, second], undefined, retained(first)),
@@ -153,6 +153,23 @@ describe('synchronization reconciliation', () => {
 
 		expect(result.finalEntries).toHaveLength(1);
 		expect(result.finalEntries[0]).toMatchObject({ kind: 'retained' });
+	});
+
+	it('does not mutate reconciliation inputs', () => {
+		const activity = issue('1', '2026-08-18T03:00:00Z');
+		const input = planInput(
+			[activity],
+			{
+				seenEvents: [],
+				github: {},
+			},
+			retained(activity),
+		);
+		const originalInput = structuredClone(input);
+
+		reconcileActivities(input);
+
+		expect(input).toEqual(originalInput);
 	});
 
 	it('merges retained and new entries in the settled timestamp order', () => {
@@ -288,6 +305,29 @@ describe('per-person sync-state transitions', () => {
 		expect(updated.lastAttemptAt).toBe('2026-08-20T13:00:00.000Z');
 		expect(updated.github.pollNotBefore).toBe(state.github.pollNotBefore);
 		expect(updated.lastSuccessfulSyncAt).toBe(state.lastSuccessfulSyncAt);
+	});
+
+	it('treats an undefined attempt timestamp as omitted', () => {
+		const state: PersonSyncState = {
+			lastAttemptAt: '2026-08-19T12:00:00.000Z',
+			lastSuccessfulSyncAt: '2026-08-19T12:30:00.000Z',
+			seenEvents: [{ id: '1', createdAt: '2026-08-18T03:00:00Z' }],
+			github: {},
+		};
+		const confirmation = ok(confirmAccounting([], []));
+		const successful = ok(
+			applySuccessfulSyncTransition(state, confirmation, {
+				completedAt: pluginTimestamp('2026-08-20T12:00:00.000Z'),
+				lastAttemptAt: undefined,
+			}),
+		);
+		const failed = ok(
+			applyFailedSyncTransition(state, { lastAttemptAt: undefined }),
+		);
+
+		expect(successful.lastAttemptAt).toBe(state.lastAttemptAt);
+		expect(failed.lastAttemptAt).toBe(state.lastAttemptAt);
+		expect(failed.seenEvents).toEqual(state.seenEvents);
 	});
 
 	it('treats an unchanged successful sync as successful', () => {
