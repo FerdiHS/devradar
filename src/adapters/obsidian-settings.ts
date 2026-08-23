@@ -1,8 +1,10 @@
-import {
-	type DevRadarSettingsV1,
-	type SchemaV1ValidationError,
-	validatePersistedSettingsV1,
-} from '../domain/settings';
+import { validatePersistedSettingsV1 } from '../domain/settings';
+import type {
+	SettingsLoadResult,
+	SettingsPersistence,
+	SettingsRecoveryClassification,
+	SettingsSaveResult,
+} from '../application/settings';
 
 export type PluginDataStore = {
 	loadData(): Promise<unknown>;
@@ -10,46 +12,7 @@ export type PluginDataStore = {
 	saveData(data: unknown): Promise<void>;
 };
 
-export type SettingsRecoveryClassification =
-	'ordinary-malformed' | 'future-schema' | 'unclassifiable';
-
-export type SettingsRecoveryDiagnostic =
-	| { readonly kind: 'read-failure' }
-	| { readonly kind: 'write-failure' }
-	| { readonly kind: 'internal-failure' }
-	| { readonly kind: 'unsupported-platform' }
-	| {
-			readonly kind: 'validation';
-			readonly classification: SettingsRecoveryClassification;
-			readonly error: SchemaV1ValidationError;
-	  };
-
-export type SettingsLoadResult =
-	| { readonly kind: 'loaded'; readonly settings: DevRadarSettingsV1 }
-	| {
-			readonly kind: 'recovery';
-			readonly diagnostic: SettingsRecoveryDiagnostic;
-	  };
-
-export type SettingsSaveResult =
-	| { readonly kind: 'saved'; readonly settings: DevRadarSettingsV1 }
-	| {
-			readonly kind: 'candidate-validation-failure';
-			readonly error: SchemaV1ValidationError;
-	  }
-	| { readonly kind: 'write-failure' }
-	| { readonly kind: 'internal-failure' };
-
-export function isResettableSettingsDiagnostic(
-	diagnostic: SettingsRecoveryDiagnostic,
-): boolean {
-	return (
-		diagnostic.kind === 'validation' &&
-		diagnostic.classification === 'ordinary-malformed'
-	);
-}
-
-export class ObsidianSettingsPersistence {
+export class ObsidianSettingsPersistence implements SettingsPersistence {
 	constructor(
 		private readonly dataStore: PluginDataStore,
 		private readonly now: () => string,

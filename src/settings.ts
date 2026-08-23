@@ -1,24 +1,15 @@
 import { App, PluginSettingTab, type Plugin } from 'obsidian';
 import {
 	isResettableSettingsDiagnostic,
+	type SettingsApplicationHost,
 	type SettingsRecoveryClassification,
 	type SettingsRecoveryDiagnostic,
-} from './adapters/obsidian-settings';
-import type { DevRadarSettingsV1 } from './domain/settings';
+} from './application/settings';
+import type { SettingsRuntimeState } from './application/settings';
 
-export type SettingsRuntimeState =
-	| { readonly kind: 'ready'; readonly settings: DevRadarSettingsV1 }
-	| {
-			readonly kind: 'recovery';
-			readonly diagnostic: SettingsRecoveryDiagnostic;
-	  };
+export type { SettingsRuntimeState } from './application/settings';
 
-export type SettingsTabHost = {
-	getSettingsState(): SettingsRuntimeState;
-	isRecoveryActionPending(): boolean;
-	retrySettingsLoad(): Promise<void>;
-	resetSettings(): Promise<void>;
-};
+export type SettingsTabHost = SettingsApplicationHost;
 
 export class DevRadarSettingTab extends PluginSettingTab {
 	constructor(
