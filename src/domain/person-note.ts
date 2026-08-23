@@ -3,6 +3,7 @@ import {
 	canonicalizeRepository,
 	canonicalizeTimestamp,
 	compareActivities,
+	encodePathComponent,
 	issueUrl,
 	pullRequestUrl,
 	repositoryUrl,
@@ -565,13 +566,6 @@ function decodeProviderText(input: string): string {
 		} else decoded += input[index] ?? '';
 	}
 	return decoded;
-}
-
-function encodePathComponent(value: string): string {
-	return encodeURIComponent(value).replace(
-		/[!'()*]/g,
-		(character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-	);
 }
 
 function canonicalRepositoryLink(

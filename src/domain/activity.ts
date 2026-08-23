@@ -361,7 +361,7 @@ export function createPushActivity(
 	});
 }
 
-function encodePathComponent(value: string): string {
+export function encodePathComponent(value: string): string {
 	return encodeURIComponent(value).replace(
 		/[!'()*]/g,
 		(character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
