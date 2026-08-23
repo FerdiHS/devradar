@@ -103,10 +103,9 @@ export class ObsidianSettingsPersistence {
 function classifyValidationFailure(
 	raw: unknown,
 ): SettingsRecoveryClassification {
-	if (raw === null || typeof raw !== 'object' || Array.isArray(raw))
-		return 'ordinary-malformed';
-
 	try {
+		if (raw === null || typeof raw !== 'object' || Array.isArray(raw))
+			return 'ordinary-malformed';
 		const prototype = Reflect.getPrototypeOf(raw);
 		if (prototype !== Object.prototype && prototype !== null)
 			return 'unclassifiable';
@@ -114,8 +113,7 @@ function classifyValidationFailure(
 			raw,
 			'schemaVersion',
 		);
-		if (!descriptor || !('value' in descriptor))
-			return 'ordinary-malformed';
+		if (!descriptor || !('value' in descriptor)) return 'unclassifiable';
 		if (
 			typeof descriptor.value === 'number' &&
 			Number.isInteger(descriptor.value) &&

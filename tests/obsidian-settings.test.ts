@@ -77,6 +77,49 @@ describe('ObsidianSettingsPersistence', () => {
 		});
 	});
 
+	it('fails closed for an accessor-backed schemaVersion', async () => {
+		const input = {};
+		Object.defineProperty(input, 'schemaVersion', {
+			enumerable: true,
+			get: () => 2,
+		});
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => input),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'unclassifiable',
+			},
+		});
+	});
+
+	it('fails closed when proxy reflection throws', async () => {
+		const input = new Proxy(
+			{},
+			{
+				getPrototypeOf() {
+					throw new Error('reflection blocked');
+				},
+			},
+		);
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => input),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'unclassifiable',
+			},
+		});
+	});
+
 	it('does not write when a candidate fails validation', async () => {
 		const dataStore = store(async () => null);
 		const persistence = new ObsidianSettingsPersistence(
