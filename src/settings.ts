@@ -5,7 +5,6 @@ import {
 	type SettingsRecoveryClassification,
 	type SettingsRecoveryDiagnostic,
 } from './application/settings';
-import type { SettingsRuntimeState } from './application/settings';
 
 export type { SettingsRuntimeState } from './application/settings';
 
