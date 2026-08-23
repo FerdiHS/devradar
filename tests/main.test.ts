@@ -159,7 +159,7 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		});
 	});
 
-	it('serializes Retry behind a pending Reset', async () => {
+	it('coalesces Retry behind a pending Reset', async () => {
 		let release!: () => void;
 		const pendingSave = new Promise<void>((resolve) => {
 			release = resolve;

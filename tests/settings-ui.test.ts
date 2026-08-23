@@ -140,6 +140,44 @@ describe('DevRadarSettingTab recovery UI', () => {
 		await Promise.resolve();
 	});
 
+	it('disables both recovery actions immediately while one is pending', async () => {
+		let release!: () => void;
+		const pendingAction = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let pending = false;
+		const retrySettingsLoad = vi.fn(() => {
+			pending = true;
+			return pendingAction.finally(() => {
+				pending = false;
+			});
+		});
+		const resetSettings = vi.fn(async () => undefined);
+		const host: SettingsTabHost = {
+			getSettingsState: () => ordinaryMalformed,
+			isRecoveryActionPending: () => pending,
+			retrySettingsLoad,
+			resetSettings,
+		};
+		const tab = new DevRadarSettingTab({} as never, {} as never, host);
+		const root = new FakeElement();
+		(tab as unknown as { containerEl: FakeElement }).containerEl = root;
+
+		tab.display();
+		root.children.find((child) => child.text === 'Retry')?.click();
+
+		expect(
+			root.children
+				.filter(
+					(child) => child.text === 'Retry' || child.text === 'Reset',
+				)
+				.every((child) => child.disabled),
+		).toBe(true);
+
+		release();
+		await pendingAction;
+	});
+
 	it('disables recovery actions when the host reports pending', () => {
 		const pending = tabFor(ordinaryMalformed, true);
 		pending.tab.display();
@@ -166,7 +204,7 @@ describe('DevRadarSettingTab recovery UI', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(display).toHaveBeenCalledTimes(1);
+		expect(display).toHaveBeenCalledTimes(2);
 	});
 
 	it('renders hostile validation details and invokes reset', async () => {

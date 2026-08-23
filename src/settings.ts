@@ -66,6 +66,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	}
 
 	private rerenderAfterAction(action: Promise<void>): void {
+		this.display();
 		void action.then(
 			() => this.display(),
 			() => this.display(),
