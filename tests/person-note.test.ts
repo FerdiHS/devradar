@@ -420,7 +420,9 @@ describe('person-note rendering', () => {
 	});
 
 	it('ignores canonical-looking entries inside literal Markdown', () => {
-		const entry = renderActivityEntry(activity('14', '2026-08-18T03:00:00Z'));
+		const entry = renderActivityEntry(
+			activity('14', '2026-08-18T03:00:00Z'),
+		);
 
 		expect(
 			parseCanonicalActivityEntries(['```md', entry, '```'].join('\n')),
