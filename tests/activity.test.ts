@@ -5,6 +5,7 @@ import {
 	canonicalizeRepository,
 	canonicalizeTimestamp,
 	compareActivities,
+	compareCanonicalTimestamps,
 	createIssueActivity,
 	createPullRequestActivity,
 	createPushActivity,
@@ -224,6 +225,21 @@ describe('activity construction', () => {
 });
 
 describe('timestamps, eligibility, and ordering', () => {
+	it('compares canonical timestamps with precision beyond milliseconds', () => {
+		expect(
+			compareCanonicalTimestamps(
+				'2026-08-18T01:02:03.09Z',
+				'2026-08-18T01:02:03.1Z',
+			),
+		).toBe(-1);
+		expect(
+			compareCanonicalTimestamps(
+				'2026-08-18T01:02:03.100Z',
+				'2026-08-18T01:02:03.1Z',
+			),
+		).toBe(0);
+	});
+
 	it("enforces DevRadar's supported RFC 3339 profile", () => {
 		const invalidInputs = [
 			'2026-08-18t01:02:03Z',

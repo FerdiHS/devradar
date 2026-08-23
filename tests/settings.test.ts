@@ -3,6 +3,7 @@ import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	createEmptySettingsV1,
+	validateCanonicalPluginTimestamp,
 	validatePersistedSettingsV1,
 } from '../src/domain/settings';
 
@@ -95,6 +96,21 @@ describe('schema-v1 settings construction', () => {
 });
 
 describe('schema-v1 persisted validation', () => {
+	it('accepts only canonical UTC millisecond plugin timestamps', () => {
+		expect(
+			validateCanonicalPluginTimestamp('2026-08-20T12:00:00.000Z'),
+		).toMatchObject({ ok: true });
+		for (const input of [
+			'2026-08-20T12:00:00Z',
+			'2026-08-20T12:00:00.1Z',
+			'2026-08-20T13:00:00.000+01:00',
+		])
+			expect(validateCanonicalPluginTimestamp(input)).toMatchObject({
+				ok: false,
+				error: { code: 'noncanonical-plugin-timestamp' },
+			});
+	});
+
 	it('reconstructs fresh data without mutation or aliases', () => {
 		const input = validSettings();
 		const original = JSON.parse(JSON.stringify(input)) as typeof input;
