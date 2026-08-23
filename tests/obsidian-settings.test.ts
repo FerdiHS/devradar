@@ -35,6 +35,20 @@ describe('ObsidianSettingsPersistence', () => {
 		expect(dataStore.saved).toEqual([]);
 	});
 
+	it('maps an empty object to fresh empty settings without writing', async () => {
+		const dataStore = store(async () => ({}));
+		const persistence = new ObsidianSettingsPersistence(
+			dataStore,
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toEqual({
+			kind: 'loaded',
+			settings: createEmptySettingsV1(),
+		});
+		expect(dataStore.saved).toEqual([]);
+	});
+
 	it('returns a recovery result for a read failure', async () => {
 		const persistence = new ObsidianSettingsPersistence(
 			store(async () => {

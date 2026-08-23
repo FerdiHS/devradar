@@ -11,7 +11,11 @@ vi.mock('obsidian', () => ({
 	},
 }));
 
-import { DevRadarSettingTab, type SettingsTabHost } from '../src/settings';
+import {
+	DevRadarSettingTab,
+	type SettingsRuntimeState,
+	type SettingsTabHost,
+} from '../src/settings';
 
 class FakeElement {
 	children: FakeElement[] = [];
@@ -39,11 +43,7 @@ class FakeElement {
 	}
 }
 
-function tabFor(
-	state: SettingsTabHost['getSettingsState'] extends () => infer T
-		? T
-		: never,
-) {
+function tabFor(state: SettingsRuntimeState) {
 	const resetSettings = vi.fn(async () => undefined);
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
@@ -104,6 +104,34 @@ describe('DevRadarSettingTab recovery UI', () => {
 		expect(future.root.children.map((child) => child.text)).not.toContain(
 			'Reset',
 		);
+	});
+
+	it('does not offer Reset for non-resettable recovery states', () => {
+		const diagnostics: SettingsRuntimeState[] = [
+			{ kind: 'recovery', diagnostic: { kind: 'read-failure' } },
+			{ kind: 'recovery', diagnostic: { kind: 'write-failure' } },
+			{ kind: 'recovery', diagnostic: { kind: 'internal-failure' } },
+			{
+				kind: 'recovery',
+				diagnostic: {
+					kind: 'validation',
+					classification: 'unclassifiable',
+					error: {
+						code: 'invalid-type',
+						path: '',
+						message: 'invalid type',
+					},
+				},
+			},
+		];
+
+		for (const state of diagnostics) {
+			const view = tabFor(state);
+			view.tab.display();
+			expect(view.root.children.map((child) => child.text)).not.toContain(
+				'Reset',
+			);
+		}
 	});
 
 	it('renders hostile validation details as text and keeps reset cancelable', async () => {
