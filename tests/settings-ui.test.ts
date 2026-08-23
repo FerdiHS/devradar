@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({
 	Plugin: class {},
@@ -71,10 +71,6 @@ const ordinaryMalformed = {
 };
 
 describe('DevRadarSettingTab recovery UI', () => {
-	beforeEach(() => {
-		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
-	});
-
 	it('always shows Retry but only offers Reset for ordinary malformed data', () => {
 		const ordinary = tabFor(ordinaryMalformed);
 		ordinary.tab.display();
@@ -134,7 +130,7 @@ describe('DevRadarSettingTab recovery UI', () => {
 		}
 	});
 
-	it('renders hostile validation details as text and keeps reset cancelable', async () => {
+	it('renders hostile validation details and invokes reset', async () => {
 		const view = tabFor(ordinaryMalformed);
 		view.tab.display();
 		const text = view.root.children.map((child) => child.text).join('\n');
@@ -142,26 +138,9 @@ describe('DevRadarSettingTab recovery UI', () => {
 		expect(text).toContain('/x<script>');
 		expect(text).toContain('Existing notes remain untouched.');
 
-		const confirm = vi.fn((_message: string) => false);
-		vi.stubGlobal('window', { confirm });
 		view.root.children.find((child) => child.text === 'Reset')?.click();
 
-		expect(confirm).toHaveBeenCalledTimes(1);
-		expect(confirm.mock.calls[0]?.[0]).toContain(
-			'followed-person configuration',
-		);
-		expect(confirm.mock.calls[0]?.[0]).toContain('sync history');
-		expect(confirm.mock.calls[0]?.[0]).toContain(
-			'follow people again afterward',
-		);
-		expect(confirm.mock.calls[0]?.[0]).toContain(
-			'existing notes untouched',
-		);
-		expect(confirm.mock.calls[0]?.[0]).toContain('no GitHub requests');
-		expect(confirm.mock.calls[0]?.[0]).toContain(
-			'not delete, rename, move, or overwrite',
-		);
-		expect(view.resetSettings).not.toHaveBeenCalled();
+		expect(view.resetSettings).toHaveBeenCalledTimes(1);
 		await Promise.resolve();
 	});
 });

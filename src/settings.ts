@@ -60,20 +60,11 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			const reset = containerEl.createEl('button', { text: 'Reset' });
 			reset.disabled = pending;
 			reset.addEventListener('click', () => {
-				if (!window.confirm(RESET_WARNING)) return;
 				void this.host.resetSettings().then(() => this.display());
 			});
 		}
 	}
 }
-
-const RESET_WARNING =
-	'DevRadar settings are malformed. Reset them?\n\n' +
-	'This will replace the persisted DevRadar settings with a fresh empty value; ' +
-	'discard followed-person configuration and sync history stored in those settings; ' +
-	'you will need to follow people again afterward; ' +
-	'leave all existing notes untouched; make no GitHub requests; and not delete, rename, ' +
-	'move, or overwrite any notes. Cancel leaves the persisted settings unchanged.';
 
 function diagnosticText(diagnostic: SettingsRecoveryDiagnostic): string {
 	switch (diagnostic.kind) {

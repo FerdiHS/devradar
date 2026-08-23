@@ -45,6 +45,7 @@ export default class DevRadarPlugin extends Plugin {
 			!isResettableSettingsDiagnostic(this.settingsState.diagnostic)
 		)
 			return;
+		if (!window.confirm(RESET_WARNING)) return;
 
 		await this.runRecoveryAction(async () => {
 			const result = await this.persistence.save(createEmptySettingsV1());
@@ -62,6 +63,14 @@ export default class DevRadarPlugin extends Plugin {
 		return actionPromise;
 	}
 }
+
+const RESET_WARNING =
+	'DevRadar settings are malformed. Reset them?\n\n' +
+	'This will replace the persisted DevRadar settings with a fresh empty value; ' +
+	'discard followed-person configuration and sync history stored in those settings; ' +
+	'you will need to follow people again afterward; ' +
+	'leave all existing notes untouched; make no GitHub requests; and not delete, rename, ' +
+	'move, or overwrite any notes. Cancel leaves the persisted settings unchanged.';
 
 function toRuntimeState(result: SettingsLoadResult): SettingsRuntimeState {
 	return result.kind === 'loaded'

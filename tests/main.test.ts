@@ -34,7 +34,10 @@ function fakePlugin(
 }
 
 describe('DevRadarPlugin settings lifecycle', () => {
-	beforeEach(() => vi.restoreAllMocks());
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+	});
 
 	it('registers the settings tab when initial reading fails', async () => {
 		const plugin = fakePlugin(async () => {
@@ -133,6 +136,34 @@ describe('DevRadarPlugin settings lifecycle', () => {
 			kind: 'ready',
 			settings: EMPTY,
 		});
+	});
+
+	it('requires confirmation before resetting settings', async () => {
+		const confirm = vi.fn(() => false);
+		vi.stubGlobal('window', { confirm });
+		const saveData = vi.fn(async () => undefined);
+		const plugin = fakePlugin(async () => ({ malformed: true }), saveData);
+
+		await plugin.onload();
+		await plugin.resetSettings();
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'followed-person configuration',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain('sync history');
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'follow people again afterward',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'existing notes untouched',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain('no GitHub requests');
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'not delete, rename, move, or overwrite',
+		);
+		expect(saveData).not.toHaveBeenCalled();
+		expect(plugin.getSettingsState().kind).toBe('recovery');
 	});
 
 	it('keeps recovery state and exposes retry after a reset write failure', async () => {
