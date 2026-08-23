@@ -54,10 +54,6 @@ export type ConfirmedAccounting = {
 	readonly activities: readonly Activity[];
 };
 
-type ActivityMapResult =
-	| { readonly ok: true; readonly activities: readonly Activity[] }
-	| { readonly ok: false; readonly error: SyncDomainError };
-
 const success = <T>(value: T): SyncResult<T> => ({ ok: true, value });
 
 const failure = <T>(error: SyncDomainError): SyncResult<T> => ({
@@ -93,7 +89,9 @@ function activitiesEqual(left: Activity, right: Activity): boolean {
 	return false;
 }
 
-function uniqueActivities(input: readonly Activity[]): ActivityMapResult {
+function uniqueActivities(
+	input: readonly Activity[],
+): SyncResult<readonly Activity[]> {
 	const byId = new Map<string, Activity>();
 	for (const activity of input) {
 		const existing = byId.get(activity.providerEventId);
@@ -107,7 +105,7 @@ function uniqueActivities(input: readonly Activity[]): ActivityMapResult {
 			};
 		byId.set(activity.providerEventId, existing ?? activity);
 	}
-	return { ok: true, activities: [...byId.values()] };
+	return { ok: true, value: [...byId.values()] };
 }
 
 function compareRetainedEntries(
@@ -136,7 +134,7 @@ function mergeEntries(
 	newActivities: readonly Activity[],
 ): ManagedActivityEntry[] {
 	const retained = sortRetainedEntries(retainedEntries);
-	const created = newActivities.slice().sort(compareActivities);
+	const created = newActivities.slice();
 	const merged: ManagedActivityEntry[] = [];
 	let retainedIndex = 0;
 	let newIndex = 0;
@@ -174,12 +172,13 @@ export function reconcileActivities(
 ): SyncResult<ReconciliationPlan> {
 	const unique = uniqueActivities(input.activities);
 	if (!unique.ok) return unique;
+	const activities = unique.value;
 	const seen = new Map(
 		input.state.seenEvents.map((event) => [event.id, event]),
 	);
 	const priorSeenEventIds: CanonicalEventId[] = [];
 	const unseen: Activity[] = [];
-	for (const activity of unique.activities) {
+	for (const activity of activities) {
 		const prior = seen.get(activity.providerEventId);
 		if (!prior) {
 			unseen.push(activity);
@@ -233,7 +232,8 @@ export function confirmAccounting(
 		entry,
 		used: false,
 	}));
-	for (const activity of unique.activities.slice().sort(compareActivities)) {
+	const ordered = unique.value.slice().sort(compareActivities);
+	for (const activity of ordered) {
 		const markdown = renderActivityEntry(activity);
 		const match = available.find(
 			(candidate) =>
@@ -248,7 +248,7 @@ export function confirmAccounting(
 	}
 	return success({
 		kind: 'confirmed-accounting',
-		activities: unique.activities.slice().sort(compareActivities),
+		activities: ordered,
 	});
 }
 
@@ -283,7 +283,7 @@ export function applySuccessfulSyncTransition(
 	const existing = new Map(
 		previous.seenEvents.map((event) => [event.id, event.createdAt]),
 	);
-	const additions = unique.activities.slice().sort(compareActivities);
+	const additions = unique.value.slice().sort(compareActivities);
 	const seenEvents = previous.seenEvents.map((event) => ({ ...event }));
 	for (const activity of additions) {
 		const priorCreatedAt = existing.get(activity.providerEventId);
