@@ -707,7 +707,10 @@ export function parseCanonicalActivityEntries(
 	managedContent: string,
 ): readonly RetainedActivityEntry[] {
 	const entries: RetainedActivityEntry[] = [];
-	for (const line of splitLines(managedContent)) {
+	const lines = splitLines(managedContent);
+	const literalScan = scanLiteralMarkdown(lines);
+	for (const line of lines) {
+		if (literalScan.lineStarts.has(line.start)) continue;
 		const match = /^- `([^`\r\n]+)` — (.+)$/.exec(line.text);
 		if (!match) continue;
 		const timestampText = match[1];

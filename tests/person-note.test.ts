@@ -419,6 +419,19 @@ describe('person-note rendering', () => {
 		}
 	});
 
+	it('ignores canonical-looking entries inside literal Markdown', () => {
+		const entry = renderActivityEntry(activity('14', '2026-08-18T03:00:00Z'));
+
+		expect(
+			parseCanonicalActivityEntries(['```md', entry, '```'].join('\n')),
+		).toEqual([]);
+		expect(
+			parseCanonicalActivityEntries(
+				['<!-- example', entry, '-->'].join('\n'),
+			),
+		).toEqual([]);
+	});
+
 	it('rejects object fragments without the required separator', () => {
 		const timestamp = '2026-08-18T03:00:00Z';
 		const malformed = [
