@@ -116,7 +116,6 @@ function classifyValidationFailure(
 	raw: unknown,
 ): SettingsRecoveryClassification {
 	try {
-		if (hasUnsafeReflection(raw)) return 'unclassifiable';
 		if (raw === null || typeof raw !== 'object' || Array.isArray(raw))
 			return 'ordinary-malformed';
 		const prototype = Reflect.getPrototypeOf(raw);
@@ -134,6 +133,7 @@ function classifyValidationFailure(
 			descriptor.value > 1
 		)
 			return 'future-schema';
+		if (hasUnsafeReflection(raw)) return 'unclassifiable';
 		return 'ordinary-malformed';
 	} catch {
 		return 'unclassifiable';

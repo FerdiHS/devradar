@@ -166,6 +166,26 @@ describe('ObsidianSettingsPersistence', () => {
 		});
 	});
 
+	it('keeps future-schema classification before nested unsafe reflection', async () => {
+		const person = {};
+		Object.defineProperty(person, 'username', {
+			enumerable: true,
+			get: () => 'octocat',
+		});
+		const persistence = new ObsidianSettingsPersistence(
+			store(async () => ({ schemaVersion: 2, followedPeople: [person] })),
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toMatchObject({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'future-schema',
+			},
+		});
+	});
+
 	it('fails closed for an accessor-backed schemaVersion', async () => {
 		const input = {};
 		Object.defineProperty(input, 'schemaVersion', {
