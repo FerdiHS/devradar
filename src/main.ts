@@ -1,8 +1,8 @@
 import { Plugin } from 'obsidian';
 import {
 	ObsidianSettingsPersistence,
+	isResettableSettingsDiagnostic,
 	type SettingsLoadResult,
-	type SettingsRecoveryDiagnostic,
 	type SettingsSaveResult,
 } from './adapters/obsidian-settings';
 import { createEmptySettingsV1 } from './domain/settings';
@@ -42,7 +42,7 @@ export default class DevRadarPlugin extends Plugin {
 	async resetSettings(): Promise<void> {
 		if (
 			this.settingsState.kind !== 'recovery' ||
-			!canReset(this.settingsState.diagnostic)
+			!isResettableSettingsDiagnostic(this.settingsState.diagnostic)
 		)
 			return;
 
@@ -86,11 +86,4 @@ function toRuntimeStateFromSave(
 			error: result.error,
 		},
 	};
-}
-
-function canReset(diagnostic: SettingsRecoveryDiagnostic): boolean {
-	return (
-		diagnostic.kind === 'validation' &&
-		diagnostic.classification === 'ordinary-malformed'
-	);
 }

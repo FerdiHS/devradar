@@ -38,6 +38,15 @@ export type SettingsSaveResult =
 	| { readonly kind: 'write-failure' }
 	| { readonly kind: 'internal-failure' };
 
+export function isResettableSettingsDiagnostic(
+	diagnostic: SettingsRecoveryDiagnostic,
+): boolean {
+	return (
+		diagnostic.kind === 'validation' &&
+		diagnostic.classification === 'ordinary-malformed'
+	);
+}
+
 export class ObsidianSettingsPersistence {
 	constructor(
 		private readonly dataStore: PluginDataStore,
@@ -113,7 +122,8 @@ function classifyValidationFailure(
 			raw,
 			'schemaVersion',
 		);
-		if (!descriptor || !('value' in descriptor)) return 'unclassifiable';
+		if (!descriptor) return 'ordinary-malformed';
+		if (!('value' in descriptor)) return 'unclassifiable';
 		if (
 			typeof descriptor.value === 'number' &&
 			Number.isInteger(descriptor.value) &&

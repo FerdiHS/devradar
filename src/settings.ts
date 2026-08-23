@@ -1,7 +1,8 @@
 import { App, PluginSettingTab, type Plugin } from 'obsidian';
-import type {
-	SettingsRecoveryClassification,
-	SettingsRecoveryDiagnostic,
+import {
+	isResettableSettingsDiagnostic,
+	type SettingsRecoveryClassification,
+	type SettingsRecoveryDiagnostic,
 } from './adapters/obsidian-settings';
 import type { DevRadarSettingsV1 } from './domain/settings';
 
@@ -41,7 +42,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 		const diagnostic = state.diagnostic;
 		containerEl.createEl('p', {
-			text: 'Devradar settings need attention.',
+			text: 'DevRadar settings need attention.',
 		});
 		containerEl.createEl('p', {
 			text: 'Settings-dependent configuration and synchronization are disabled until recovery succeeds. Existing notes remain untouched.',
@@ -55,7 +56,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			void this.host.retrySettingsLoad().then(() => this.display());
 		});
 
-		if (canReset(diagnostic)) {
+		if (isResettableSettingsDiagnostic(diagnostic)) {
 			const reset = containerEl.createEl('button', { text: 'Reset' });
 			reset.disabled = pending;
 			reset.addEventListener('click', () => {
@@ -73,13 +74,6 @@ const RESET_WARNING =
 	'you will need to follow people again afterward; ' +
 	'leave all existing notes untouched; make no GitHub requests; and not delete, rename, ' +
 	'move, or overwrite any notes. Cancel leaves the persisted settings unchanged.';
-
-function canReset(diagnostic: SettingsRecoveryDiagnostic): boolean {
-	return (
-		diagnostic.kind === 'validation' &&
-		diagnostic.classification === 'ordinary-malformed'
-	);
-}
 
 function diagnosticText(diagnostic: SettingsRecoveryDiagnostic): string {
 	switch (diagnostic.kind) {
