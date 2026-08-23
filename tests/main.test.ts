@@ -124,6 +124,66 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		expect(plugin.getSettingsState().kind).toBe('ready');
 	});
 
+	it('recovers from malformed data on a valid retry without writing', async () => {
+		let reads = 0;
+		const saveData = vi.fn(async () => undefined);
+		const plugin = fakePlugin(async () => {
+			reads += 1;
+			return reads === 1 ? { malformed: true } : EMPTY;
+		}, saveData);
+
+		await plugin.onload();
+		await plugin.retrySettingsLoad();
+
+		expect(plugin.getSettingsState()).toEqual({
+			kind: 'ready',
+			settings: EMPTY,
+		});
+		expect(saveData).not.toHaveBeenCalled();
+	});
+
+	it('updates recovery when a retry becomes unreadable', async () => {
+		let reads = 0;
+		const plugin = fakePlugin(async () => {
+			reads += 1;
+			if (reads === 1) return { malformed: true };
+			throw new Error('unavailable');
+		});
+
+		await plugin.onload();
+		await plugin.retrySettingsLoad();
+
+		expect(plugin.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'read-failure' },
+		});
+	});
+
+	it('serializes Retry behind a pending Reset', async () => {
+		let release!: () => void;
+		const pendingSave = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let reads = 0;
+		const saveData = vi.fn(() => pendingSave);
+		const plugin = fakePlugin(async () => {
+			reads += 1;
+			return { malformed: true };
+		}, saveData);
+
+		await plugin.onload();
+		const reset = plugin.resetSettings();
+		const retry = plugin.retrySettingsLoad();
+
+		expect(plugin.isRecoveryActionPending()).toBe(true);
+		expect(reads).toBe(1);
+		release();
+		await Promise.all([reset, retry]);
+
+		expect(saveData).toHaveBeenCalledTimes(1);
+		expect(plugin.getSettingsState().kind).toBe('ready');
+	});
+
 	it('commits reset settings only after the persistence write succeeds', async () => {
 		const saveData = vi.fn(async () => undefined);
 		const plugin = fakePlugin(async () => ({ malformed: true }), saveData);
