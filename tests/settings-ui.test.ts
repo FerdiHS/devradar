@@ -95,12 +95,13 @@ describe('DevRadarSettingTab recovery UI', () => {
 			},
 		});
 		future.tab.display();
-		expect(future.root.children.map((child) => child.text)).toContain(
-			'Retry',
+		const futureText = future.root.children.map((child) => child.text);
+		expect(futureText).toContain('Retry');
+		expect(futureText.join('\n')).toContain('Update DevRadar');
+		expect(futureText.join('\n')).toContain(
+			'deliberately restore compatible plugin data',
 		);
-		expect(future.root.children.map((child) => child.text)).not.toContain(
-			'Reset',
-		);
+		expect(futureText).not.toContain('Reset');
 	});
 
 	it('does not offer Reset for non-resettable recovery states', () => {

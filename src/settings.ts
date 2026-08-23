@@ -91,7 +91,7 @@ function validationText(
 	error: { code: string; path: string; message: string },
 ): string {
 	if (classification === 'future-schema')
-		return 'DevRadar settings use a newer schema version and cannot be loaded by this plugin.';
+		return 'These settings were created by a newer DevRadar data format. Update DevRadar, or deliberately restore compatible plugin data, then Retry.';
 	if (classification === 'unclassifiable')
 		return 'DevRadar settings could not be safely classified. Retry to try again.';
 	return `DevRadar settings are invalid (${error.code} at ${error.path}): ${error.message}`;
