@@ -138,7 +138,8 @@ acquire guard
 -> reconcile unseen canonical activities against the validated managed section
 -> compute the intended managed-section replacement
 -> safely revalidate/recompute against current vault content at the mutation boundary
--> write only changed content
+-> suppress mutation invocation for a safe semantic no-op, or commit the
+   current-content result through the supported mutation boundary
 -> persist successful state
 -> report outcome
 -> release guard
@@ -175,10 +176,12 @@ note, a note may change only inside one unambiguous, identity-matching
 DevRadar-managed section. During explicit initial association only, a
 marker-free existing note may receive its first managed section at EOF as
 defined by [person-note](person-note.md). Preserve every byte outside that
-range, avoid writes when resulting content is unchanged, and never
-automatically overwrite a whole note, delete, move, rename, or recreate an
-associated note. Generated text and links remain contained in that managed
-range and use the detailed safe rendering rules.
+range, report the semantic outcome `unchanged` when resulting Markdown is
+identical, and do not invoke the mutation primitive when safe preflight proves
+that no note-derived reconciliation or state advancement depends on the
+snapshot. Never automatically overwrite a whole note, delete, move, rename, or
+recreate an associated note. Generated text and links remain contained in that
+managed range and use the detailed safe rendering rules.
 
 Existing-note mutation must operate against the current vault contents at the
 mutation boundary. Revalidate the identity-matching managed range and
@@ -194,11 +197,18 @@ that callback. The current-content contract is normative regardless of the
 feasibility result below.
 
 At that boundary, identical resulting Markdown is the semantic/content outcome
-`unchanged`. Safe preflight may suppress invoking the mutation primitive only
-when no note-derived reconciliation or successful-state advancement depends on
-the preflight snapshot. Returning identical content does not prove that
+`unchanged`. Safe preflight must suppress invoking the mutation primitive when
+no note-derived reconciliation or successful-state advancement depends on the
+preflight snapshot. Returning identical content does not prove that
 Obsidian performed no physical filesystem I/O, and this documentation makes no
 such claim unless supported Obsidian documentation explicitly provides one.
+
+A stale preflight or reconciliation result must never authorize `seenEvents`,
+`lastSuccessfulSyncAt`, successful-sync state, or equivalent note-derived state
+advancement. Those effects may advance only after current-content note
+accounting succeeds or current-content reconciliation establishes the same
+canonical activity. The executable end-to-end state-advancement test remains
+deferred to the future note-persistence/Sync One composition issue.
 
 ### Issue #85 feasibility status
 
