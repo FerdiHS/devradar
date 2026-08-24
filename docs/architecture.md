@@ -187,29 +187,53 @@ stale snapshot and fail without mutation. Never apply stale offsets or stale
 whole-note output; use `Vault.process()` or an equivalent safe
 compare-and-transform operation.
 
-This freshness requirement must also preserve the no-write-on-identical-content
-contract. Implementations must not assume that returning unchanged content from
-`Vault.process()` suppresses a physical write unless the supported API documents
-that behavior. The combination of commit-time current-content validation and
-zero physical writes for true no-op transformations is an implementation
-feasibility gate, not an assumed adapter detail. Note-writing implementation
-must not begin or merge until a documented strategy demonstrates both properties
-on the designated Desktop validation target. The implementation must remain
-Mobile-compatible, but Mobile runtime validation is not a v0.2.0 closure gate;
-any runtime-sensitive path without its applicable validation remains fail-closed.
-If the supported API cannot provide both, stop before implementation and revisit
-the person-note and synchronization contracts rather than silently weakening
-either invariant.
+The supported final boundary is `Vault.process()` or an equivalent API whose
+callback receives current note content and performs only synchronous
+transformation; all asynchronous retrieval and preparation completes before
+that callback. The current-content contract is normative regardless of the
+feasibility result below.
+
+At that boundary, identical resulting Markdown is the semantic/content outcome
+`unchanged`. Safe preflight may suppress invoking the mutation primitive only
+when no note-derived reconciliation or successful-state advancement depends on
+the preflight snapshot. Returning identical content does not prove that
+Obsidian performed no physical filesystem I/O, and this documentation makes no
+such claim unless supported Obsidian documentation explicitly provides one.
+
+### Issue #85 feasibility status
+
+Issue [#70](https://github.com/FerdiHS/devradar/issues/70) remains closed with
+the predecessor conclusion `contract revision required`. Issue #85 requires
+Desktop evidence for the exercised current-content strategy; Mobile remains a
+compatibility target only. The current local probe run is **BLOCKED /
+insufficient evidence**: it launched on Obsidian Desktop 1.13.7 on macOS
+26.5.2 arm64 and created its first fixture, but a disposable harness error
+stopped execution before the final callback evidence was captured. No
+feasibility conclusion is inferred from that incomplete run.
+
+| Required scenario                      | Current evidence                                                                           | Status  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ | ------- |
+| Mutation against current content       | Probe setup reached the first fixture, but did not capture callback input or final output. | BLOCKED |
+| Current user-owned content changes     | No complete Desktop callback comparison was captured.                                      | BLOCKED |
+| Current managed-section changes        | No complete current-content recomputation or safe-failure observation was captured.        | BLOCKED |
+| Malformed or ambiguous current markers | No complete Desktop fail-closed observation was captured.                                  | BLOCKED |
+
+This BLOCKED result keeps production existing-note mutation blocked. It is not
+a proven infeasibility result, does not remove existing-note support from the
+v0.2.0 target, and does not authorize Mobile runtime validation. A later
+Desktop rerun may replace this status only after the complete evidence table
+is captured and independently reviewed.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
 marker changes fail closed; managed-content changes are transformed from the
-current content rather than stale offsets; and a commit-time no-op performs no
-vault write and reports the actual unchanged outcome. Tests must distinguish a
-callback that returns identical content from an actual vault write not being
-performed, verify that stale reconciliation cannot advance `seenEvents`, and
-verify that a current-content change invalidating earlier reconciliation is
-recomputed or fails safely.
+current content rather than stale offsets; and a commit-time semantic no-op
+reports the actual unchanged outcome. Tests must distinguish a callback that
+returns identical content from an actual vault write not being performed,
+verify that stale reconciliation cannot advance `seenEvents`, and verify that
+a current-content change invalidating earlier reconciliation is recomputed or
+fails safely. The executable end-to-end state-advancement test remains deferred
+to the future note-persistence/Sync One composition issue.
 
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note

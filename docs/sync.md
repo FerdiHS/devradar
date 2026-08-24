@@ -169,7 +169,13 @@ following invariants:
   fails.
 - A later sync recovers after that state-save failure through canonical
   reconciliation.
-- Identical resulting Markdown causes no vault write.
+- Identical resulting Markdown has the semantic outcome `unchanged`. Safe
+  preflight may suppress invoking the mutation primitive only when no
+  note-derived reconciliation or successful-state advancement depends on that
+  snapshot. Otherwise the final mutation boundary still operates on current
+  vault content, even when the resulting Markdown is unchanged. This contract
+  does not claim anything about unobservable physical filesystem I/O inside
+  Obsidian.
 
 Provider-policy metadata such as a newly observed poll boundary or retry
 boundary may be persisted after a failed attempt when necessary to prevent an
@@ -282,7 +288,8 @@ requests, and must cover:
 - tracking-start changes reconsidering still-available history;
 - note-path change preserving continuity without old-note migration;
 - repeated successful sync with no provider change;
-- identical Markdown causing no vault write.
+- identical Markdown producing the semantic outcome `unchanged`, without a
+  physical-write guarantee.
 
 ### Concurrency and partial failure
 

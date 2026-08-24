@@ -190,9 +190,15 @@ it owns no trailing line ending after that marker. The line ending immediately
 before an end marker is part of the generated managed content, while the marker
 text itself remains an exact preserved anchor when replacing an existing note.
 
-After computing the intended content, compare it with the current content. If
-identical, perform no vault write. Re-rendering the same valid note and
-normalized activity set must produce identical Markdown.
+At the final mutation boundary, compute the intended content from the current
+note content and compare it with that same current content. If the resulting
+Markdown is identical, report the semantic/content outcome `unchanged`.
+When safe preflight proves that no mutation or note-derived reconciliation/state
+advancement is needed, the application may suppress invoking the mutation
+primitive; a stale preflight must never authorize that suppression. Neither
+outcome makes a claim about unobservable physical filesystem I/O performed
+internally by Obsidian. Re-rendering the same valid note and normalized activity
+set must produce identical Markdown.
 
 Any failure to establish one unambiguous managed range occurs before mutation.
 The failed operation leaves the note unchanged and reports an actionable
