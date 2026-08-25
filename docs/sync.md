@@ -150,9 +150,10 @@ acquire global application mutation ownership
 → deduplicate by canonical provider event ID
 → validate the associated note and managed range
 → reconcile canonical entries against the validated managed section
-→ compute final Markdown
-→ suppress mutation invocation for a safe semantic no-op, or revalidate current
-  content and write only changed Markdown through the supported boundary
+→ compute preflight intended Markdown
+→ suppress mutation invocation for a safe semantic no-op, or revalidate/recompute
+  from current content and pass the current-content result through the supported
+  mutation boundary
 → persist newly seen IDs and successful provider state
 → record successful completion
 → release global sync ownership
