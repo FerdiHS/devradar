@@ -215,24 +215,29 @@ deferred to the future note-persistence/Sync One composition issue.
 Issue [#70](https://github.com/FerdiHS/devradar/issues/70) remains closed with
 the predecessor conclusion `contract revision required`. Issue #85 requires
 Desktop evidence for the exercised current-content strategy; Mobile remains a
-compatibility target only. The current local probe run is **BLOCKED /
-insufficient evidence**: it launched on Obsidian Desktop 1.13.7 on macOS
-26.5.2 arm64 and created its first fixture, but a disposable harness error
-stopped execution before the final callback evidence was captured. No
-feasibility conclusion is inferred from that incomplete run.
+compatibility target only. The final local result is **PASS / contract
+resolved** for that tested Desktop strategy on Obsidian Desktop 1.13.7 on
+macOS 26.5.2 arm64. The earlier BLOCKED run was traced to a disposable probe
+bug: an unbound `Vault.create()` helper returned a null file handle, which the
+next `Vault.read()` stage passed into Obsidian. Binding the helper to the probe
+plugin and validating the returned `TFile` fixed the harness; a corrected
+diagnostic reached `Vault.process()` on the same runtime.
 
-| Required scenario                      | Current evidence                                                                           | Status  |
-| -------------------------------------- | ------------------------------------------------------------------------------------------ | ------- |
-| Mutation against current content       | Probe setup reached the first fixture, but did not capture callback input or final output. | BLOCKED |
-| Current user-owned content changes     | No complete Desktop callback comparison was captured.                                      | BLOCKED |
-| Current managed-section changes        | No complete current-content recomputation or safe-failure observation was captured.        | BLOCKED |
-| Malformed or ambiguous current markers | No complete Desktop fail-closed observation was captured.                                  | BLOCKED |
+| Required scenario                      | Current evidence                                                                                                 | Status |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------ |
+| Mutation against current content       | The callback received the content read after the controlled barrier edit, and the final read matched its output. | PASS   |
+| Current user-owned content changes     | The changed prefix and unchanged suffix were preserved exactly; LF, CRLF, and CR fixtures also passed.           | PASS   |
+| Current managed-section changes        | The current managed section was re-parsed and recomputed through the checked-in pure domain transformation.      | PASS   |
+| Malformed or ambiguous current markers | Extra-attribute, duplicate-begin, and identity-mismatch fixtures failed closed without changing current content. | PASS   |
 
-This BLOCKED result keeps production existing-note mutation blocked. It is not
-a proven infeasibility result, does not remove existing-note support from the
-v0.2.0 target, and does not authorize Mobile runtime validation. A later
-Desktop rerun may replace this status only after the complete evidence table
-is captured and independently reviewed.
+The probe also observed the canonical semantic no-op result with zero wrapper
+invocations; that counter is non-gating harness evidence only. No physical
+filesystem-I/O conclusion is drawn. This PASS resolves the Issue #85 contract
+for the exercised Desktop strategy and unblocks only later Desktop
+note-persistence implementation; it does not itself implement persistence,
+authorize Mobile, or advance stale reconciliation/state. The executable
+end-to-end state-advancement test remains deferred to the future note-
+persistence/Sync One composition issue.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;

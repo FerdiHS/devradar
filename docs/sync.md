@@ -177,6 +177,11 @@ following invariants:
   content, even when the resulting Markdown is unchanged. This contract does
   not claim anything about unobservable physical filesystem I/O inside Obsidian.
 
+Issue #85 Desktop evidence exercised this current-content ordering successfully
+on Obsidian Desktop 1.13.7. The evidence resolves the boundary for the tested
+Desktop strategy only; state advancement remains downstream of current-content
+accounting and the executable end-to-end state test remains deferred.
+
 Provider-policy metadata such as a newly observed poll boundary or retry
 boundary may be persisted after a failed attempt when necessary to prevent an
 invalid future request. It must not be confused with successful representation
