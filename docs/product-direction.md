@@ -179,7 +179,8 @@ fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
 - creates missing person notes safely;
 - updates existing notes only inside managed regions;
 - prevents duplicate activity entries;
-- reports notes with no semantic content change as `unchanged`;
+- reports successful synchronizations with no semantic note-content change as
+  `unchanged`;
 - preserves user-authored content;
 - handles invalid users, unavailable accounts, API failures, malformed settings, and rate limits safely;
 - continues Sync All after individual failures and reports partial success;
