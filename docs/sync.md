@@ -151,9 +151,9 @@ acquire global application mutation ownership
 → validate the associated note and managed range
 → reconcile canonical entries against the validated managed section
 → compute preflight intended Markdown
-→ suppress mutation invocation for a safe semantic no-op, or revalidate/recompute
-  from current content and pass the current-content result through the supported
-  mutation boundary
+→ suppress mutation invocation for a safe semantic no-op, or enter the supported
+  mutation boundary and synchronously revalidate/recompute from its
+  callback-supplied current content
 → persist newly seen IDs and successful provider state
 → record successful completion
 → release global sync ownership
