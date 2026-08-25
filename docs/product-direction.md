@@ -79,7 +79,8 @@ DevRadar must:
 - preserve all content outside its managed section;
 - never overwrite an entire existing note;
 - never automatically delete, rename, or move a note;
-- leave unchanged notes untouched;
+- leave note Markdown unchanged when synchronization produces no semantic
+  note-content change;
 - stop with an actionable error when managed markers are malformed, duplicated,
   missing after association, foreign, or ambiguous; marker-free existing notes
   may be initialized only during explicit association as defined by the
@@ -178,7 +179,8 @@ fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
 - creates missing person notes safely;
 - updates existing notes only inside managed regions;
 - prevents duplicate activity entries;
-- avoids rewriting unchanged notes;
+- reports successful synchronizations with no semantic note-content change as
+  `unchanged`;
 - preserves user-authored content;
 - handles invalid users, unavailable accounts, API failures, malformed settings, and rate limits safely;
 - continues Sync All after individual failures and reports partial success;

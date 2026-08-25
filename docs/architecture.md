@@ -136,9 +136,10 @@ acquire guard
 -> normalize, filter, sort, and deduplicate provider events
 -> obtain and validate the associated note and managed range
 -> reconcile unseen canonical activities against the validated managed section
--> compute the intended managed-section replacement
--> safely revalidate/recompute against current vault content at the mutation boundary
--> write only changed content
+-> compute the preflight intended managed-section replacement
+-> suppress mutation invocation for a safe semantic no-op, or enter the
+   supported mutation boundary and synchronously revalidate/recompute from its
+   callback-supplied current content
 -> persist successful state
 -> report outcome
 -> release guard
@@ -175,41 +176,86 @@ note, a note may change only inside one unambiguous, identity-matching
 DevRadar-managed section. During explicit initial association only, a
 marker-free existing note may receive its first managed section at EOF as
 defined by [person-note](person-note.md). Preserve every byte outside that
-range, avoid writes when resulting content is unchanged, and never
-automatically overwrite a whole note, delete, move, rename, or recreate an
-associated note. Generated text and links remain contained in that managed
-range and use the detailed safe rendering rules.
+range. If safe preflight proves both that the intended Markdown is identical
+to the observed note content and that no note-derived reconciliation or state
+advancement depends on the snapshot, report the semantic outcome `unchanged`
+without invoking the mutation primitive. Otherwise, re-establish current-note
+authority at the final mutation boundary. Never automatically overwrite a
+whole note, delete, move, rename, or recreate an associated note. Generated
+text and links remain contained in that managed range and use the detailed safe
+rendering rules.
 
 Existing-note mutation must operate against the current vault contents at the
 mutation boundary. Revalidate the identity-matching managed range and
 recompute/apply the pure core transformation against that content, or detect a
-stale snapshot and fail without mutation. Never apply stale offsets or stale
-whole-note output; use `Vault.process()` or an equivalent safe
+stale snapshot and fail without semantic note-content change. Never apply stale
+offsets or stale whole-note output; use `Vault.process()` or an equivalent safe
 compare-and-transform operation.
 
-This freshness requirement must also preserve the no-write-on-identical-content
-contract. Implementations must not assume that returning unchanged content from
-`Vault.process()` suppresses a physical write unless the supported API documents
-that behavior. The combination of commit-time current-content validation and
-zero physical writes for true no-op transformations is an implementation
-feasibility gate, not an assumed adapter detail. Note-writing implementation
-must not begin or merge until a documented strategy demonstrates both properties
-on the designated Desktop validation target. The implementation must remain
-Mobile-compatible, but Mobile runtime validation is not a v0.2.0 closure gate;
-any runtime-sensitive path without its applicable validation remains fail-closed.
-If the supported API cannot provide both, stop before implementation and revisit
-the person-note and synchronization contracts rather than silently weakening
-either invariant.
+The supported final boundary is `Vault.process()` or an equivalent API whose
+callback receives current note content and performs only synchronous
+transformation; all asynchronous retrieval and preparation completes before
+that callback. The current-content contract is normative regardless of the
+feasibility result below.
+
+At that boundary, identical resulting Markdown is the semantic/content outcome
+`unchanged`. Safe preflight may suppress invoking the mutation primitive only
+when it proves both that the intended Markdown is identical to the observed
+note content and that no note-derived reconciliation or successful-state
+advancement depends on the preflight snapshot. Otherwise, current-note
+authority must be re-established at the final mutation boundary. Returning
+identical content does not prove that Obsidian performed no physical
+filesystem I/O, and this documentation makes no such claim unless supported
+Obsidian documentation explicitly provides one.
+
+A stale preflight or reconciliation result must never authorize `seenEvents`,
+`lastSuccessfulSyncAt`, successful-sync state, or equivalent note-derived state
+advancement. Those effects may advance only after current-content note
+accounting succeeds or current-content reconciliation establishes the same
+canonical activity. The executable end-to-end state-advancement test remains
+deferred to the future note-persistence/Sync One composition issue.
+
+### Issue #85 feasibility status
+
+Issue [#70](https://github.com/FerdiHS/devradar/issues/70) remains closed with
+the predecessor conclusion `contract revision required`. Issue #85 requires
+Desktop evidence for the exercised current-content strategy; Mobile remains a
+compatibility target only. The final local result is **PASS / contract
+resolved** for that tested Desktop strategy on Obsidian Desktop 1.13.7 on
+macOS 26.5.2 arm64. The earlier BLOCKED run was traced to a disposable probe
+bug: an unbound `Vault.create()` helper returned a null file handle, which the
+next `Vault.read()` stage passed into Obsidian. Binding the helper to the probe
+plugin and validating the returned `TFile` fixed the harness; a corrected
+diagnostic reached `Vault.process()` on the same runtime.
+
+| Required scenario                      | Current evidence                                                                                                 | Status |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------ |
+| Mutation against current content       | The callback received the content read after the controlled barrier edit, and the final read matched its output. | PASS   |
+| Current user-owned content changes     | The changed prefix and unchanged suffix were preserved exactly; LF, CRLF, and CR fixtures also passed.           | PASS   |
+| Current managed-section changes        | The current managed section was re-parsed and recomputed through the checked-in pure domain transformation.      | PASS   |
+| Malformed or ambiguous current markers | Extra-attribute, duplicate-begin, and identity-mismatch fixtures failed closed without changing current content. | PASS   |
+
+The probe also observed the canonical semantic no-op result with zero wrapper
+invocations; that counter is non-gating harness evidence only. No physical
+filesystem-I/O conclusion is drawn. This PASS resolves the Issue #85 contract
+for the exercised Desktop strategy and unblocks only later Desktop
+note-persistence implementation; it does not itself implement persistence,
+authorize Mobile, or advance stale reconciliation/state. The executable
+end-to-end state-advancement test remains deferred to the future note-
+persistence/Sync One composition issue.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
 marker changes fail closed; managed-content changes are transformed from the
-current content rather than stale offsets; and a commit-time no-op performs no
-vault write and reports the actual unchanged outcome. Tests must distinguish a
-callback that returns identical content from an actual vault write not being
-performed, verify that stale reconciliation cannot advance `seenEvents`, and
-verify that a current-content change invalidating earlier reconciliation is
-recomputed or fails safely.
+current content rather than stale offsets; and a commit-time semantic no-op
+reports the actual unchanged outcome. Tests must distinguish application-level
+mutation-invocation suppression from an invoked `Vault.process()` callback that
+returns identical Markdown; neither establishes anything about internal
+filesystem I/O. Tests must also verify that stale reconciliation cannot advance
+`seenEvents`, and that a current-content change invalidating earlier
+reconciliation is recomputed or fails safely. The executable end-to-end
+state-advancement test remains deferred to the future note-persistence/Sync One
+composition issue.
 
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note

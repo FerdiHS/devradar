@@ -150,8 +150,10 @@ acquire global application mutation ownership
 → deduplicate by canonical provider event ID
 → validate the associated note and managed range
 → reconcile canonical entries against the validated managed section
-→ compute final Markdown
-→ write only changed Markdown
+→ compute preflight intended Markdown
+→ suppress mutation invocation for a safe semantic no-op, or enter the supported
+  mutation boundary and synchronously revalidate/recompute from its
+  callback-supplied current content
 → persist newly seen IDs and successful provider state
 → record successful completion
 → release global sync ownership
@@ -169,7 +171,14 @@ following invariants:
   fails.
 - A later sync recovers after that state-save failure through canonical
   reconciliation.
-- Identical resulting Markdown causes no vault write.
+- Identical resulting Markdown has the semantic outcome `unchanged`. Safe
+  preflight may suppress invoking the mutation primitive only when it proves
+  both that the intended Markdown is identical to the observed note content
+  and that no note-derived reconciliation or successful-state advancement
+  depends on that snapshot. Otherwise, the final mutation boundary must
+  operate on current vault content, even when the resulting Markdown is
+  unchanged. This contract does not claim anything about unobservable physical
+  filesystem I/O inside Obsidian.
 
 Provider-policy metadata such as a newly observed poll boundary or retry
 boundary may be persisted after a failed attempt when necessary to prevent an
@@ -282,7 +291,8 @@ requests, and must cover:
 - tracking-start changes reconsidering still-available history;
 - note-path change preserving continuity without old-note migration;
 - repeated successful sync with no provider change;
-- identical Markdown causing no vault write.
+- identical Markdown producing the semantic outcome `unchanged`, without a
+  physical-write guarantee.
 
 ### Concurrency and partial failure
 

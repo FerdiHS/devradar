@@ -39,10 +39,10 @@ casing. Only newly rendered markers use the canonical username supplied for
 the operation.
 
 A writable associated note must contain exactly one well-formed, correctly
-ordered, identity-matching pair. Fail closed without mutation for partial,
-duplicated, nested, reversed, mismatched, malformed, foreign, or otherwise
-ambiguous markers. Never infer boundaries from headings, blank lines, or
-activity content, and never repair markers automatically.
+ordered, identity-matching pair. Fail closed on partial, duplicated, nested,
+reversed, mismatched, malformed, foreign, or otherwise ambiguous markers
+without semantic note-content change. Never infer boundaries from headings,
+blank lines, or activity content, and never repair markers automatically.
 
 ### Marker grammar
 
@@ -168,7 +168,7 @@ Inspect the note before changing it.
   reused; a second section is never appended.
 - A foreign-person section rejects association without changing the note.
 - A username-only or account-ID-mismatched section rejects association without
-  automatic migration or mutation.
+  automatically migrating or changing the note.
 - After association, missing markers are an error rather than permission to
   recreate the section.
 - A missing associated note causes person-scoped sync failure rather than
@@ -190,13 +190,21 @@ it owns no trailing line ending after that marker. The line ending immediately
 before an end marker is part of the generated managed content, while the marker
 text itself remains an exact preserved anchor when replacing an existing note.
 
-After computing the intended content, compare it with the current content. If
-identical, perform no vault write. Re-rendering the same valid note and
-normalized activity set must produce identical Markdown.
+At the final mutation boundary, compute the intended content from the current
+note content and compare it with that same current content. If the resulting
+Markdown is identical, report the semantic/content outcome `unchanged`.
+Safe preflight may suppress invoking the mutation primitive only when it proves
+both that the intended Markdown is identical to the observed note content and
+that no note-derived reconciliation or successful-state advancement depends on
+the preflight snapshot. Otherwise, the operation must re-establish current-note
+authority at the final mutation boundary. Neither outcome makes a claim about
+unobservable physical filesystem I/O performed internally by Obsidian.
+Re-rendering the same valid note and normalized activity set must produce
+identical Markdown.
 
-Any failure to establish one unambiguous managed range occurs before mutation.
-The failed operation leaves the note unchanged and reports an actionable
-person-specific error.
+Any failure to establish one unambiguous managed range fails closed before any
+semantic note-content change. The failed operation leaves the note unchanged
+and reports an actionable person-specific error.
 
 Future implementation tests must cover EOF initialization for content ending in
 zero, one, and multiple line endings, trailing spaces, and each supported line-
