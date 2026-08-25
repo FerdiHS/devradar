@@ -200,9 +200,9 @@ a claim about unobservable physical filesystem I/O performed internally by
 Obsidian. Re-rendering the same valid note and normalized activity set must
 produce identical Markdown.
 
-Any failure to establish one unambiguous managed range occurs before mutation.
-The failed operation leaves the note unchanged and reports an actionable
-person-specific error.
+Any failure to establish one unambiguous managed range fails closed before any
+semantic note-content change. The failed operation leaves the note unchanged
+and reports an actionable person-specific error.
 
 Future implementation tests must cover EOF initialization for content ending in
 zero, one, and multiple line endings, trailing spaces, and each supported line-
