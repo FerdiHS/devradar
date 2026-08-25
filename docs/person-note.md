@@ -200,11 +200,6 @@ a claim about unobservable physical filesystem I/O performed internally by
 Obsidian. Re-rendering the same valid note and normalized activity set must
 produce identical Markdown.
 
-Issue #85 Desktop evidence exercised this current-content boundary successfully
-on Obsidian Desktop 1.13.7. That result is limited to the tested Desktop
-strategy; it does not claim Mobile runtime validation or implement note
-persistence.
-
 Any failure to establish one unambiguous managed range occurs before mutation.
 The failed operation leaves the note unchanged and reports an actionable
 person-specific error.
