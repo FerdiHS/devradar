@@ -188,8 +188,8 @@ rendering rules.
 Existing-note mutation must operate against the current vault contents at the
 mutation boundary. Revalidate the identity-matching managed range and
 recompute/apply the pure core transformation against that content, or detect a
-stale snapshot and fail without mutation. Never apply stale offsets or stale
-whole-note output; use `Vault.process()` or an equivalent safe
+stale snapshot and fail without semantic note-content change. Never apply stale
+offsets or stale whole-note output; use `Vault.process()` or an equivalent safe
 compare-and-transform operation.
 
 The supported final boundary is `Vault.process()` or an equivalent API whose

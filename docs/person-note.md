@@ -39,10 +39,10 @@ casing. Only newly rendered markers use the canonical username supplied for
 the operation.
 
 A writable associated note must contain exactly one well-formed, correctly
-ordered, identity-matching pair. Fail closed without mutation for partial,
-duplicated, nested, reversed, mismatched, malformed, foreign, or otherwise
-ambiguous markers. Never infer boundaries from headings, blank lines, or
-activity content, and never repair markers automatically.
+ordered, identity-matching pair. Fail closed on partial, duplicated, nested,
+reversed, mismatched, malformed, foreign, or otherwise ambiguous markers
+without semantic note-content change. Never infer boundaries from headings,
+blank lines, or activity content, and never repair markers automatically.
 
 ### Marker grammar
 
