@@ -171,11 +171,13 @@ following invariants:
 - A later sync recovers after that state-save failure through canonical
   reconciliation.
 - Identical resulting Markdown has the semantic outcome `unchanged`. Safe
-  preflight must suppress invoking the mutation primitive when no note-derived
-  reconciliation or successful-state advancement depends on that snapshot.
-  Otherwise the final mutation boundary still operates on current vault
-  content, even when the resulting Markdown is unchanged. This contract does
-  not claim anything about unobservable physical filesystem I/O inside Obsidian.
+  preflight may suppress invoking the mutation primitive only when it proves
+  both that the intended Markdown is identical to the observed note content
+  and that no note-derived reconciliation or successful-state advancement
+  depends on that snapshot. Otherwise, the final mutation boundary must
+  operate on current vault content, even when the resulting Markdown is
+  unchanged. This contract does not claim anything about unobservable physical
+  filesystem I/O inside Obsidian.
 
 Provider-policy metadata such as a newly observed poll boundary or retry
 boundary may be persisted after a failed attempt when necessary to prevent an
