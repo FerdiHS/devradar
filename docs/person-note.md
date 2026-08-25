@@ -168,7 +168,7 @@ Inspect the note before changing it.
   reused; a second section is never appended.
 - A foreign-person section rejects association without changing the note.
 - A username-only or account-ID-mismatched section rejects association without
-  automatic migration or mutation.
+  automatically migrating or changing the note.
 - After association, missing markers are an error rather than permission to
   recreate the section.
 - A missing associated note causes person-scoped sync failure rather than
