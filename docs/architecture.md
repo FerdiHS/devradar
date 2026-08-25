@@ -136,10 +136,10 @@ acquire guard
 -> normalize, filter, sort, and deduplicate provider events
 -> obtain and validate the associated note and managed range
 -> reconcile unseen canonical activities against the validated managed section
--> compute the intended managed-section replacement
--> safely revalidate/recompute against current vault content at the mutation boundary
--> suppress mutation invocation for a safe semantic no-op, or commit the
-   current-content result through the supported mutation boundary
+-> compute the preflight intended managed-section replacement
+-> suppress mutation invocation for a safe semantic no-op, or revalidate/recompute
+   from current content and pass the current-content result through the supported
+   mutation boundary
 -> persist successful state
 -> report outcome
 -> release guard
