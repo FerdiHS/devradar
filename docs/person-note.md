@@ -193,12 +193,14 @@ text itself remains an exact preserved anchor when replacing an existing note.
 At the final mutation boundary, compute the intended content from the current
 note content and compare it with that same current content. If the resulting
 Markdown is identical, report the semantic/content outcome `unchanged`.
-When safe preflight proves that no mutation or note-derived reconciliation/state
-advancement is needed, the application must not invoke the mutation primitive;
-a stale preflight must never authorize that suppression. Neither outcome makes
-a claim about unobservable physical filesystem I/O performed internally by
-Obsidian. Re-rendering the same valid note and normalized activity set must
-produce identical Markdown.
+Safe preflight may suppress invoking the mutation primitive only when it proves
+both that the intended Markdown is identical to the observed note content and
+that no note-derived reconciliation or successful-state advancement depends on
+the preflight snapshot. Otherwise, the operation must re-establish current-note
+authority at the final mutation boundary. A stale preflight must never
+authorize that suppression. Neither outcome makes a claim about unobservable
+physical filesystem I/O performed internally by Obsidian. Re-rendering the same
+valid note and normalized activity set must produce identical Markdown.
 
 Any failure to establish one unambiguous managed range fails closed before any
 semantic note-content change. The failed operation leaves the note unchanged
