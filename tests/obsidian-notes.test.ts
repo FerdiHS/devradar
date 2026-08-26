@@ -99,6 +99,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		['../octocat.md', 'unsafe'],
 		['/People/octocat.md', 'unsafe'],
 		['C:/People/octocat.md', 'unsafe'],
+		['People/octocat.txt', 'invalid'],
 	] as const)(
 		'rejects path %s before any vault operation',
 		async (path, reason) => {
@@ -135,6 +136,18 @@ describe('Obsidian note persistence path and target boundaries', () => {
 			error: { kind: 'missing-target' },
 		});
 		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
+
+	it('reads current Markdown from a file target', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockResolvedValue(VALID_NOTE);
+
+		expect(await notes.read('People/octocat.md')).toEqual({
+			kind: 'read',
+			markdown: VALID_NOTE,
+		});
+		expect(fakeVault.read).toHaveBeenCalledWith(file);
 	});
 
 	it('creates missing association targets but rejects missing process targets', async () => {
@@ -276,14 +289,16 @@ describe('Obsidian note persistence current-content processing', () => {
 			'- `2026-08-26T00:00:00Z` — old activity',
 		);
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		let persisted: string | undefined;
 		fakeVault.process.mockImplementation(
 			(_file: unknown, transform: (content: string) => string) => {
-				const output = transform(current);
-				expect(output).toContain('Edited before');
-				expect(output).toContain('\nAfter');
+				persisted = transform(current);
 			},
 		);
 
+		const expected = replaceManagedContent(current, IDENTITY, []);
+		if (!expected.ok)
+			throw new Error('expected valid current note fixture');
 		const result = await notes.process('People/octocat.md', (content) => {
 			const transformed = replaceManagedContent(content, IDENTITY, []);
 			return transformed.ok
@@ -292,6 +307,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		});
 
 		expect(result).toEqual({ kind: 'changed' });
+		expect(persisted).toBe(expected.value.markdown);
 	});
 
 	it('reports unchanged when the current transform returns identical content', async () => {
