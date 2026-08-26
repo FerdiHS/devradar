@@ -17,15 +17,16 @@ import {
 	type PersonIdentity,
 } from '../src/domain/person-note';
 
-const { FakeTFile } = vi.hoisted(() => ({
+const { FakeTFile, requireApiVersion } = vi.hoisted(() => ({
 	FakeTFile: class FakeTFile {
 		constructor(readonly path: string) {}
 	},
+	requireApiVersion: vi.fn(() => true),
 }));
 
 vi.mock('obsidian', () => ({
 	TFile: FakeTFile,
-	requireApiVersion: () => true,
+	requireApiVersion,
 }));
 
 type FakeVault = {
@@ -91,6 +92,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 
 	beforeEach(() => {
 		fakeVault = vault();
+		requireApiVersion.mockReturnValue(true);
 		notes = adapter(fakeVault);
 	});
 
@@ -279,6 +281,7 @@ describe('Obsidian note persistence current-content processing', () => {
 
 	beforeEach(() => {
 		fakeVault = vault();
+		requireApiVersion.mockReturnValue(true);
 		notes = adapter(fakeVault);
 	});
 
@@ -325,6 +328,27 @@ describe('Obsidian note persistence current-content processing', () => {
 				markdown: content,
 			})),
 		).toEqual({ kind: 'unchanged' });
+	});
+
+	it('fails closed when current-content processing is unavailable', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		requireApiVersion.mockReturnValue(false);
+
+		expect(
+			await notes.process('People/octocat.md', () => ({
+				kind: 'replace',
+				markdown: '',
+			})),
+		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
+		expect(
+			await notes.prepareAssociation(
+				'People/octocat.md',
+				'canonical',
+				() => ({ kind: 'reuse' }),
+			),
+		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
+		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
 	it('preserves caller-owned domain rejection data', async () => {
