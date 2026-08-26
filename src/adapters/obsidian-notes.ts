@@ -1,6 +1,10 @@
 import { requireApiVersion, TFile, type Vault } from 'obsidian';
 import { canonicalizeDraftNotePath } from '../domain/settings';
-import type { PersonNoteFailure } from '../domain/person-note';
+import {
+	renderNewPersonNote,
+	type PersonIdentity,
+	type PersonNoteFailure,
+} from '../domain/person-note';
 import type {
 	AssociationTransform,
 	CurrentContentTransform,
@@ -44,8 +48,8 @@ export function createObsidianNotePersistence(
 ): NotePersistence {
 	return {
 		read: (path) => read(vault, path),
-		prepareAssociation: (path, createMarkdown, transform) =>
-			prepareAssociation(vault, path, createMarkdown, transform),
+		prepareAssociation: (path, identity, transform) =>
+			prepareAssociation(vault, path, identity, transform),
 		process: (path, transform) => process(vault, path, transform),
 	};
 }
@@ -71,15 +75,21 @@ async function read(
 async function prepareAssociation(
 	vault: Pick<Vault, 'getAbstractFileByPath' | 'create' | 'process'>,
 	path: string,
-	createMarkdown: string,
+	identity: PersonIdentity,
 	transform: AssociationTransform,
 ): Promise<NotePreparationResult> {
 	const validated = validatePath(path);
 	if (!validated.ok) return failed<PersonNoteFailure>(validated.error);
 	const target = resolveTarget(vault, validated.path);
 	if (target.kind === 'missing') {
+		const rendered = renderNewPersonNote(identity);
+		if (!rendered.ok)
+			return failed({
+				kind: 'transform-rejection',
+				error: rendered.error,
+			});
 		try {
-			await vault.create(validated.path, createMarkdown);
+			await vault.create(validated.path, rendered.value);
 			return { kind: 'created' };
 		} catch {
 			return failed({ kind: 'create-failure' });

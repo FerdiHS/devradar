@@ -110,7 +110,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 				error: { kind: 'invalid-path', reason },
 			});
 			await expect(
-				notes.prepareAssociation(path, 'canonical', () => ({
+				notes.prepareAssociation(path, IDENTITY, () => ({
 					kind: 'reuse',
 				})),
 			).resolves.toMatchObject({
@@ -159,7 +159,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toEqual({ kind: 'created' });
@@ -186,7 +186,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toMatchObject({
@@ -229,7 +229,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
@@ -241,7 +241,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
 	});
 
-	it('creates the exact caller-rendered canonical note for explicit association', async () => {
+	it('creates the canonical new person note for explicit association', async () => {
 		const rendered = renderNewPersonNote(IDENTITY);
 		if (!rendered.ok) throw new Error('expected canonical note fixture');
 		const canonical = rendered.value;
@@ -251,7 +251,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				canonical,
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toEqual({ kind: 'created' });
@@ -261,6 +261,29 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		);
 	});
 
+	it('rejects an invalid identity before creating a missing association target', async () => {
+		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
+		const invalidIdentity: PersonIdentity = {
+			username: 'not valid',
+			githubId: IDENTITY.githubId,
+		};
+
+		expect(
+			await notes.prepareAssociation(
+				'People/octocat.md',
+				invalidIdentity,
+				() => ({ kind: 'reuse' }),
+			),
+		).toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: { kind: 'invalid-identity', field: 'username' },
+			},
+		});
+		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
+
 	it('translates creation conflicts without overwriting the destination', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		fakeVault.create.mockRejectedValue(new Error('already exists'));
@@ -268,7 +291,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toEqual({ kind: 'failed', error: { kind: 'create-failure' } });
@@ -350,7 +373,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
 		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
@@ -531,7 +554,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({
 					kind: 'reject',
 					error: rejection,
@@ -551,7 +574,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => ({
 					kind: 'reject',
 					error: rejection,
@@ -576,7 +599,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				(content) => {
 					const parsed = parsePersonNote(content, IDENTITY);
 					if (parsed.kind === 'valid-section')
@@ -614,7 +637,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				(content) => {
 					const parsed = parsePersonNote(content, IDENTITY);
 					return parsed.kind === 'valid-section'
@@ -645,7 +668,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
-				'canonical',
+				IDENTITY,
 				() => {
 					throw new Error('unexpected association failure');
 				},

@@ -1,4 +1,4 @@
-import type { PersonNoteFailure } from '../domain/person-note';
+import type { PersonIdentity, PersonNoteFailure } from '../domain/person-note';
 
 export type NotePersistenceFailure =
 	| {
@@ -61,7 +61,7 @@ export interface NotePersistence {
 
 	prepareAssociation(
 		path: string,
-		createMarkdown: string,
+		identity: PersonIdentity,
 		transform: AssociationTransform,
 	): Promise<NotePreparationResult>;
 
