@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { Vault } from 'obsidian';
 import type { CanonicalEventId } from '../src/domain/activity';
 import type { SyncDomainError } from '../src/domain/sync';
 import type {
@@ -29,24 +30,23 @@ vi.mock('obsidian', () => ({
 	requireApiVersion,
 }));
 
-type FakeVault = {
-	getAbstractFileByPath: ReturnType<typeof vi.fn>;
-	read: ReturnType<typeof vi.fn>;
-	create: ReturnType<typeof vi.fn>;
-	process: ReturnType<typeof vi.fn>;
-};
-
-function vault(): FakeVault {
-	return {
+function vault() {
+	const fakeVault = {
 		getAbstractFileByPath: vi.fn(),
 		read: vi.fn(),
 		create: vi.fn(),
 		process: vi.fn(),
 	};
+	return fakeVault satisfies Pick<
+		Vault,
+		'getAbstractFileByPath' | 'read' | 'create' | 'process'
+	>;
 }
 
+type FakeVault = ReturnType<typeof vault>;
+
 function adapter(fakeVault: FakeVault): NotePersistence {
-	return createObsidianNotePersistence(fakeVault as never);
+	return createObsidianNotePersistence(fakeVault);
 }
 
 const IDENTITY: PersonIdentity = { username: 'octocat', githubId: '583231' };
@@ -410,6 +410,37 @@ describe('Obsidian note persistence current-content processing', () => {
 				throw new Error('unexpected transform failure');
 			}),
 		).toEqual({ kind: 'failed', error: { kind: 'transform-failure' } });
+	});
+
+	it('preserves current Markdown when the domain rejects malformed markers', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const current = VALID_NOTE.replace(
+			'github-id="583231" -->',
+			'github-id="583231" extra -->',
+		);
+		let persisted: string | undefined;
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, transform: (content: string) => string) => {
+				persisted = transform(current);
+			},
+		);
+
+		const result = await notes.process('People/octocat.md', (content) => {
+			const transformed = replaceManagedContent(content, IDENTITY, []);
+			return transformed.ok
+				? { kind: 'replace', markdown: transformed.value.markdown }
+				: { kind: 'reject', error: transformed.error };
+		});
+
+		expect(result).toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: { kind: 'malformed-marker', marker: 'begin' },
+			},
+		});
+		expect(persisted).toBe(current);
 	});
 
 	it('preserves association rejection and gives process failure precedence', async () => {
