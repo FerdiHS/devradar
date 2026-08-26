@@ -74,10 +74,10 @@ describe('Obsidian note persistence contract', () => {
 			},
 		});
 
-		expectTypeOf(transform).toMatchTypeOf<
+		expectTypeOf(transform).toEqualTypeOf<
 			CurrentContentTransform<CallerError>
 		>();
-		expectTypeOf<NoteProcessResult<CallerError>>().toMatchTypeOf<{
+		expectTypeOf<NoteProcessResult<CallerError>>().toExtend<{
 			kind: 'changed' | 'unchanged' | 'failed';
 		}>();
 
