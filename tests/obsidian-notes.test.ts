@@ -293,6 +293,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		);
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
 		let persisted: string | undefined;
+		fakeVault.read.mockImplementation(() => persisted);
 		fakeVault.process.mockImplementation(
 			(_file: unknown, transform: (content: string) => string) => {
 				persisted = transform(current);
@@ -312,6 +313,10 @@ describe('Obsidian note persistence current-content processing', () => {
 
 		expect(result).toEqual({ kind: 'changed' });
 		expect(persisted).toBe(expected);
+		expect(await notes.read('People/octocat.md')).toEqual({
+			kind: 'read',
+			markdown: expected,
+		});
 	});
 
 	it('reports unchanged when the current transform returns identical content', async () => {
