@@ -36,7 +36,7 @@ export type NoteReadResult =
 	| { readonly kind: 'read'; readonly markdown: string }
 	| {
 			readonly kind: 'failed';
-			readonly error: NotePersistenceError;
+			readonly error: NotePersistenceFailure;
 	  };
 
 export type NotePreparationResult =

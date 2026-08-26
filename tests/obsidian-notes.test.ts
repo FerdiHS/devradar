@@ -4,7 +4,9 @@ import type { SyncDomainError } from '../src/domain/sync';
 import type {
 	CurrentContentTransform,
 	NotePersistence,
+	NotePersistenceFailure,
 	NoteProcessResult,
+	NoteReadResult,
 } from '../src/application/note-persistence';
 import { createObsidianNotePersistence } from '../src/adapters/obsidian-notes';
 import {
@@ -77,6 +79,9 @@ describe('Obsidian note persistence contract', () => {
 		expectTypeOf<NoteProcessResult<CallerError>>().toMatchTypeOf<{
 			kind: 'changed' | 'unchanged' | 'failed';
 		}>();
+
+		type ReadError = Extract<NoteReadResult, { kind: 'failed' }>['error'];
+		expectTypeOf<ReadError>().toEqualTypeOf<NotePersistenceFailure>();
 	});
 });
 

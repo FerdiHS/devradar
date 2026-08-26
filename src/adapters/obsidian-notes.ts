@@ -55,7 +55,7 @@ async function read(
 	path: string,
 ): Promise<NoteReadResult> {
 	const validated = validatePath(path);
-	if (!validated.ok) return failed<never>(validated.error);
+	if (!validated.ok) return failed(validated.error);
 	const target = resolveTarget(vault, validated.path);
 	if (target.kind === 'missing') return failed({ kind: 'missing-target' });
 	if (target.kind === 'non-file') return failed({ kind: 'non-file-target' });
@@ -223,11 +223,16 @@ function isUnsafePath(input: unknown): boolean {
 	);
 }
 
+function failed(error: NotePersistenceFailure): {
+	readonly kind: 'failed';
+	readonly error: NotePersistenceFailure;
+};
 function failed<TTransformError>(
 	error: NotePersistenceError<TTransformError>,
 ): {
 	readonly kind: 'failed';
 	readonly error: NotePersistenceError<TTransformError>;
-} {
+};
+function failed(error: NotePersistenceError<unknown>) {
 	return { kind: 'failed', error };
 }
