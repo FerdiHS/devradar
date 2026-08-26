@@ -563,11 +563,13 @@ describe('Obsidian note persistence current-content processing', () => {
 	it('initializes marker-free current content through the association transform', async () => {
 		const file = new FakeTFile('People/octocat.md');
 		const current = 'Current user content';
+		const associated = associatePersonNote(current, IDENTITY, []);
+		if (!associated.ok) throw new Error('expected association fixture');
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
 		fakeVault.process.mockImplementation(
 			(_file: unknown, transform: (content: string) => string) => {
 				const output = transform(current);
-				expect(output).toContain(current);
+				expect(output).toBe(associated.value.markdown);
 			},
 		);
 
