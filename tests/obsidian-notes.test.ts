@@ -299,9 +299,10 @@ describe('Obsidian note persistence current-content processing', () => {
 			},
 		);
 
-		const expected = replaceManagedContent(current, IDENTITY, []);
-		if (!expected.ok)
-			throw new Error('expected valid current note fixture');
+		const expected = current.replace(
+			'- `2026-08-26T00:00:00Z` — old activity',
+			'_No activity recorded by DevRadar yet._',
+		);
 		const result = await notes.process('People/octocat.md', (content) => {
 			const transformed = replaceManagedContent(content, IDENTITY, []);
 			return transformed.ok
@@ -310,7 +311,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		});
 
 		expect(result).toEqual({ kind: 'changed' });
-		expect(persisted).toBe(expected.value.markdown);
+		expect(persisted).toBe(expected);
 	});
 
 	it('reports unchanged when the current transform returns identical content', async () => {
@@ -438,6 +439,72 @@ describe('Obsidian note persistence current-content processing', () => {
 			error: {
 				kind: 'transform-rejection',
 				error: { kind: 'malformed-marker', marker: 'begin' },
+			},
+		});
+		expect(persisted).toBe(current);
+	});
+
+	it('preserves current Markdown for foreign markers', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const current = VALID_NOTE.replaceAll('octocat', 'other-person');
+		let persisted: string | undefined;
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, transform: (content: string) => string) => {
+				persisted = transform(current);
+			},
+		);
+
+		const result = await notes.process('People/octocat.md', (content) => {
+			const transformed = replaceManagedContent(content, IDENTITY, []);
+			return transformed.ok
+				? { kind: 'replace', markdown: transformed.value.markdown }
+				: { kind: 'reject', error: transformed.error };
+		});
+
+		expect(result).toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: {
+					kind: 'identity-mismatch',
+					reason: 'expected',
+					actual: { username: 'other-person', githubId: '583231' },
+					expected: IDENTITY,
+				},
+			},
+		});
+		expect(persisted).toBe(current);
+	});
+
+	it('preserves current Markdown for ambiguous markers', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const endMarker =
+			'<!-- devradar:end github="octocat" github-id="583231" -->';
+		const current = VALID_NOTE.replace(
+			endMarker,
+			`${endMarker}\n${endMarker}`,
+		);
+		let persisted: string | undefined;
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, transform: (content: string) => string) => {
+				persisted = transform(current);
+			},
+		);
+
+		const result = await notes.process('People/octocat.md', (content) => {
+			const transformed = replaceManagedContent(content, IDENTITY, []);
+			return transformed.ok
+				? { kind: 'replace', markdown: transformed.value.markdown }
+				: { kind: 'reject', error: transformed.error };
+		});
+
+		expect(result).toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: { kind: 'ambiguous-marker', reason: 'duplicate-end' },
 			},
 		});
 		expect(persisted).toBe(current);
