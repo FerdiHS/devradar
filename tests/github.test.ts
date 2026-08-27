@@ -132,6 +132,30 @@ describe('GitHub adapter request and identity boundaries', () => {
 		expect(transportCalls).toBe(1);
 	});
 
+	it('fails closed on an identity transport contract violation without retrying', async () => {
+		let transportCalls = 0;
+		const result = await new GitHubAdapter({
+			pluginVersion: '0.2.0-test',
+			transport: async () => {
+				transportCalls += 1;
+				throw new GitHubTransportContractError(
+					'transport contract blocked',
+				);
+			},
+			now: () => NOW,
+		}).resolveIdentity({ username: USERNAME });
+
+		expect(result).toMatchObject({
+			kind: 'provider-failure',
+			requestAttempted: false,
+			failure: {
+				category: 'transport-contract',
+				message: 'transport contract blocked',
+			},
+		});
+		expect(transportCalls).toBe(1);
+	});
+
 	it('builds the Events request with the same exact headers and page size', async () => {
 		const { adapter: github, requests } = adapter([response([event()])]);
 		const result = await github.retrieveEvents(eventsRequest());
