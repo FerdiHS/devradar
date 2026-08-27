@@ -25,7 +25,8 @@ function isApprovedRequestUrl(value: string): boolean {
 		url.origin !== API_ORIGIN ||
 		url.username !== '' ||
 		url.password !== '' ||
-		url.hash !== ''
+		url.hash !== '' ||
+		value.includes('#')
 	)
 		return false;
 	const parts = url.pathname.split('/');
@@ -34,7 +35,7 @@ function isApprovedRequestUrl(value: string): boolean {
 		parts[1] === 'users' &&
 		isCanonicalGitHubUsername(parts[2])
 	)
-		return url.search === '';
+		return url.search === '' && !value.includes('?');
 	if (
 		parts.length !== 5 ||
 		parts[1] !== 'users' ||

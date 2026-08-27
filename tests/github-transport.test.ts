@@ -88,6 +88,12 @@ describe('Obsidian GitHub transport boundary', () => {
 			'fragment',
 			'https://api.github.com/users/octocat/events/public?per_page=100#page',
 		],
+		['empty identity fragment', 'https://api.github.com/users/octocat#'],
+		['empty identity query', 'https://api.github.com/users/octocat?'],
+		[
+			'empty Events fragment',
+			'https://api.github.com/users/octocat/events/public?per_page=100#',
+		],
 		[
 			'malformed query',
 			'https://api.github.com/users/octocat/events/public?page=1&per_page=99',
