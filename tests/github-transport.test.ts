@@ -6,13 +6,20 @@ const requestUrl = vi.hoisted(() => vi.fn());
 
 vi.mock('obsidian', () => ({ Platform: obsidianPlatform, requestUrl }));
 
+const PLUGIN_VERSION = '0.2.0-test';
+const VALID_HEADERS = {
+	Accept: 'application/vnd.github+json',
+	'User-Agent': `DevRadar/${PLUGIN_VERSION} (https://github.com/FerdiHS/devradar)`,
+	'X-GitHub-Api-Version': '2026-03-10',
+};
+
 describe('Obsidian GitHub transport boundary', () => {
 	beforeEach(() => {
 		requestUrl.mockReset();
 		obsidianPlatform.isMobile = false;
 	});
 
-	it('uses requestUrl for the approved GitHub endpoint by default', async () => {
+	it('uses requestUrl for an approved GitHub endpoint', async () => {
 		requestUrl.mockResolvedValue({
 			status: 200,
 			headers: {},
@@ -20,12 +27,12 @@ describe('Obsidian GitHub transport boundary', () => {
 		});
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 		await expect(
 			transport({
 				url: 'https://api.github.com/users/octocat',
-				headers: {},
+				headers: VALID_HEADERS,
 			}),
 		).resolves.toEqual({
 			status: 200,
@@ -55,26 +62,69 @@ describe('Obsidian GitHub transport boundary', () => {
 			'trailing query separator',
 			'https://api.github.com/users/octocat/events/public?page=2&per_page=100&',
 		],
+		[
+			'unsupported initial page',
+			'https://api.github.com/users/octocat/events/public?page=1&per_page=100',
+		],
+		[
+			'unsupported later page',
+			'https://api.github.com/users/octocat/events/public?page=4&per_page=100',
+		],
 	] as const)('rejects %s before requestUrl', async (_case, url) => {
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
-		await expect(transport({ url, headers: {} })).rejects.toThrow(
-			GitHubTransportContractError,
-		);
+		await expect(
+			transport({ url, headers: VALID_HEADERS }),
+		).rejects.toThrow(GitHubTransportContractError);
 		expect(requestUrl).not.toHaveBeenCalled();
 	});
 
 	it('rejects unapproved headers before requestUrl', async () => {
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 		await expect(
 			transport({
 				url: 'https://api.github.com/users/octocat',
 				headers: { 'X-Probe-Token': 'secret' },
+			}),
+		).rejects.toThrow(GitHubTransportContractError);
+		expect(requestUrl).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['missing headers', {}],
+		['wrong Accept', { ...VALID_HEADERS, Accept: 'text/plain' }],
+		[
+			'wrong User-Agent',
+			{
+				...VALID_HEADERS,
+				'User-Agent':
+					'DevRadar/0.1.0 (https://github.com/FerdiHS/devradar)',
+			},
+		],
+		[
+			'wrong API version',
+			{ ...VALID_HEADERS, 'X-GitHub-Api-Version': '2022-11-28' },
+		],
+		[
+			'duplicate API version casing',
+			{ ...VALID_HEADERS, 'x-github-api-version': '2022-11-28' },
+		],
+		['Authorization', { ...VALID_HEADERS, Authorization: 'Bearer secret' }],
+		['Cookie', { ...VALID_HEADERS, Cookie: 'secret=value' }],
+	] as const)('rejects %s before requestUrl', async (_case, headers) => {
+		const { createObsidianGitHubTransport } =
+			await import('../src/adapters/github-transport');
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
+
+		await expect(
+			transport({
+				url: 'https://api.github.com/users/octocat',
+				headers,
 			}),
 		).rejects.toThrow(GitHubTransportContractError);
 		expect(requestUrl).not.toHaveBeenCalled();
@@ -92,9 +142,11 @@ describe('Obsidian GitHub transport boundary', () => {
 		});
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
-		await expect(transport({ url, headers: {} })).resolves.toMatchObject({
+		await expect(
+			transport({ url, headers: VALID_HEADERS }),
+		).resolves.toMatchObject({
 			status: 200,
 			json: {},
 		});
@@ -105,12 +157,12 @@ describe('Obsidian GitHub transport boundary', () => {
 		obsidianPlatform.isMobile = true;
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 		await expect(
 			transport({
 				url: 'https://api.github.com/users/octocat',
-				headers: {},
+				headers: VALID_HEADERS,
 			}),
 		).rejects.toThrow(GitHubTransportContractError);
 		expect(requestUrl).not.toHaveBeenCalled();
@@ -126,12 +178,12 @@ describe('Obsidian GitHub transport boundary', () => {
 			});
 			const { createObsidianGitHubTransport } =
 				await import('../src/adapters/github-transport');
-			const transport = createObsidianGitHubTransport();
+			const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 			await expect(
 				transport({
 					url: 'https://api.github.com/users/octocat',
-					headers: {},
+					headers: VALID_HEADERS,
 				}),
 			).resolves.toMatchObject({ status, json: {} });
 		},
@@ -142,12 +194,12 @@ describe('Obsidian GitHub transport boundary', () => {
 		requestUrl.mockRejectedValue(error);
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 		await expect(
 			transport({
 				url: 'https://api.github.com/users/octocat',
-				headers: {},
+				headers: VALID_HEADERS,
 			}),
 		).rejects.toBe(error);
 	});
@@ -161,15 +213,10 @@ describe('Obsidian GitHub transport boundary', () => {
 		});
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 		const result = await transport({
 			url: 'https://api.github.com/users/octocat',
-			headers: {
-				Accept: 'application/vnd.github+json',
-				'User-Agent':
-					'DevRadar/0.2.0-test (https://github.com/FerdiHS/devradar)',
-				'X-GitHub-Api-Version': '2026-03-10',
-			},
+			headers: VALID_HEADERS,
 		});
 
 		expect(result).toEqual({
@@ -180,12 +227,7 @@ describe('Obsidian GitHub transport boundary', () => {
 		expect(requestUrl).toHaveBeenCalledWith({
 			url: 'https://api.github.com/users/octocat',
 			method: 'GET',
-			headers: {
-				Accept: 'application/vnd.github+json',
-				'User-Agent':
-					'DevRadar/0.2.0-test (https://github.com/FerdiHS/devradar)',
-				'X-GitHub-Api-Version': '2026-03-10',
-			},
+			headers: VALID_HEADERS,
 			throw: false,
 		});
 	});
@@ -204,12 +246,12 @@ describe('Obsidian GitHub transport boundary', () => {
 		requestUrl.mockResolvedValue(response);
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport();
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
 
 		await expect(
 			transport({
 				url: 'https://api.github.com/users/octocat',
-				headers: {},
+				headers: VALID_HEADERS,
 			}),
 		).resolves.toMatchObject({
 			status: 200,

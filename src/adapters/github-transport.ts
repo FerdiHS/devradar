@@ -8,13 +8,10 @@ import type {
 import { GitHubTransportContractError } from './github';
 
 const API_ORIGIN = 'https://api.github.com';
-const APPROVED_REQUEST_HEADERS = new Set([
-	'accept',
-	'user-agent',
-	'x-github-api-version',
-]);
+const ACCEPT_HEADER = 'application/vnd.github+json';
+const API_VERSION_HEADER = '2026-03-10';
 const EVENTS_QUERY =
-	/^(?:\?per_page=100|\?page=[1-9]\d*&per_page=100|\?per_page=100&page=[1-9]\d*)$/;
+	/^(?:\?per_page=100|\?page=[23]&per_page=100|\?per_page=100&page=[23])$/;
 
 function isApprovedRequestUrl(value: string): boolean {
 	let url: URL;
@@ -49,22 +46,44 @@ function isApprovedRequestUrl(value: string): boolean {
 	return EVENTS_QUERY.test(url.search);
 }
 
-function hasUnapprovedHeader(
+function hasInvalidRequestHeaders(
 	headers: Readonly<Record<string, string>>,
+	pluginVersion: string,
 ): boolean {
-	return Object.keys(headers).some(
-		(header) => !APPROVED_REQUEST_HEADERS.has(header.toLowerCase()),
-	);
+	const expectedHeaders = new Map([
+		['accept', ACCEPT_HEADER],
+		[
+			'user-agent',
+			`DevRadar/${pluginVersion} (https://github.com/FerdiHS/devradar)`,
+		],
+		['x-github-api-version', API_VERSION_HEADER],
+	]);
+	const seenHeaders = new Set<string>();
+	for (const [header, value] of Object.entries(headers)) {
+		const normalizedHeader = header.toLowerCase();
+		const expectedValue = expectedHeaders.get(normalizedHeader);
+		if (
+			expectedValue === undefined ||
+			seenHeaders.has(normalizedHeader) ||
+			value !== expectedValue
+		)
+			return true;
+		seenHeaders.add(normalizedHeader);
+	}
+	return seenHeaders.size !== expectedHeaders.size;
 }
 
-function assertApprovedRequest(request: GitHubTransportRequest): void {
+function assertApprovedRequest(
+	request: GitHubTransportRequest,
+	pluginVersion: string,
+): void {
 	if (Platform.isMobile)
 		throw new GitHubTransportContractError(
 			'GitHub transport is unavailable on Obsidian Mobile',
 		);
 	if (
 		!isApprovedRequestUrl(request.url) ||
-		hasUnapprovedHeader(request.headers)
+		hasInvalidRequestHeaders(request.headers, pluginVersion)
 	)
 		throw new GitHubTransportContractError(
 			'GitHub request is outside the approved unauthenticated endpoint scope',
@@ -78,11 +97,13 @@ function assertApprovedRequest(request: GitHubTransportRequest): void {
  * docs/github.md; the supported response type does not expose final URL/origin
  * information.
  */
-export function createObsidianGitHubTransport(): GitHubTransport {
+export function createObsidianGitHubTransport(
+	pluginVersion: string,
+): GitHubTransport {
 	return async (
 		request: GitHubTransportRequest,
 	): Promise<GitHubTransportResponse> => {
-		assertApprovedRequest(request);
+		assertApprovedRequest(request, pluginVersion);
 		const response = await requestUrl({
 			url: request.url,
 			method: 'GET',
