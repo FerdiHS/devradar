@@ -62,7 +62,8 @@ export type GitHubFailureCategory =
 	| 'rate-limit'
 	| 'api-version'
 	| 'unexpected-not-modified'
-	| 'redirect-contract';
+	| 'redirect-contract'
+	| 'transport-contract';
 
 export type GitHubFailure = {
 	readonly category: GitHubFailureCategory;
@@ -920,7 +921,7 @@ export class GitHubAdapter {
 			} catch (error) {
 				if (error instanceof GitHubTransportContractError)
 					return resultProviderFailure(
-						failure('redirect-contract', error.message),
+						failure('transport-contract', error.message),
 						state,
 						false,
 					);
@@ -1073,7 +1074,7 @@ export class GitHubAdapter {
 				} catch (error) {
 					if (error instanceof GitHubTransportContractError)
 						return resultProviderFailure(
-							failure('redirect-contract', error.message),
+							failure('transport-contract', error.message),
 							{ ...state, pollNotBeforeMs },
 							false,
 						);

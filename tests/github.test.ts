@@ -108,14 +108,14 @@ describe('GitHub adapter request and identity boundaries', () => {
 		});
 	});
 
-	it('fails closed on the redirect contract without retrying or attempting a request', async () => {
+	it('fails closed on a transport contract violation without retrying or attempting a request', async () => {
 		let transportCalls = 0;
 		const result = await new GitHubAdapter({
 			pluginVersion: '0.2.0-test',
 			transport: async () => {
 				transportCalls += 1;
 				throw new GitHubTransportContractError(
-					'redirect contract blocked',
+					'transport contract blocked',
 				);
 			},
 			now: () => NOW,
@@ -125,8 +125,8 @@ describe('GitHub adapter request and identity boundaries', () => {
 			kind: 'provider-failure',
 			requestAttempted: false,
 			failure: {
-				category: 'redirect-contract',
-				message: 'redirect contract blocked',
+				category: 'transport-contract',
+				message: 'transport contract blocked',
 			},
 		});
 		expect(transportCalls).toBe(1);
