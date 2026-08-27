@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubTransportContractError } from '../src/adapters/github';
 
-const obsidianPlatform = vi.hoisted(() => ({ isMobile: false }));
+const obsidianPlatform = vi.hoisted(() => ({
+	isMobile: false,
+	isMobileApp: false,
+}));
 const requestUrl = vi.hoisted(() => vi.fn());
 
 vi.mock('obsidian', () => ({ Platform: obsidianPlatform, requestUrl }));
@@ -17,6 +20,7 @@ describe('Obsidian GitHub transport boundary', () => {
 	beforeEach(() => {
 		requestUrl.mockReset();
 		obsidianPlatform.isMobile = false;
+		obsidianPlatform.isMobileApp = false;
 	});
 
 	it('uses requestUrl for an approved GitHub endpoint', async () => {
@@ -112,7 +116,7 @@ describe('Obsidian GitHub transport boundary', () => {
 		],
 		[
 			'duplicate API version casing',
-			{ ...VALID_HEADERS, 'x-github-api-version': '2022-11-28' },
+			{ ...VALID_HEADERS, 'x-github-api-version': '2026-03-10' },
 		],
 		['Authorization', { ...VALID_HEADERS, Authorization: 'Bearer secret' }],
 		['Cookie', { ...VALID_HEADERS, Cookie: 'secret=value' }],
@@ -134,6 +138,7 @@ describe('Obsidian GitHub transport boundary', () => {
 		'https://api.github.com/users/octocat/events/public?per_page=100',
 		'https://api.github.com/users/octocat/events/public?page=2&per_page=100',
 		'https://api.github.com/users/octocat/events/public?per_page=100&page=2',
+		'https://api.github.com/users/octocat/events/public?page=3&per_page=100',
 	])('accepts approved Events URL %s', async (url) => {
 		requestUrl.mockResolvedValue({
 			status: 200,
@@ -154,7 +159,7 @@ describe('Obsidian GitHub transport boundary', () => {
 	});
 
 	it('fails closed on Mobile before requestUrl', async () => {
-		obsidianPlatform.isMobile = true;
+		obsidianPlatform.isMobileApp = true;
 		const { createObsidianGitHubTransport } =
 			await import('../src/adapters/github-transport');
 		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
@@ -166,6 +171,26 @@ describe('Obsidian GitHub transport boundary', () => {
 			}),
 		).rejects.toThrow(GitHubTransportContractError);
 		expect(requestUrl).not.toHaveBeenCalled();
+	});
+
+	it('allows Desktop transport when only the UI is in mobile mode', async () => {
+		obsidianPlatform.isMobile = true;
+		requestUrl.mockResolvedValue({
+			status: 200,
+			headers: {},
+			text: '{}',
+		});
+		const { createObsidianGitHubTransport } =
+			await import('../src/adapters/github-transport');
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
+
+		await expect(
+			transport({
+				url: 'https://api.github.com/users/octocat',
+				headers: VALID_HEADERS,
+			}),
+		).resolves.toMatchObject({ status: 200, json: {} });
+		expect(requestUrl).toHaveBeenCalledOnce();
 	});
 
 	it.each([302, 400, 500])(

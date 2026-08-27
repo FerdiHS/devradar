@@ -77,7 +77,7 @@ function assertApprovedRequest(
 	request: GitHubTransportRequest,
 	pluginVersion: string,
 ): void {
-	if (Platform.isMobile)
+	if (Platform.isMobileApp)
 		throw new GitHubTransportContractError(
 			'GitHub transport is unavailable on Obsidian Mobile',
 		);
