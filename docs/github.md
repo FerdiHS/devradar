@@ -74,6 +74,36 @@ The [GitHub Events REST documentation](https://docs.github.com/en/rest/activity/
 defines the public user-events endpoint, `X-Poll-Interval`,
 pagination, a maximum recent timeline, and delayed event availability.
 
+## Redirect scope and accepted residual risk
+
+The MVP intentionally uses only these GitHub REST operations:
+
+- `GET /users/{username}` for public identity resolution;
+- `GET /users/{username}/events/public` for public activity retrieval; and
+- validated `rel="next"` links for subsequent Events pages.
+
+The production boundary rejects requests outside this URL and public-header
+scope before calling `requestUrl()`; the adapter remains responsible for
+canonical identity and pagination validation.
+
+GitHub's current [user](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10)
+and [public-user-events](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)
+reference pages document no `3xx` response for these operations. DevRadar does
+not use the explicitly redirect-capable [archive](https://docs.github.com/en/rest/repos/contents?apiVersion=2026-03-10),
+[release-asset](https://docs.github.com/en/rest/releases/assets?apiVersion=2022-11-28),
+or binary repository-content operations. This endpoint scope reduces the
+practical redirect risk, but it does not guarantee that GitHub will never
+redirect a request; [GitHub's general REST guidance](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
+says clients should assume that any request may redirect.
+
+Obsidian's supported `requestUrl()` response does not expose the final URL or
+origin. The current Desktop probe therefore cannot establish a final-target
+security invariant. For the current unauthenticated, public-data endpoint
+scope, DevRadar accepts this as a documented residual transport risk and does
+not claim that redirects are impossible. If a future change adds a new
+endpoint, follows a new provider URL, or sends credentials, reassess this
+decision before implementation.
+
 ## Available history
 
 GitHub Events are a recent, bounded provider feed rather than exhaustive
@@ -233,18 +263,8 @@ includes a `400` or `410` response whose supported response data explicitly says
 the requested API version is unsupported or retired. A generic `400` or `410`,
 or a broad provider-error heuristic, is not sufficient.
 
-Before relying on Obsidian `requestUrl()` behavior in production, perform one
-bounded post-merge production-enablement verification on the designated Desktop
-validation target. Verify its supported status/error/header/body and redirect
-behavior, including whether redirects are followed, whether the original or
-final URL/origin is observable, and whether the approved origin, followed
-identity/rename, and validated-pagination guarantees can be preserved. A PASS
-is evidence only that the validated Desktop GitHub capability is eligible for
-later downstream production integration; it does not itself enable production
-transport. If the guarantees cannot be preserved, stop the affected
-implementation path and document the dedicated contract blocker. Do not
-broaden this into a general networking investigation or use browser, Node.js,
-Electron-only, or private APIs.
+See the [redirect-scope decision above](#redirect-scope-and-accepted-residual-risk);
+reassess it if the endpoint scope or data sensitivity changes.
 
 Production remains `isDesktopOnly: false`. Verify every Obsidian API used by
 the adapter, including `requestUrl()`, against the declared minimum through
@@ -259,12 +279,11 @@ compatibility evidence. If a required API is unavailable, raise the minimum
 deliberately through the appropriate release-compatibility change rather than
 silently weakening the contract.
 
-After this contract alignment merges, revise GitHub Issue #83 before executing
-it: require Desktop evidence for the relevant GitHub transport capability,
-replace mandatory iOS/Android runtime evidence with a Mobile compatibility
-review, keep Mobile transport unvalidated and fail-closed, and make a Desktop
-PASS eligible only for later Desktop-only production integration of that
-validated capability. Do not modify or execute #83 as part of this issue.
+The [GitHub Issue #83](https://github.com/FerdiHS/devradar/issues/83) body and
+decision comment record the same accepted residual-risk disposition. This
+repository change does not close the issue, establish final-origin observability,
+waive minimum-runtime or platform compatibility review, or authorize broader
+GitHub transport.
 
 ## Failure classification
 
