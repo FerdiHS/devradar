@@ -371,6 +371,23 @@ describe('FollowApplication', () => {
 		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
 	});
 
+	it('does not request GitHub again while settings recovery is active', async () => {
+		const view = followApp(
+			settings(),
+			identityFailure('person-failure', {
+				rateLimitNotBefore: OBSERVED_BOUNDARY,
+			}),
+			{ save: () => ({ kind: 'write-failure' }) },
+		);
+
+		const first = await view.app.follow(draft());
+		const second = await view.app.follow(draft());
+
+		expect(first).toEqual({ kind: 'failed', reason: 'persistence' });
+		expect(second).toEqual({ kind: 'failed', reason: 'settings-not-ready' });
+		expect(view.github.resolveIdentity).toHaveBeenCalledTimes(1);
+	});
+
 	it('gives policy-only persistence failure precedence for duplicate failure', async () => {
 		const view = followApp(
 			settings([person('octocat', '42', 'People/old.md')]),
