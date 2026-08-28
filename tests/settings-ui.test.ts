@@ -22,6 +22,8 @@ class FakeElement {
 	children: FakeElement[] = [];
 	tag = '';
 	text = '';
+	id = '';
+	htmlFor = '';
 	disabled = false;
 	type = '';
 	value = '';
@@ -285,6 +287,27 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		expect(
 			elements.filter((element) => element.tag === 'input'),
 		).toHaveLength(2);
+		expect(
+			elements
+				.filter((element) => element.tag === 'label')
+				.map((element) => element.htmlFor),
+		).toEqual([
+			'devradar-follow-username',
+			'devradar-follow-note-path',
+			'devradar-follow-tracking-start',
+		]);
+		expect(
+			elements
+				.filter(
+					(element) =>
+						element.tag === 'input' || element.tag === 'select',
+				)
+				.map((element) => element.id),
+		).toEqual([
+			'devradar-follow-username',
+			'devradar-follow-note-path',
+			'devradar-follow-tracking-start',
+		]);
 	});
 
 	it('renders canonical followed-person details in persisted order', () => {
@@ -354,6 +377,13 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			(element) => element.type === 'datetime-local',
 		);
 		if (!date) throw new Error('expected date input');
+		expect(
+			allElements(view.root).find(
+				(element) =>
+					element.tag === 'label' && element.text === 'Date & time',
+			)?.htmlFor,
+		).toBe('devradar-follow-from-date');
+		expect(date.id).toBe('devradar-follow-from-date');
 		date.value = '2026-08-01T12:34';
 		date.emit('input');
 

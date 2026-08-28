@@ -83,16 +83,24 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}[],
 	): void {
 		containerEl.createEl('p', { text: 'Follow a GitHub user' });
-		containerEl.createEl('label', { text: 'GitHub username' });
+		const usernameLabel = containerEl.createEl('label', {
+			text: 'GitHub username',
+		});
 		const username = containerEl.createEl('input');
+		username.id = 'devradar-follow-username';
+		usernameLabel.htmlFor = username.id;
 		username.type = 'text';
 		username.value = this.username;
 		username.addEventListener('input', () => {
 			this.username = username.value;
 		});
 
-		containerEl.createEl('label', { text: 'Note destination' });
+		const notePathLabel = containerEl.createEl('label', {
+			text: 'Note destination',
+		});
 		const notePath = containerEl.createEl('input');
+		notePath.id = 'devradar-follow-note-path';
+		notePathLabel.htmlFor = notePath.id;
 		notePath.type = 'text';
 		notePath.value = this.notePath;
 		notePath.placeholder = 'People/octocat.md';
@@ -100,8 +108,12 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			this.notePath = notePath.value;
 		});
 
-		containerEl.createEl('label', { text: 'Tracking start' });
+		const trackingStartLabel = containerEl.createEl('label', {
+			text: 'Tracking start',
+		});
 		const trackingStart = containerEl.createEl('select');
+		trackingStart.id = 'devradar-follow-tracking-start';
+		trackingStartLabel.htmlFor = trackingStart.id;
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
@@ -119,8 +131,12 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		});
 
 		if (this.trackingStartMode === 'from-date') {
-			containerEl.createEl('label', { text: 'Date & time' });
+			const fromDateLabel = containerEl.createEl('label', {
+				text: 'Date & time',
+			});
 			const fromDate = containerEl.createEl('input');
+			fromDate.id = 'devradar-follow-from-date';
+			fromDateLabel.htmlFor = fromDate.id;
 			fromDate.type = 'datetime-local';
 			fromDate.step = '60';
 			fromDate.value = this.fromDate;
