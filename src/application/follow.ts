@@ -341,7 +341,7 @@ function cloneSettings(current: DevRadarSettingsV1): DevRadarSettingsV1 {
 }
 
 function addAssociation(
-	current: DevRadarSettingsV1,
+	settings: DevRadarSettingsV1,
 	identity: GitHubIdentity,
 	draft: PreparedDraft,
 	commitInstant: string,
@@ -359,7 +359,6 @@ function addAssociation(
 		trackingStart,
 		syncState: createEmptyPersonSyncState(),
 	};
-	const settings = cloneSettings(current);
 	settings.followedPeople.push(person);
 	return settings;
 }
