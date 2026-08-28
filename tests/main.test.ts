@@ -74,9 +74,18 @@ describe('DevRadarPlugin settings lifecycle', () => {
 
 		await plugin.onload();
 		await plugin.retrySettingsLoad();
+		const result = await plugin.follow({
+			username: 'octocat',
+			notePath: 'People/octocat.md',
+			trackingStart: { mode: 'now' },
+		});
 
 		expect(reads).toBe(0);
 		expect(saveData).not.toHaveBeenCalled();
+		expect(result).toEqual({
+			kind: 'failed',
+			reason: 'settings-not-ready',
+		});
 		expect(plugin.getSettingsState()).toEqual({
 			kind: 'recovery',
 			diagnostic: { kind: 'unsupported-platform' },

@@ -16,11 +16,17 @@ import {
 	type SettingsRuntimeState,
 	type SettingsTabHost,
 } from '../src/settings';
+import type { FollowedPersonV1 } from '../src/domain/settings';
 
 class FakeElement {
 	children: FakeElement[] = [];
+	tag = '';
 	text = '';
 	disabled = false;
+	type = '';
+	value = '';
+	placeholder = '';
+	step = '';
 	private listeners = new Map<string, () => void>();
 
 	empty(): void {
@@ -29,6 +35,7 @@ class FakeElement {
 
 	createEl(_tag: string, options?: { text?: string }): FakeElement {
 		const child = new FakeElement();
+		child.tag = _tag;
 		child.text = options?.text ?? '';
 		this.children.push(child);
 		return child;
@@ -43,19 +50,34 @@ class FakeElement {
 	}
 }
 
+function allElements(root: FakeElement): FakeElement[] {
+	return root.children.flatMap((child) => [child, ...allElements(child)]);
+}
+
+const readyEmpty: SettingsRuntimeState = {
+	kind: 'ready',
+	settings: { schemaVersion: 1, followedPeople: [] },
+};
+
 function tabFor(state: SettingsRuntimeState, pending = false) {
 	const resetSettings = vi.fn(async () => undefined);
 	const retrySettingsLoad = vi.fn(async () => undefined);
+	const follow = vi.fn(async () => ({
+		kind: 'failed' as const,
+		reason: 'internal' as const,
+	}));
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
 		isRecoveryActionPending: () => pending,
 		retrySettingsLoad,
 		resetSettings,
+		isFollowPending: () => false,
+		follow,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
 	const root = new FakeElement();
 	(tab as unknown as { containerEl: FakeElement }).containerEl = root;
-	return { host, tab, root, resetSettings, retrySettingsLoad };
+	return { host, tab, root, resetSettings, retrySettingsLoad, follow };
 }
 
 const ordinaryMalformed = {
@@ -173,6 +195,11 @@ describe('DevRadarSettingTab recovery UI', () => {
 			isRecoveryActionPending: () => pending,
 			retrySettingsLoad,
 			resetSettings,
+			isFollowPending: () => false,
+			follow: vi.fn(async () => ({
+				kind: 'failed' as const,
+				reason: 'internal' as const,
+			})),
 		};
 		const tab = new DevRadarSettingTab({} as never, {} as never, host);
 		const root = new FakeElement();
@@ -234,5 +261,125 @@ describe('DevRadarSettingTab recovery UI', () => {
 
 		expect(view.resetSettings).toHaveBeenCalledTimes(1);
 		await Promise.resolve();
+	});
+});
+
+describe('DevRadarSettingTab ready Follow UI', () => {
+	it('renders the minimal Follow form and explicit empty state', () => {
+		const view = tabFor(readyEmpty);
+		view.tab.display();
+		const elements = allElements(view.root);
+		const text = elements.map((element) => element.text).join('\n');
+
+		expect(text).toContain('GitHub username');
+		expect(text).toContain('Note destination');
+		expect(text).toContain('Tracking start');
+		expect(text).toContain('No followed people yet.');
+		expect(
+			elements.filter((element) => element.tag === 'option'),
+		).toHaveLength(3);
+		expect(
+			elements.filter((element) => element.tag === 'input'),
+		).toHaveLength(2);
+	});
+
+	it('renders canonical followed-person details in persisted order', () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 1,
+				followedPeople: [
+					{
+						username: 'first',
+						githubAccountId: '1',
+						notePath: 'People/first.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+					{
+						username: 'second',
+						githubAccountId: '2',
+						notePath: 'People/second.md',
+						trackingStart: {
+							mode: 'from-date',
+							at: '2026-08-01T00:00:00.000Z',
+						},
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		view.tab.display();
+		const items = allElements(view.root)
+			.filter((element) => element.tag === 'li')
+			.map((element) => element.text);
+
+		expect(items).toEqual([
+			'@first — People/first.md — Available recent activity',
+			'@second — People/second.md — Date & time: 2026-08-01T00:00:00.000Z',
+		]);
+	});
+
+	it('disables Follow and prevents duplicate submissions while pending', async () => {
+		let release!: (result: {
+			kind: 'followed';
+			person: FollowedPersonV1;
+			noteDisposition: 'created';
+		}) => void;
+		const pending = new Promise<{
+			kind: 'followed';
+			person: FollowedPersonV1;
+			noteDisposition: 'created';
+		}>((resolve) => {
+			release = resolve;
+		});
+		const follow = vi.fn(() => pending);
+		const host: SettingsTabHost = {
+			getSettingsState: () => readyEmpty,
+			isRecoveryActionPending: () => false,
+			retrySettingsLoad: vi.fn(async () => undefined),
+			resetSettings: vi.fn(async () => undefined),
+			isFollowPending: () => false,
+			follow,
+		};
+		const tab = new DevRadarSettingTab({} as never, {} as never, host);
+		const root = new FakeElement();
+		(tab as unknown as { containerEl: FakeElement }).containerEl = root;
+		tab.display();
+		const button = allElements(root).find(
+			(element) => element.tag === 'button' && element.text === 'Follow',
+		);
+		if (!button) throw new Error('expected Follow button');
+
+		button.click();
+		button.click();
+		expect(follow).toHaveBeenCalledTimes(1);
+		const pendingButton = allElements(root).find(
+			(element) => element.tag === 'button' && element.text === 'Follow',
+		);
+		expect(pendingButton?.disabled).toBe(true);
+
+		release({
+			kind: 'followed',
+			person: {
+				username: 'octocat',
+				githubAccountId: '42',
+				notePath: 'People/octocat.md',
+				trackingStart: { mode: 'available-recent' },
+				syncState: { seenEvents: [], github: {} },
+			},
+			noteDisposition: 'created',
+		});
+		await pending;
+		await Promise.resolve();
+		const readyButton = allElements(root).find(
+			(element) => element.tag === 'button' && element.text === 'Follow',
+		);
+		expect(readyButton?.disabled).toBe(false);
+		expect(
+			allElements(root)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('Followed @octocat (created).');
 	});
 });
