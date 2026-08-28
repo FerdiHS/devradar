@@ -505,7 +505,8 @@ describe('FollowApplication', () => {
 			settings: { followedPeople: expect.any(Array) },
 		});
 		const finalState = settingsApplication.getSettingsState();
-		if (finalState.kind !== 'ready') throw new Error('expected ready state');
+		if (finalState.kind !== 'ready')
+			throw new Error('expected ready state');
 		expect(finalState.settings.followedPeople).toHaveLength(2);
 		expect(
 			finalState.settings.followedPeople.filter(
