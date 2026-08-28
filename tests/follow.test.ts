@@ -14,9 +14,12 @@ import type {
 	FollowedPersonV1,
 	PersonSyncState,
 } from '../src/domain/settings';
-import type {
-	SettingsRuntimeState,
-	SettingsSaveResult,
+
+import {
+	SettingsApplication,
+	type SettingsPersistence,
+	type SettingsRuntimeState,
+	type SettingsSaveResult,
 } from '../src/application/settings';
 
 const NOW = '2026-08-28T00:00:00.000Z';
@@ -224,6 +227,56 @@ describe('FollowApplication', () => {
 		expect(candidate?.followedPeople[0]?.syncState).not.toBe(
 			initial.followedPeople[0]?.syncState,
 		);
+	});
+
+	it('serializes Follow with a settings recovery reload', async () => {
+		const initial = settings();
+		let loadCount = 0;
+		let releaseIdentity!: () => void;
+		const identityBlocked = new Promise<void>((resolve) => {
+			releaseIdentity = resolve;
+		});
+		const persistence: SettingsPersistence = {
+			load: async () => {
+				loadCount += 1;
+				return { kind: 'loaded', settings: initial };
+			},
+			save: async (value) => ({
+				kind: 'saved',
+				settings: value as DevRadarSettingsV1,
+			}),
+		};
+		const guard = createApplicationMutationGuard();
+		const settingsApplication = new SettingsApplication(
+			persistence,
+			() => true,
+			guard,
+		);
+		await settingsApplication.load();
+		const github = {
+			resolveIdentity: vi.fn(async () => {
+				await identityBlocked;
+				return identitySuccess();
+			}),
+		};
+		const app = new FollowApplication({
+			settings: settingsApplication,
+			github,
+			notes: fakeNotes(),
+			mutationGuard: guard,
+			now: () => NOW,
+		});
+
+		const follow = app.follow(draft());
+		const retry = settingsApplication.retrySettingsLoad();
+		await Promise.resolve();
+		expect(loadCount).toBe(1);
+
+		releaseIdentity();
+		const [followResult] = await Promise.all([follow, retry]);
+
+		expect(followResult.kind).toBe('followed');
+		expect(loadCount).toBe(2);
 	});
 
 	it('persists policy only after a duplicate association', async () => {
