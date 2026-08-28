@@ -1422,7 +1422,11 @@ describe('SettingsApplication candidate saves', () => {
 				return { kind: 'saved', settings: value as DevRadarSettingsV1 };
 			},
 		};
-		const settings = new SettingsApplication(persistence, () => true, guard);
+		const settings = new SettingsApplication(
+			persistence,
+			() => true,
+			guard,
+		);
 		await settings.load();
 
 		const save = settings.saveCandidate(candidate());
