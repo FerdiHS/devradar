@@ -4,7 +4,10 @@ import {
 	createApplicationMutationGuard,
 	type ApplicationMutationGuard,
 } from '../src/application/mutation-guard';
-import type { GitHubIdentity, GitHubResult } from '../src/adapters/github';
+import type {
+	GitHubIdentity,
+	GitHubIdentityResult,
+} from '../src/application/github-identity';
 import type { NotePreparationResult } from '../src/application/note-persistence';
 import type {
 	DevRadarSettingsV1,
@@ -72,8 +75,8 @@ function identity(): GitHubIdentity {
 }
 
 function identitySuccess(
-	policy: GitHubResult<GitHubIdentity>['policy'] = {},
-): GitHubResult<GitHubIdentity> {
+	policy: GitHubIdentityResult['policy'] = {},
+): GitHubIdentityResult {
 	return {
 		kind: 'success',
 		requestAttempted: true,
@@ -84,12 +87,11 @@ function identitySuccess(
 
 function identityFailure(
 	kind: 'person-failure' | 'provider-failure',
-	policy: GitHubResult<GitHubIdentity>['policy'] = {},
-): GitHubResult<GitHubIdentity> {
+	policy: GitHubIdentityResult['policy'] = {},
+): GitHubIdentityResult {
 	return {
 		kind,
 		requestAttempted: true,
-		failure: { category: 'rate-limit', message: 'private provider detail' },
 		policy,
 	};
 }
@@ -161,13 +163,13 @@ function fakeNotes(
 	return { prepareAssociation, getCurrentMarkdown: () => currentMarkdown };
 }
 
-function fakeGitHub(result: GitHubResult<GitHubIdentity>) {
+function fakeGitHub(result: GitHubIdentityResult) {
 	return { resolveIdentity: vi.fn(async () => result) };
 }
 
 function followApp(
 	initial: DevRadarSettingsV1,
-	result: GitHubResult<GitHubIdentity>,
+	result: GitHubIdentityResult,
 	options: {
 		notes?: ReturnType<typeof fakeNotes>;
 		save?: (candidate: DevRadarSettingsV1) => SettingsSaveResult;

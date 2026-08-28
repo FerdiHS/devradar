@@ -14,12 +14,13 @@ import {
 	isCanonicalGitHubUsername,
 	isCanonicalPositiveDecimalString,
 } from '../domain/primitives';
+
 import type {
 	GitHubIdentity,
 	GitHubIdentityRequest,
 	GitHubPolicyObservation,
-	GitHubResult,
-} from '../adapters/github';
+} from './github-identity';
+import type { GitHubIdentityResult } from './github-identity';
 import type { ApplicationMutationGuard } from './mutation-guard';
 import type {
 	AssociationTransform,
@@ -69,7 +70,7 @@ type FollowDependencies = {
 	readonly github: {
 		readonly resolveIdentity: (
 			input: GitHubIdentityRequest,
-		) => Promise<GitHubResult<GitHubIdentity>>;
+		) => Promise<GitHubIdentityResult>;
 	};
 	readonly notes: Pick<NotePersistence, 'prepareAssociation'>;
 	readonly mutationGuard: ApplicationMutationGuard;
@@ -127,7 +128,7 @@ export class FollowApplication {
 		if (isBlockedByPolicy(state, currentInstant))
 			return { kind: 'skipped', reason: 'provider-policy' };
 
-		let identityResult: GitHubResult<GitHubIdentity>;
+		let identityResult: GitHubIdentityResult;
 		try {
 			identityResult = await this.dependencies.github.resolveIdentity({
 				username: prepared.value.username,
@@ -211,7 +212,9 @@ export class FollowApplication {
 	): Promise<PolicySaveResult> {
 		try {
 			const result =
-				await this.dependencies.settings.saveCandidateWithinMutation(candidate);
+				await this.dependencies.settings.saveCandidateWithinMutation(
+					candidate,
+				);
 			return result.kind === 'saved' ? { ok: true } : { ok: false };
 		} catch {
 			return { ok: false };

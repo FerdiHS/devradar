@@ -12,6 +12,18 @@ import {
 	isCanonicalPositiveDecimalString,
 } from '../domain/primitives';
 import type { GitHubRequestPolicyV1 } from '../domain/settings';
+import type {
+	GitHubIdentity,
+	GitHubIdentityRequest,
+	GitHubIdentityResult,
+	GitHubPolicyObservation,
+} from '../application/github-identity';
+export type {
+	GitHubIdentity,
+	GitHubIdentityRequest,
+	GitHubIdentityResult,
+	GitHubPolicyObservation,
+} from '../application/github-identity';
 
 const API_ORIGIN = 'https://api.github.com';
 const API_VERSION = '2026-03-10';
@@ -70,11 +82,6 @@ export type GitHubFailure = {
 	readonly message: string;
 };
 
-export type GitHubPolicyObservation = {
-	readonly rateLimitNotBefore?: string;
-	readonly pollNotBefore?: string;
-};
-
 type ResultBase = {
 	readonly requestAttempted: boolean;
 	readonly policy: GitHubPolicyObservation;
@@ -99,16 +106,6 @@ export type GitHubResult<T> =
 			readonly kind: 'provider-failure';
 			readonly failure: GitHubFailure;
 	  });
-
-export type GitHubIdentity = {
-	readonly username: string;
-	readonly githubAccountId: string;
-};
-
-export type GitHubIdentityRequest = {
-	readonly username: string;
-	readonly globalPolicy?: GitHubRequestPolicyV1;
-};
 
 export type GitHubEventsRequest = {
 	readonly username: string;
@@ -881,7 +878,7 @@ export class GitHubAdapter {
 
 	async resolveIdentity(
 		input: GitHubIdentityRequest,
-	): Promise<GitHubResult<GitHubIdentity>> {
+	): Promise<GitHubIdentityResult> {
 		const state: BoundaryState = {};
 		const policy = policyBoundary([input.globalPolicy?.rateLimitNotBefore]);
 		if (policy.invalid)
