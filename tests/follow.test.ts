@@ -435,6 +435,84 @@ describe('FollowApplication', () => {
 		expect(view.settingsPort.saveCandidate).toHaveBeenCalledTimes(1);
 	});
 
+	it('reloads after final-save failure and reuses the prepared section', async () => {
+		const initial = settings();
+		const guard = createApplicationMutationGuard();
+		let loadCount = 0;
+		let saveCount = 0;
+		const savedCandidates: DevRadarSettingsV1[] = [];
+		const persistence: SettingsPersistence = {
+			load: async () => {
+				loadCount += 1;
+				return { kind: 'loaded', settings: initial };
+			},
+			save: async (candidate) => {
+				saveCount += 1;
+				savedCandidates.push(candidate as DevRadarSettingsV1);
+				if (saveCount === 1) return { kind: 'write-failure' };
+				return {
+					kind: 'saved',
+					settings: candidate as DevRadarSettingsV1,
+				};
+			},
+		};
+		const settingsApplication = new SettingsApplication(
+			persistence,
+			() => true,
+			guard,
+		);
+		await settingsApplication.load();
+		const notes = fakeNotes('transform');
+		const github = fakeGitHub(identitySuccess());
+		const app = new FollowApplication({
+			settings: settingsApplication,
+			github,
+			notes,
+			mutationGuard: guard,
+			now: () => NOW,
+		});
+
+		const first = await app.follow(draft());
+		const preparedMarkdown = notes.getCurrentMarkdown();
+
+		expect(first).toEqual({ kind: 'failed', reason: 'persistence' });
+		expect(settingsApplication.getSettingsState().kind).toBe('recovery');
+		expect(preparedMarkdown).toContain(
+			'devradar:begin github="octocat" github-id="42"',
+		);
+		expect(savedCandidates[0]?.followedPeople).toHaveLength(2);
+
+		await settingsApplication.retrySettingsLoad();
+		expect(loadCount).toBe(2);
+		expect(settingsApplication.getSettingsState()).toEqual({
+			kind: 'ready',
+			settings: initial,
+		});
+
+		const second = await app.follow(draft());
+
+		expect(second).toMatchObject({
+			kind: 'followed',
+			person: { username: 'octocat', githubAccountId: '42' },
+			noteDisposition: 'reused',
+		});
+		expect(notes.getCurrentMarkdown()).toBe(preparedMarkdown);
+		expect(settingsApplication.getSettingsState()).toMatchObject({
+			kind: 'ready',
+			settings: { followedPeople: expect.any(Array) },
+		});
+		const finalState = settingsApplication.getSettingsState();
+		if (finalState.kind !== 'ready') throw new Error('expected ready state');
+		expect(finalState.settings.followedPeople).toHaveLength(2);
+		expect(
+			finalState.settings.followedPeople.filter(
+				(person) => person.username === 'octocat',
+			),
+		).toHaveLength(1);
+		expect(saveCount).toBe(2);
+		expect(github.resolveIdentity).toHaveBeenCalledTimes(2);
+	});
+
 	it('reuses a valid same-person managed section without erasing it', async () => {
 		const managed =
 			'<!-- devradar:begin github="octocat" github-id="42" -->\n' +
