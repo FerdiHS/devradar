@@ -384,7 +384,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			)?.htmlFor,
 		).toBe('devradar-follow-from-date');
 		expect(date.id).toBe('devradar-follow-from-date');
-		date.value = '2026-08-01T12:34';
+		date.value = '0001-08-01T12:34';
 		date.emit('input');
 
 		const button = allElements(view.root).find(
@@ -395,12 +395,15 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
+		const expected = new Date(0);
+		expected.setFullYear(1, 7, 1);
+		expected.setHours(12, 34, 0, 0);
 		expect(view.follow).toHaveBeenCalledWith({
 			username: 'octocat',
 			notePath: 'People/octocat.md',
 			trackingStart: {
 				mode: 'from-date',
-				at: new Date(2026, 7, 1, 12, 34).toISOString(),
+				at: expected.toISOString(),
 			},
 		});
 		expect(

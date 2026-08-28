@@ -214,7 +214,9 @@ function localDateTimeToUtc(value: string): string | undefined {
 	const [hour, minute] = time?.split(':').map(Number) ?? [];
 	if (![year, month, day, hour, minute].every(Number.isFinite))
 		return undefined;
-	const local = new Date(year ?? 0, (month ?? 0) - 1, day, hour, minute);
+	const local = new Date(0);
+	local.setFullYear(year ?? 0, (month ?? 0) - 1, day);
+	local.setHours(hour ?? 0, minute ?? 0, 0, 0);
 	if (
 		Number.isNaN(local.getTime()) ||
 		local.getFullYear() !== year ||
