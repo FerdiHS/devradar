@@ -500,10 +500,6 @@ describe('FollowApplication', () => {
 			noteDisposition: 'reused',
 		});
 		expect(notes.getCurrentMarkdown()).toBe(preparedMarkdown);
-		expect(settingsApplication.getSettingsState()).toMatchObject({
-			kind: 'ready',
-			settings: { followedPeople: expect.any(Array) },
-		});
 		const finalState = settingsApplication.getSettingsState();
 		if (finalState.kind !== 'ready')
 			throw new Error('expected ready state');
