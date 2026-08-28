@@ -1402,4 +1402,39 @@ describe('SettingsApplication candidate saves', () => {
 			diagnostic: { kind: 'internal-failure' },
 		});
 	});
+
+	it('serializes direct candidate saves with other application mutations', async () => {
+		const events: string[] = [];
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const guard = createApplicationMutationGuard();
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: createEmptySettingsV1(),
+			}),
+			save: async (value) => {
+				events.push('save-start');
+				await blocked;
+				events.push('save-end');
+				return { kind: 'saved', settings: value as DevRadarSettingsV1 };
+			},
+		};
+		const settings = new SettingsApplication(persistence, () => true, guard);
+		await settings.load();
+
+		const save = settings.saveCandidate(candidate());
+		const otherMutation = guard.run(async () => {
+			events.push('other');
+		});
+
+		await Promise.resolve();
+		expect(events).toEqual(['save-start']);
+		release();
+		await Promise.all([save, otherMutation]);
+
+		expect(events).toEqual(['save-start', 'save-end', 'other']);
+	});
 });

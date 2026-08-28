@@ -64,7 +64,7 @@ export type FollowResult =
 type FollowDependencies = {
 	readonly settings: Pick<
 		SettingsAuthority,
-		'getSettingsState' | 'saveCandidate'
+		'getSettingsState' | 'saveCandidateWithinMutation'
 	>;
 	readonly github: {
 		readonly resolveIdentity: (
@@ -211,7 +211,7 @@ export class FollowApplication {
 	): Promise<PolicySaveResult> {
 		try {
 			const result =
-				await this.dependencies.settings.saveCandidate(candidate);
+				await this.dependencies.settings.saveCandidateWithinMutation(candidate);
 			return result.kind === 'saved' ? { ok: true } : { ok: false };
 		} catch {
 			return { ok: false };
@@ -222,7 +222,9 @@ export class FollowApplication {
 		candidate: DevRadarSettingsV1,
 	): Promise<SettingsSaveResult> {
 		try {
-			return await this.dependencies.settings.saveCandidate(candidate);
+			return await this.dependencies.settings.saveCandidateWithinMutation(
+				candidate,
+			);
 		} catch {
 			return { kind: 'internal-failure' };
 		}

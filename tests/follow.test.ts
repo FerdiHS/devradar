@@ -117,6 +117,7 @@ function fakeSettings(
 	return {
 		getSettingsState: () => state,
 		saveCandidate,
+		saveCandidateWithinMutation: saveCandidate,
 		savedCandidates,
 	};
 }

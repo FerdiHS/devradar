@@ -56,6 +56,9 @@ export type SettingsApplicationHost = {
 
 export type SettingsAuthority = SettingsApplicationHost & {
 	saveCandidate(candidate: DevRadarSettingsV1): Promise<SettingsSaveResult>;
+	saveCandidateWithinMutation(
+		candidate: DevRadarSettingsV1,
+	): Promise<SettingsSaveResult>;
 };
 
 export function isResettableSettingsDiagnostic(
@@ -91,6 +94,14 @@ export class SettingsApplication implements SettingsAuthority {
 	}
 
 	async saveCandidate(
+		candidate: DevRadarSettingsV1,
+	): Promise<SettingsSaveResult> {
+		return this.mutationGuard.run(() =>
+			this.saveCandidateWithinMutation(candidate),
+		);
+	}
+
+	async saveCandidateWithinMutation(
 		candidate: DevRadarSettingsV1,
 	): Promise<SettingsSaveResult> {
 		if (!this.persistence) return { kind: 'internal-failure' };
