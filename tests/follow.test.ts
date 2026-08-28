@@ -203,12 +203,11 @@ describe('FollowApplication', () => {
 
 		const result = await view.app.follow(draft({ mode: 'now' }));
 
-		expect(result).toMatchObject({
+		expect(result).toEqual({
 			kind: 'followed',
-			person: {
+			identity: {
 				username: 'octocat',
 				githubAccountId: '42',
-				trackingStart: { mode: 'from-now', at: NOW },
 			},
 			noteDisposition: 'created',
 		});
@@ -218,6 +217,10 @@ describe('FollowApplication', () => {
 			rateLimitNotBefore: OBSERVED_BOUNDARY,
 		});
 		expect(candidate?.followedPeople).toHaveLength(2);
+		expect(candidate?.followedPeople.at(-1)?.trackingStart).toEqual({
+			mode: 'from-now',
+			at: NOW,
+		});
 		expect(candidate?.followedPeople[0]).not.toBe(
 			initial.followedPeople[0],
 		);
@@ -493,7 +496,7 @@ describe('FollowApplication', () => {
 
 		expect(second).toMatchObject({
 			kind: 'followed',
-			person: { username: 'octocat', githubAccountId: '42' },
+			identity: { username: 'octocat', githubAccountId: '42' },
 			noteDisposition: 'reused',
 		});
 		expect(notes.getCurrentMarkdown()).toBe(preparedMarkdown);

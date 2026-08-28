@@ -240,7 +240,7 @@ function trackingStartSummary(start: {
 
 function followStatus(result: FollowResult): string {
 	if (result.kind === 'followed')
-		return `Followed @${result.person.username} (${result.noteDisposition}).`;
+		return `Followed @${result.identity.username} (${result.noteDisposition}).`;
 	if (result.kind === 'skipped')
 		return 'Follow skipped because GitHub requests are temporarily unavailable.';
 	switch (result.reason) {

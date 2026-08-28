@@ -16,7 +16,7 @@ import {
 	type SettingsRuntimeState,
 	type SettingsTabHost,
 } from '../src/settings';
-import type { FollowedPersonV1 } from '../src/domain/settings';
+import type { GitHubIdentity } from '../src/application/github-identity';
 
 class FakeElement {
 	children: FakeElement[] = [];
@@ -418,12 +418,12 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 	it('disables Follow and prevents duplicate submissions while pending', async () => {
 		let release!: (result: {
 			kind: 'followed';
-			person: FollowedPersonV1;
+			identity: GitHubIdentity;
 			noteDisposition: 'created';
 		}) => void;
 		const pending = new Promise<{
 			kind: 'followed';
-			person: FollowedPersonV1;
+			identity: GitHubIdentity;
 			noteDisposition: 'created';
 		}>((resolve) => {
 			release = resolve;
@@ -456,12 +456,9 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 
 		release({
 			kind: 'followed',
-			person: {
+			identity: {
 				username: 'octocat',
 				githubAccountId: '42',
-				notePath: 'People/octocat.md',
-				trackingStart: { mode: 'available-recent' },
-				syncState: { seenEvents: [], github: {} },
 			},
 			noteDisposition: 'created',
 		});

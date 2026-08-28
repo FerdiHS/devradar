@@ -56,7 +56,7 @@ export type FollowFailureReason =
 export type FollowResult =
 	| {
 			readonly kind: 'followed';
-			readonly person: FollowedPersonV1;
+			readonly identity: GitHubIdentity;
 			readonly noteDisposition: 'created' | 'initialized' | 'reused';
 	  }
 	| { readonly kind: 'skipped'; readonly reason: 'provider-policy' }
@@ -189,7 +189,10 @@ export class FollowApplication {
 		if (saveResult.kind !== 'saved') return failed('persistence');
 		return {
 			kind: 'followed',
-			person: candidate.followedPeople.at(-1) as FollowedPersonV1,
+			identity: {
+				username: identity.username,
+				githubAccountId: identity.githubAccountId,
+			},
 			noteDisposition: noteResult.kind,
 		};
 	}
