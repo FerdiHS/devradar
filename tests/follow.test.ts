@@ -384,7 +384,10 @@ describe('FollowApplication', () => {
 		const second = await view.app.follow(draft());
 
 		expect(first).toEqual({ kind: 'failed', reason: 'persistence' });
-		expect(second).toEqual({ kind: 'failed', reason: 'settings-not-ready' });
+		expect(second).toEqual({
+			kind: 'failed',
+			reason: 'settings-not-ready',
+		});
 		expect(view.github.resolveIdentity).toHaveBeenCalledTimes(1);
 	});
 
