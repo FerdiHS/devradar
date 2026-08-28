@@ -440,6 +440,23 @@ describe('FollowApplication', () => {
 	});
 
 	it.each([
+		null,
+		{ ...draft(), trackingStart: null },
+		{ ...draft(), trackingStart: { mode: 'unknown' } },
+	])(
+		'rejects malformed runtime drafts before requesting GitHub',
+		async (input) => {
+			const view = followApp(settings(), identitySuccess());
+
+			const result = await view.app.follow(input as FollowDraft);
+
+			expect(result).toEqual({ kind: 'failed', reason: 'invalid-input' });
+			expect(view.github.resolveIdentity).not.toHaveBeenCalled();
+			expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
 		{
 			name: 'a non-markdown note path',
 			draft: { ...draft(), notePath: 'People/octocat' },

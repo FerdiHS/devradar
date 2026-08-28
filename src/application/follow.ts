@@ -18,9 +18,9 @@ import {
 import type {
 	GitHubIdentity,
 	GitHubIdentityRequest,
+	GitHubIdentityResult,
 	GitHubPolicyObservation,
 } from './github-identity';
-import type { GitHubIdentityResult } from './github-identity';
 import type { ApplicationMutationGuard } from './mutation-guard';
 import type {
 	AssociationTransform,
@@ -87,8 +87,6 @@ type PolicyMerge = {
 	readonly settings: DevRadarSettingsV1;
 	readonly material: boolean;
 };
-
-type PolicySaveResult = { readonly ok: true } | { readonly ok: false };
 
 const failed = (reason: FollowFailureReason): FollowResult => ({
 	kind: 'failed',
@@ -186,14 +184,12 @@ export class FollowApplication {
 			prepared.value,
 			commitInstant,
 		);
-		if (!candidate.ok)
-			return this.finishPreAssociationFailure(policy, 'internal');
 
-		const saveResult = await this.saveCandidate(candidate.value);
+		const saveResult = await this.saveCandidate(candidate);
 		if (saveResult.kind !== 'saved') return failed('persistence');
 		return {
 			kind: 'followed',
-			person: candidate.value.followedPeople.at(-1) as FollowedPersonV1,
+			person: candidate.followedPeople.at(-1) as FollowedPersonV1,
 			noteDisposition: noteResult.kind,
 		};
 	}
@@ -204,21 +200,13 @@ export class FollowApplication {
 	): Promise<FollowResult> {
 		if (!policy.material) return failed(reason);
 		const saved = await this.savePolicyOnly(policy.settings);
-		return saved.ok ? failed(reason) : failed('persistence');
+		return saved ? failed(reason) : failed('persistence');
 	}
 
 	private async savePolicyOnly(
 		candidate: DevRadarSettingsV1,
-	): Promise<PolicySaveResult> {
-		try {
-			const result =
-				await this.dependencies.settings.saveCandidateWithinMutation(
-					candidate,
-				);
-			return result.kind === 'saved' ? { ok: true } : { ok: false };
-		} catch {
-			return { ok: false };
-		}
+	): Promise<boolean> {
+		return (await this.saveCandidate(candidate)).kind === 'saved';
 	}
 
 	private async saveCandidate(
@@ -247,28 +235,27 @@ function prepareDraft(
 ):
 	| { readonly ok: true; readonly value: PreparedDraft }
 	| { readonly ok: false } {
+	if (!draft || typeof draft !== 'object') return { ok: false };
 	if (!isCanonicalGitHubUsername(draft.username)) return { ok: false };
 	const notePath = canonicalizeDraftNotePath(draft.notePath);
 	if (!notePath.ok) return { ok: false };
-	if (draft.trackingStart.mode === 'available-recent')
+	const trackingStart = draft.trackingStart;
+	if (!trackingStart || typeof trackingStart !== 'object')
+		return { ok: false };
+	if (
+		trackingStart.mode === 'available-recent' ||
+		trackingStart.mode === 'now'
+	)
 		return {
 			ok: true,
 			value: {
 				username: draft.username,
 				notePath: notePath.value,
-				trackingStart: draft.trackingStart,
+				trackingStart,
 			},
 		};
-	if (draft.trackingStart.mode === 'now')
-		return {
-			ok: true,
-			value: {
-				username: draft.username,
-				notePath: notePath.value,
-				trackingStart: draft.trackingStart,
-			},
-		};
-	const at = validateCanonicalPluginTimestamp(draft.trackingStart.at);
+	if (trackingStart.mode !== 'from-date') return { ok: false };
+	const at = validateCanonicalPluginTimestamp(trackingStart.at);
 	if (!at.ok || at.value > currentInstant) return { ok: false };
 	return {
 		ok: true,
@@ -358,9 +345,7 @@ function addAssociation(
 	identity: GitHubIdentity,
 	draft: PreparedDraft,
 	commitInstant: string,
-):
-	| { readonly ok: true; readonly value: DevRadarSettingsV1 }
-	| { readonly ok: false } {
+): DevRadarSettingsV1 {
 	const trackingStart =
 		draft.trackingStart.mode === 'now'
 			? { mode: 'from-now' as const, at: commitInstant }
@@ -376,7 +361,7 @@ function addAssociation(
 	};
 	const settings = cloneSettings(current);
 	settings.followedPeople.push(person);
-	return { ok: true, value: settings };
+	return settings;
 }
 
 function associationTransform(identity: PersonIdentity): AssociationTransform {
