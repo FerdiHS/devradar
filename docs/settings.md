@@ -76,6 +76,21 @@ This Desktop evidence does not authorize the Mobile path. Settings persistence
 remains fail-closed on Obsidian Mobile until its capability-specific runtime
 contract is separately validated.
 
+### Issue #96 Desktop Follow smoke evidence
+
+On 2026-08-29, the current production sources were built and loaded in a
+disposable Obsidian Desktop 1.13.7 vault. Through the DevRadar settings tab,
+the concrete Follow composition resolved the public GitHub identity for
+`@torvalds`, persisted the association, and created a vault-relative Markdown
+note containing the managed section and no activity records. A second Follow
+for the same username with a different destination returned the stable
+duplicate failure, left the followed-person list unchanged, and created no
+second note.
+
+This bounded smoke exercised Follow identity resolution, note preparation, and
+complete settings persistence through the production composition. It did not
+retrieve activity and does not authorize the Mobile path.
+
 ## Followed-person identity
 
 The canonical GitHub `login` returned by the documented identity lookup is the
