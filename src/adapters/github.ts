@@ -13,7 +13,6 @@ import {
 } from '../domain/primitives';
 import type { GitHubRequestPolicyV1 } from '../domain/settings';
 import type {
-	GitHubIdentity,
 	GitHubIdentityRequest,
 	GitHubIdentityResult,
 	GitHubPolicyObservation,
