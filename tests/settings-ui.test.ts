@@ -48,6 +48,10 @@ class FakeElement {
 	click(): void {
 		this.listeners.get('click')?.();
 	}
+
+	emit(event: string): void {
+		this.listeners.get(event)?.();
+	}
 }
 
 function allElements(root: FakeElement): FakeElement[] {
@@ -62,7 +66,7 @@ const readyEmpty: SettingsRuntimeState = {
 function tabFor(state: SettingsRuntimeState, pending = false) {
 	const resetSettings = vi.fn(async () => undefined);
 	const retrySettingsLoad = vi.fn(async () => undefined);
-	const follow = vi.fn(async () => ({
+	const follow = vi.fn<SettingsTabHost['follow']>(async () => ({
 		kind: 'failed' as const,
 		reason: 'internal' as const,
 	}));
@@ -318,6 +322,64 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			'@first — People/first.md — Available recent activity',
 			'@second — People/second.md — Date & time: 2026-08-01T00:00:00.000Z',
 		]);
+	});
+
+	it('submits entered fields and date mode, then maps a stable result', async () => {
+		const view = tabFor(readyEmpty);
+		view.follow.mockResolvedValue({
+			kind: 'skipped',
+			reason: 'provider-policy',
+		});
+		view.tab.display();
+
+		let inputs = allElements(view.root).filter(
+			(element) => element.tag === 'input',
+		);
+		inputs[0]!.value = 'octocat';
+		inputs[0]!.emit('input');
+		inputs[1]!.value = 'People/octocat.md';
+		inputs[1]!.emit('input');
+
+		const trackingStart = allElements(view.root).find(
+			(element) => element.tag === 'select',
+		);
+		if (!trackingStart) throw new Error('expected tracking-start select');
+		trackingStart.value = 'from-date';
+		trackingStart.emit('change');
+
+		inputs = allElements(view.root).filter(
+			(element) => element.tag === 'input',
+		);
+		const date = inputs.find(
+			(element) => element.type === 'datetime-local',
+		);
+		if (!date) throw new Error('expected date input');
+		date.value = '2026-08-01T12:34';
+		date.emit('input');
+
+		const button = allElements(view.root).find(
+			(element) => element.tag === 'button' && element.text === 'Follow',
+		);
+		if (!button) throw new Error('expected Follow button');
+		button.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.follow).toHaveBeenCalledWith({
+			username: 'octocat',
+			notePath: 'People/octocat.md',
+			trackingStart: {
+				mode: 'from-date',
+				at: new Date(2026, 7, 1, 12, 34).toISOString(),
+			},
+		});
+		expect(
+			allElements(view.root)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain(
+			'Follow skipped because GitHub requests are temporarily unavailable.',
+		);
 	});
 
 	it('disables Follow and prevents duplicate submissions while pending', async () => {
