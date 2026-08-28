@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	SettingsApplication,
+	type SettingsPersistence,
+} from '../src/application/settings';
+import { createApplicationMutationGuard } from '../src/application/mutation-guard';
+import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	createEmptySettingsV1,
+	type DevRadarSettingsV1,
 	validateCanonicalPluginTimestamp,
 	validatePersistedSettingsV1,
 } from '../src/domain/settings';
@@ -1310,5 +1316,129 @@ describe('draft note-path canonicalization', () => {
 				error: { code: 'invalid-note-path' },
 			});
 		}
+	});
+});
+
+describe('SettingsApplication candidate saves', () => {
+	function candidate(): DevRadarSettingsV1 {
+		return {
+			schemaVersion: 1,
+			followedPeople: [],
+			githubRequestPolicy: {
+				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
+			},
+		};
+	}
+
+	function application(
+		persistence: SettingsPersistence,
+	): SettingsApplication {
+		return new SettingsApplication(
+			persistence,
+			() => true,
+			createApplicationMutationGuard(),
+		);
+	}
+
+	it('makes a saved complete candidate authoritative after persistence', async () => {
+		const initial = createEmptySettingsV1();
+		const next = candidate();
+		const persistence: SettingsPersistence = {
+			load: async () => ({ kind: 'loaded', settings: initial }),
+			save: async (value) => ({
+				kind: 'saved',
+				settings: value as DevRadarSettingsV1,
+			}),
+		};
+		const settings = application(persistence);
+		await settings.load();
+
+		const result = await settings.saveCandidate(next);
+
+		expect(result).toEqual({ kind: 'saved', settings: next });
+		expect(settings.getSettingsState()).toEqual({
+			kind: 'ready',
+			settings: next,
+		});
+	});
+
+	it('enters recovery without exposing a failed candidate', async () => {
+		const initial = createEmptySettingsV1();
+		const next = candidate();
+		const persistence: SettingsPersistence = {
+			load: async () => ({ kind: 'loaded', settings: initial }),
+			save: async () => ({ kind: 'write-failure' }),
+		};
+		const settings = application(persistence);
+		await settings.load();
+
+		const result = await settings.saveCandidate(next);
+
+		expect(result).toEqual({ kind: 'write-failure' });
+		expect(settings.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'write-failure' },
+		});
+	});
+
+	it('normalizes a thrown persistence failure into recovery', async () => {
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: createEmptySettingsV1(),
+			}),
+			save: async () => {
+				throw new Error('private persistence detail');
+			},
+		};
+		const settings = application(persistence);
+		await settings.load();
+
+		const result = await settings.saveCandidate(candidate());
+
+		expect(result).toEqual({ kind: 'internal-failure' });
+		expect(settings.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'internal-failure' },
+		});
+	});
+
+	it('serializes direct candidate saves with other application mutations', async () => {
+		const events: string[] = [];
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const guard = createApplicationMutationGuard();
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: createEmptySettingsV1(),
+			}),
+			save: async (value) => {
+				events.push('save-start');
+				await blocked;
+				events.push('save-end');
+				return { kind: 'saved', settings: value as DevRadarSettingsV1 };
+			},
+		};
+		const settings = new SettingsApplication(
+			persistence,
+			() => true,
+			guard,
+		);
+		await settings.load();
+
+		const save = settings.saveCandidate(candidate());
+		const otherMutation = guard.run(async () => {
+			events.push('other');
+		});
+
+		await Promise.resolve();
+		expect(events).toEqual(['save-start']);
+		release();
+		await Promise.all([save, otherMutation]);
+
+		expect(events).toEqual(['save-start', 'save-end', 'other']);
 	});
 });

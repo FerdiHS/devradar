@@ -5,12 +5,29 @@ import {
 	type SettingsRecoveryClassification,
 	type SettingsRecoveryDiagnostic,
 } from './application/settings';
+import type {
+	FollowDraft,
+	FollowResult,
+	FollowTrackingStartDraft,
+} from './application/follow';
 
 export type { SettingsRuntimeState } from './application/settings';
 
-export type SettingsTabHost = SettingsApplicationHost;
+export type SettingsTabHost = SettingsApplicationHost & {
+	isFollowPending(): boolean;
+	follow(draft: FollowDraft): Promise<FollowResult>;
+};
+
+type TrackingStartMode = FollowTrackingStartDraft['mode'];
 
 export class DevRadarSettingTab extends PluginSettingTab {
+	private username = '';
+	private notePath = '';
+	private trackingStartMode: TrackingStartMode = 'now';
+	private fromDate = '';
+	private followPending = false;
+	private followStatus?: string;
+
 	constructor(
 		app: App,
 		plugin: Plugin,
@@ -24,9 +41,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		const state = this.host.getSettingsState();
 		if (state.kind === 'ready') {
-			containerEl.createEl('p', {
-				text: 'There are no configurable settings yet.',
-			});
+			this.displayReady(containerEl, state.settings.followedPeople);
 			return;
 		}
 
@@ -56,12 +71,193 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}
 	}
 
+	private displayReady(
+		containerEl: HTMLElement,
+		followedPeople: readonly {
+			username: string;
+			notePath: string;
+			trackingStart: {
+				mode: 'from-now' | 'available-recent' | 'from-date';
+				at?: string;
+			};
+		}[],
+	): void {
+		containerEl.createEl('p', { text: 'Follow a GitHub user' });
+		const usernameLabel = containerEl.createEl('label', {
+			text: 'GitHub username',
+		});
+		const username = containerEl.createEl('input');
+		username.id = 'devradar-follow-username';
+		usernameLabel.htmlFor = username.id;
+		username.type = 'text';
+		username.value = this.username;
+		username.addEventListener('input', () => {
+			this.username = username.value;
+		});
+
+		const notePathLabel = containerEl.createEl('label', {
+			text: 'Note destination',
+		});
+		const notePath = containerEl.createEl('input');
+		notePath.id = 'devradar-follow-note-path';
+		notePathLabel.htmlFor = notePath.id;
+		notePath.type = 'text';
+		notePath.value = this.notePath;
+		notePath.placeholder = 'People/octocat.md';
+		notePath.addEventListener('input', () => {
+			this.notePath = notePath.value;
+		});
+
+		const trackingStartLabel = containerEl.createEl('label', {
+			text: 'Tracking start',
+		});
+		const trackingStart = containerEl.createEl('select');
+		trackingStart.id = 'devradar-follow-tracking-start';
+		trackingStartLabel.htmlFor = trackingStart.id;
+		for (const option of [
+			['now', 'Now'],
+			['available-recent', 'Available recent activity'],
+			['from-date', 'Date & time'],
+		] as const) {
+			const element = trackingStart.createEl('option', {
+				text: option[1],
+			});
+			element.value = option[0];
+		}
+		trackingStart.value = this.trackingStartMode;
+		trackingStart.addEventListener('change', () => {
+			this.trackingStartMode = trackingStart.value as TrackingStartMode;
+			this.display();
+		});
+
+		if (this.trackingStartMode === 'from-date') {
+			const fromDateLabel = containerEl.createEl('label', {
+				text: 'Date & time',
+			});
+			const fromDate = containerEl.createEl('input');
+			fromDate.id = 'devradar-follow-from-date';
+			fromDateLabel.htmlFor = fromDate.id;
+			fromDate.type = 'datetime-local';
+			fromDate.step = '60';
+			fromDate.value = this.fromDate;
+			fromDate.addEventListener('input', () => {
+				this.fromDate = fromDate.value;
+			});
+		}
+
+		const follow = containerEl.createEl('button', { text: 'Follow' });
+		const pending = this.followPending || this.host.isFollowPending();
+		follow.disabled = pending;
+		follow.addEventListener('click', () => {
+			if (this.followPending || this.host.isFollowPending()) return;
+			this.followPending = true;
+			this.followStatus = undefined;
+			this.display();
+			void this.host.follow(this.draft()).then(
+				(result) => this.finishFollow(result),
+				() => this.finishFollow({ kind: 'failed', reason: 'internal' }),
+			);
+		});
+
+		if (this.followStatus !== undefined)
+			containerEl.createEl('p', { text: this.followStatus });
+
+		containerEl.createEl('p', { text: 'Followed people' });
+		if (followedPeople.length === 0) {
+			containerEl.createEl('p', { text: 'No followed people yet.' });
+			return;
+		}
+		const list = containerEl.createEl('ul');
+		for (const person of followedPeople) {
+			list.createEl('li', {
+				text: `@${person.username} — ${person.notePath} — ${trackingStartSummary(person.trackingStart)}`,
+			});
+		}
+	}
+
+	private draft(): FollowDraft {
+		if (this.trackingStartMode === 'from-date')
+			return {
+				username: this.username,
+				notePath: this.notePath,
+				trackingStart: {
+					mode: 'from-date',
+					at: localDateTimeToUtc(this.fromDate) ?? '',
+				},
+			};
+		return {
+			username: this.username,
+			notePath: this.notePath,
+			trackingStart: { mode: this.trackingStartMode },
+		};
+	}
+
+	private finishFollow(result: FollowResult): void {
+		this.followPending = false;
+		this.followStatus = followStatus(result);
+		this.display();
+	}
+
 	private rerenderAfterAction(action: Promise<void>): void {
 		this.display();
 		void action.then(
 			() => this.display(),
 			() => this.display(),
 		);
+	}
+}
+
+function localDateTimeToUtc(value: string): string | undefined {
+	if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return undefined;
+	const [date, time] = value.split('T');
+	const [year, month, day] = date?.split('-').map(Number) ?? [];
+	const [hour, minute] = time?.split(':').map(Number) ?? [];
+	if (![year, month, day, hour, minute].every(Number.isFinite))
+		return undefined;
+	const local = new Date(0);
+	local.setFullYear(year ?? 0, (month ?? 0) - 1, day);
+	local.setHours(hour ?? 0, minute ?? 0, 0, 0);
+	if (
+		Number.isNaN(local.getTime()) ||
+		local.getFullYear() !== year ||
+		local.getMonth() !== (month ?? 0) - 1 ||
+		local.getDate() !== day ||
+		local.getHours() !== hour ||
+		local.getMinutes() !== minute
+	)
+		return undefined;
+	return local.toISOString();
+}
+
+function trackingStartSummary(start: {
+	readonly mode: 'from-now' | 'available-recent' | 'from-date';
+	readonly at?: string;
+}): string {
+	if (start.mode === 'from-now') return 'Now';
+	if (start.mode === 'available-recent') return 'Available recent activity';
+	return `Date & time: ${start.at ?? 'invalid'}`;
+}
+
+function followStatus(result: FollowResult): string {
+	if (result.kind === 'followed')
+		return `Followed @${result.identity.username} (${result.noteDisposition}).`;
+	if (result.kind === 'skipped')
+		return 'Follow skipped because GitHub requests are temporarily unavailable.';
+	switch (result.reason) {
+		case 'invalid-input':
+			return 'Follow could not start because the input is invalid.';
+		case 'settings-not-ready':
+			return 'Follow is unavailable until settings recovery succeeds.';
+		case 'identity':
+			return 'GitHub identity could not be resolved.';
+		case 'duplicate':
+			return 'That person or note destination is already followed.';
+		case 'note':
+			return 'The note could not be prepared safely.';
+		case 'persistence':
+			return 'DevRadar could not save the follow settings.';
+		case 'internal':
+			return 'DevRadar could not complete Follow safely.';
 	}
 }
 

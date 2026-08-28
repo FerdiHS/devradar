@@ -3,6 +3,7 @@ import {
 	type DevRadarSettingsV1,
 	type SchemaV1ValidationError,
 } from '../domain/settings';
+import type { ApplicationMutationGuard } from './mutation-guard';
 
 export type SettingsRecoveryClassification =
 	'ordinary-malformed' | 'future-schema' | 'unclassifiable';
@@ -53,6 +54,13 @@ export type SettingsApplicationHost = {
 	resetSettings(): Promise<void>;
 };
 
+export type SettingsAuthority = SettingsApplicationHost & {
+	saveCandidate(candidate: DevRadarSettingsV1): Promise<SettingsSaveResult>;
+	saveCandidateWithinMutation(
+		candidate: DevRadarSettingsV1,
+	): Promise<SettingsSaveResult>;
+};
+
 export function isResettableSettingsDiagnostic(
 	diagnostic: SettingsRecoveryDiagnostic,
 ): boolean {
@@ -62,7 +70,7 @@ export function isResettableSettingsDiagnostic(
 	);
 }
 
-export class SettingsApplication implements SettingsApplicationHost {
+export class SettingsApplication implements SettingsAuthority {
 	private settingsState: SettingsRuntimeState = {
 		kind: 'recovery',
 		diagnostic: { kind: 'unsupported-platform' },
@@ -72,6 +80,7 @@ export class SettingsApplication implements SettingsApplicationHost {
 	constructor(
 		private readonly persistence: SettingsPersistence | undefined,
 		private readonly confirmReset: (message: string) => boolean,
+		private readonly mutationGuard: ApplicationMutationGuard,
 	) {}
 
 	async load(): Promise<void> {
@@ -84,6 +93,29 @@ export class SettingsApplication implements SettingsApplicationHost {
 		return this.settingsState;
 	}
 
+	async saveCandidate(
+		candidate: DevRadarSettingsV1,
+	): Promise<SettingsSaveResult> {
+		return this.mutationGuard.run(() =>
+			this.saveCandidateWithinMutation(candidate),
+		);
+	}
+
+	async saveCandidateWithinMutation(
+		candidate: DevRadarSettingsV1,
+	): Promise<SettingsSaveResult> {
+		if (!this.persistence) return { kind: 'internal-failure' };
+		try {
+			const result = await this.persistence.save(candidate);
+			this.settingsState = toRuntimeStateFromSave(result);
+			return result;
+		} catch {
+			const result: SettingsSaveResult = { kind: 'internal-failure' };
+			this.settingsState = toRuntimeStateFromSave(result);
+			return result;
+		}
+	}
+
 	isRecoveryActionPending(): boolean {
 		return this.recoveryAction !== undefined;
 	}
@@ -91,9 +123,11 @@ export class SettingsApplication implements SettingsApplicationHost {
 	async retrySettingsLoad(): Promise<void> {
 		const persistence = this.persistence;
 		if (!persistence) return;
-		await this.runRecoveryAction(async () => {
-			this.settingsState = toRuntimeState(await persistence.load());
-		});
+		await this.runRecoveryAction(() =>
+			this.mutationGuard.run(async () => {
+				this.settingsState = toRuntimeState(await persistence.load());
+			}),
+		);
 	}
 
 	async resetSettings(): Promise<void> {
@@ -106,10 +140,12 @@ export class SettingsApplication implements SettingsApplicationHost {
 		if (!this.confirmReset(RESET_WARNING)) return;
 		const persistence = this.persistence;
 
-		await this.runRecoveryAction(async () => {
-			const result = await persistence.save(createEmptySettingsV1());
-			this.settingsState = toRuntimeStateFromSave(result);
-		});
+		await this.runRecoveryAction(() =>
+			this.mutationGuard.run(async () => {
+				const result = await persistence.save(createEmptySettingsV1());
+				this.settingsState = toRuntimeStateFromSave(result);
+			}),
+		);
 	}
 
 	private runRecoveryAction(action: () => Promise<void>): Promise<void> {
