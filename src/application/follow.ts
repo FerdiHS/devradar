@@ -199,14 +199,9 @@ export class FollowApplication {
 		reason: FollowFailureReason,
 	): Promise<FollowResult> {
 		if (!policy.material) return failed(reason);
-		const saved = await this.savePolicyOnly(policy.settings);
+		const saved =
+			(await this.saveCandidate(policy.settings)).kind === 'saved';
 		return saved ? failed(reason) : failed('persistence');
-	}
-
-	private async savePolicyOnly(
-		candidate: DevRadarSettingsV1,
-	): Promise<boolean> {
-		return (await this.saveCandidate(candidate)).kind === 'saved';
 	}
 
 	private async saveCandidate(
