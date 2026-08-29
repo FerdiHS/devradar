@@ -197,6 +197,47 @@ describe('Sync One application', () => {
 		expect(fakes.notes.read).toHaveBeenCalledTimes(1);
 	});
 
+	it('delegates tracking-start filtering before note reconciliation', async () => {
+		const beforeStart = activity('10', '2026-08-19T23:59:59Z');
+		const atStart = activity('11', '2026-08-20T00:00:00Z');
+		const value = settings({
+			followedPeople: [
+				{
+					...settings().followedPeople[0]!,
+					trackingStart: {
+						mode: 'from-date',
+						at: '2026-08-20T00:00:00.000Z',
+					},
+				},
+			],
+		});
+		const fakes = dependencies(
+			value,
+			successfulProvider([beforeStart, atStart]),
+		);
+		fakes.notes.process.mockImplementation(async (_path, transform) => {
+			const result = (transform as CurrentContentTransform<unknown>)(
+				note(),
+			);
+			if (result.kind !== 'replace')
+				throw new Error('unexpected current-content rejection');
+			expect(result.markdown).not.toContain(
+				renderActivityEntry(beforeStart),
+			);
+			expect(result.markdown).toContain(renderActivityEntry(atStart));
+			return { kind: 'changed' };
+		});
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'updated' });
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toEqual([{ id: '11', createdAt: atStart.timestamp }]);
+	});
+
 	it('fails closed on unsupported platforms before provider or note work', async () => {
 		const fakes = dependencies();
 		const application = new SyncOneApplication({
