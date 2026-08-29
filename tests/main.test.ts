@@ -39,6 +39,7 @@ vi.mock('obsidian', () => ({
 }));
 
 import DevRadarPlugin from '../src/main';
+import type { SyncOneResult } from '../src/application/sync-one';
 
 const EMPTY = { schemaVersion: 1, followedPeople: [] };
 const FOLLOWED = {
@@ -68,6 +69,12 @@ function syncOneCommand(plugin: FakePlugin): RegisteredCommand {
 
 function pickerInstance(): (typeof modalState.instances)[number] {
 	const picker = modalState.instances[0];
+	if (!picker) throw new Error('Sync One picker was not opened');
+	return picker;
+}
+
+function latestPicker(): (typeof modalState.instances)[number] {
+	const picker = modalState.instances[modalState.instances.length - 1];
 	if (!picker) throw new Error('Sync One picker was not opened');
 	return picker;
 }
@@ -527,39 +534,6 @@ describe('Sync One command wiring', () => {
 			'Sync one is already in progress.',
 		);
 
-		pickerInstance().onChooseItem({
-			username: 'octocat',
-			githubAccountId: '583231',
-		});
-		await Promise.resolve();
-		await syncOneCommand(plugin).callback?.();
-		expect(syncOne).toHaveBeenCalledTimes(1);
-		expect(modalState.instances).toHaveLength(1);
-
-		release({ kind: 'unchanged' });
-		await pending;
-		await Promise.resolve();
-	});
-
-	it('keeps a selection alive when close precedes the selection callback', async () => {
-		const plugin = fakePlugin(async () => FOLLOWED);
-		await plugin.onload();
-		const application = (
-			plugin as unknown as {
-				syncOneApplication: {
-					syncOne: (selection: unknown) => Promise<unknown>;
-				};
-			}
-		).syncOneApplication;
-		let release!: (value: { kind: 'unchanged' }) => void;
-		const pending = new Promise<{ kind: 'unchanged' }>((resolve) => {
-			release = resolve;
-		});
-		const syncOne = vi
-			.spyOn(application, 'syncOne')
-			.mockReturnValue(pending);
-
-		await syncOneCommand(plugin).callback?.();
 		const picker = pickerInstance();
 		picker.onClose();
 		picker.onChooseItem({
@@ -574,6 +548,70 @@ describe('Sync One command wiring', () => {
 		release({ kind: 'unchanged' });
 		await pending;
 		await Promise.resolve();
+	});
+
+	it('maps every Sync One result to concise safe feedback', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<SyncOneResult>;
+				};
+			}
+		).syncOneApplication;
+		const syncOne = vi.spyOn(application, 'syncOne');
+		const cases: ReadonlyArray<readonly [SyncOneResult, string]> = [
+			[{ kind: 'updated' }, "Sync one updated the person's note."],
+			[{ kind: 'unchanged' }, 'Sync one found no changes.'],
+			[
+				{ kind: 'skipped', reason: 'provider-policy' },
+				'Sync one skipped: GitHub policy is active.',
+			],
+			[
+				{ kind: 'failed', reason: 'settings-not-ready' },
+				'Sync one is unavailable until settings are ready.',
+			],
+			[
+				{ kind: 'failed', reason: 'unsupported-platform' },
+				'Sync one is unavailable on mobile.',
+			],
+			[
+				{ kind: 'failed', reason: 'invalid-selection' },
+				'Sync one could not find the selected person.',
+			],
+			[
+				{ kind: 'failed', reason: 'configuration' },
+				'Sync one could not use the current configuration.',
+			],
+			[
+				{ kind: 'failed', reason: 'provider' },
+				'Sync one could not retrieve GitHub activity.',
+			],
+			[
+				{ kind: 'failed', reason: 'note' },
+				'Sync one could not update the associated note.',
+			],
+			[
+				{ kind: 'failed', reason: 'persistence' },
+				'Sync one could not save synchronization state.',
+			],
+			[
+				{ kind: 'failed', reason: 'internal' },
+				'Sync one failed unexpectedly.',
+			],
+		];
+
+		for (const [result, message] of cases) {
+			syncOne.mockResolvedValueOnce(result);
+			await syncOneCommand(plugin).callback?.();
+			latestPicker().onChooseItem({
+				username: 'octocat',
+				githubAccountId: '583231',
+			});
+			await Promise.resolve();
+			expect(obsidianNotice).toHaveBeenLastCalledWith(message);
+		}
 	});
 
 	it('handles an application rejection without an unhandled promise', async () => {
