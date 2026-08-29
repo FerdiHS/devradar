@@ -220,6 +220,44 @@ describe('Sync One application', () => {
 		});
 	});
 
+	it('rereads authoritative person settings inside the mutation guard', async () => {
+		const authoritative = settings({
+			followedPeople: [
+				{
+					...settings().followedPeople[0]!,
+					username: 'current-octocat',
+					notePath: 'People/current-octocat.md',
+				},
+			],
+		});
+		const fakes = dependencies();
+		fakes.notes.read.mockResolvedValue({
+			kind: 'read',
+			markdown: note().replaceAll('octocat', 'current-octocat'),
+		});
+		fakes.mutationGuard.run = async <T>(operation: () => Promise<T>) => {
+			vi.spyOn(fakes.deps.settings, 'getSettingsState').mockReturnValue(
+				ready(authoritative),
+			);
+			return operation();
+		};
+
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'unchanged' });
+		expect(fakes.github.retrieveEvents).toHaveBeenCalledWith(
+			expect.objectContaining({
+				username: 'current-octocat',
+				githubAccountId: '583231',
+			}),
+		);
+		expect(fakes.notes.read).toHaveBeenCalledWith(
+			'People/current-octocat.md',
+		);
+	});
+
 	it('does not process an identical note when no note-derived accounting is needed', async () => {
 		const fakes = dependencies();
 		const application = new SyncOneApplication(fakes.deps);
