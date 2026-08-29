@@ -175,6 +175,28 @@ describe('Sync One application', () => {
 		]);
 	});
 
+	it('waits for provider completion before accessing the note', async () => {
+		const fakes = dependencies();
+		let resolveProvider!: (result: SyncOneProviderResult) => void;
+		const providerPending = new Promise<SyncOneProviderResult>(
+			(resolve) => {
+				resolveProvider = resolve;
+			},
+		);
+		fakes.github.retrieveEvents.mockReturnValue(providerPending);
+		const application = new SyncOneApplication(fakes.deps);
+
+		const sync = application.syncOne({ githubAccountId: '583231' });
+		await Promise.resolve();
+
+		expect(fakes.notes.read).not.toHaveBeenCalled();
+		expect(fakes.notes.process).not.toHaveBeenCalled();
+		resolveProvider(successfulProvider([]));
+
+		await expect(sync).resolves.toEqual({ kind: 'unchanged' });
+		expect(fakes.notes.read).toHaveBeenCalledTimes(1);
+	});
+
 	it('fails closed on unsupported platforms before provider or note work', async () => {
 		const fakes = dependencies();
 		const application = new SyncOneApplication({
