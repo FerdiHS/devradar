@@ -556,12 +556,14 @@ function readRetainedEntries(
 function validatePolicy(
 	policy: GitHubPolicyObservation,
 ): { readonly ok: true; readonly value: ValidPolicy } | { readonly ok: false } {
-	const rateLimitNotBefore = policy.rateLimitNotBefore
-		? validateCanonicalPluginTimestamp(policy.rateLimitNotBefore)
-		: undefined;
-	const pollNotBefore = policy.pollNotBefore
-		? validateCanonicalPluginTimestamp(policy.pollNotBefore)
-		: undefined;
+	const rateLimitNotBefore =
+		policy.rateLimitNotBefore === undefined
+			? undefined
+			: validateCanonicalPluginTimestamp(policy.rateLimitNotBefore);
+	const pollNotBefore =
+		policy.pollNotBefore === undefined
+			? undefined
+			: validateCanonicalPluginTimestamp(policy.pollNotBefore);
 	if (
 		(rateLimitNotBefore && !rateLimitNotBefore.ok) ||
 		(pollNotBefore && !pollNotBefore.ok)
@@ -591,18 +593,7 @@ function updateSettings(
 		followedPeople: settings.followedPeople.map((person) =>
 			person.githubAccountId === githubAccountId
 				? { ...person, syncState }
-				: {
-						...person,
-						syncState: {
-							...person.syncState,
-							seenEvents: person.syncState.seenEvents.map(
-								(event) => ({
-									...event,
-								}),
-							),
-							github: { ...person.syncState.github },
-						},
-					},
+				: person,
 		),
 		...(policy.rateLimitNotBefore !== undefined &&
 		(settings.githubRequestPolicy?.rateLimitNotBefore === undefined ||

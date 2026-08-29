@@ -99,7 +99,10 @@ const dependencies = (
 		},
 	);
 	const notes = {
-		read: vi.fn(async () => ({ kind: 'read' as const, markdown: note() })),
+		read: vi.fn<SyncOneDependencies['notes']['read']>(async () => ({
+			kind: 'read',
+			markdown: note(),
+		})),
 		process,
 	};
 	const github = {
@@ -354,6 +357,31 @@ describe('Sync One application', () => {
 		expect(result).toEqual({ kind: 'failed', reason: 'invalid-selection' });
 		expect(fakes.github.retrieveEvents).not.toHaveBeenCalled();
 		expect(fakes.notes.read).not.toHaveBeenCalled();
+	});
+
+	it('returns a note failure when the associated note cannot be read', async () => {
+		const fakes = dependencies();
+		fakes.notes.read.mockResolvedValue({
+			kind: 'failed',
+			error: { kind: 'read-failure' },
+		});
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'failed', reason: 'note' });
+		expect(fakes.saveCandidateWithinMutation).toHaveBeenCalledOnce();
+	});
+
+	it('returns an internal failure when a provider capability rejects', async () => {
+		const fakes = dependencies();
+		fakes.github.retrieveEvents.mockRejectedValue(new Error('boom'));
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'failed', reason: 'internal' });
+		expect(fakes.saveCandidateWithinMutation).toHaveBeenCalledOnce();
 	});
 
 	it('treats a non-policy zero-request result as a failed attempted execution', async () => {
