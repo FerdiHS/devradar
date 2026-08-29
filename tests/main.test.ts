@@ -495,6 +495,7 @@ describe('Sync One command wiring', () => {
 
 		await syncOneCommand(plugin).callback?.();
 		pickerInstance().onClose();
+		await Promise.resolve();
 
 		expect(syncOne).not.toHaveBeenCalled();
 		expect(obsidianNotice).not.toHaveBeenCalled();
@@ -527,6 +528,41 @@ describe('Sync One command wiring', () => {
 		);
 
 		pickerInstance().onChooseItem({
+			username: 'octocat',
+			githubAccountId: '583231',
+		});
+		await Promise.resolve();
+		await syncOneCommand(plugin).callback?.();
+		expect(syncOne).toHaveBeenCalledTimes(1);
+		expect(modalState.instances).toHaveLength(1);
+
+		release({ kind: 'unchanged' });
+		await pending;
+		await Promise.resolve();
+	});
+
+	it('keeps a selection alive when close precedes the selection callback', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<unknown>;
+				};
+			}
+		).syncOneApplication;
+		let release!: (value: { kind: 'unchanged' }) => void;
+		const pending = new Promise<{ kind: 'unchanged' }>((resolve) => {
+			release = resolve;
+		});
+		const syncOne = vi
+			.spyOn(application, 'syncOne')
+			.mockReturnValue(pending);
+
+		await syncOneCommand(plugin).callback?.();
+		const picker = pickerInstance();
+		picker.onClose();
+		picker.onChooseItem({
 			username: 'octocat',
 			githubAccountId: '583231',
 		});

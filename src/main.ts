@@ -61,7 +61,9 @@ class SyncOnePicker extends FuzzySuggestModal<SyncOnePickerItem> {
 	}
 
 	onClose(): void {
-		if (!this.selected) this.onCancel();
+		queueMicrotask(() => {
+			if (!this.selected) this.onCancel();
+		});
 	}
 }
 
