@@ -802,7 +802,10 @@ export function replaceManagedContent(
 	return replaceManagedEntries(
 		input,
 		expectedIdentity,
-		activities.map((activity) => ({ kind: 'new', activity })),
+		activities
+			.slice()
+			.sort(compareActivities)
+			.map((activity) => ({ kind: 'new' as const, activity })),
 	);
 }
 
@@ -817,7 +820,10 @@ export function associatePersonNote(
 		return replaceParsedSection(
 			input,
 			parsed.section as ParsedSection,
-			activities.map((activity) => ({ kind: 'new', activity })),
+			activities
+				.slice()
+				.sort(compareActivities)
+				.map((activity) => ({ kind: 'new' as const, activity })),
 		);
 
 	const lineEnding = detectLineEnding(input);

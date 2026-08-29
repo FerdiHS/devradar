@@ -673,6 +673,23 @@ describe('person-note association and replacement', () => {
 		});
 	});
 
+	it('keeps public activity replacement newest-first', () => {
+		const older = activity('1', '2026-08-18T03:00:00Z', 'older');
+		const newer = activity('2', '2026-08-19T03:00:00Z', 'newer');
+		const result = replaceManagedContent(section('Old content'), identity, [
+			older,
+			newer,
+		]);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(
+			result.value.markdown.indexOf(renderActivityEntry(newer)),
+		).toBeLessThan(
+			result.value.markdown.indexOf(renderActivityEntry(older)),
+		);
+	});
+
 	it('replaces an empty managed region and then reports a no-op', () => {
 		const note = `${begin}\n${end}`;
 		const expected = `${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`;

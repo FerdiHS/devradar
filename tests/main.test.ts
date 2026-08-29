@@ -430,7 +430,7 @@ describe('Sync One command wiring', () => {
 	});
 
 	it('fails closed on Mobile before opening the picker', async () => {
-		obsidianPlatform.isMobile = true;
+		obsidianPlatform.isMobileApp = true;
 		const plugin = fakePlugin(async () => EMPTY);
 
 		await plugin.onload();

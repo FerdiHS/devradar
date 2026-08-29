@@ -205,7 +205,7 @@ export default class DevRadarPlugin extends Plugin {
 }
 
 function isMobilePlatform(): boolean {
-	return Platform.isMobile || Platform.isMobileApp;
+	return Platform.isMobileApp;
 }
 
 function showSyncOneResult(result: SyncOneResult): void {
