@@ -682,6 +682,55 @@ describe('GitHub Events validation and mapping', () => {
 });
 
 describe('GitHub Events pagination and completeness', () => {
+	it('canonicalizes account-bound Events pagination to the username endpoint', async () => {
+		const link =
+			'<https://api.github.com/user/42/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+			response([event({ id: '2' })]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests).toHaveLength(2);
+		expect(requests[1]?.url).toBe(
+			'https://api.github.com/users/octocat/events/public?page=2&per_page=100',
+		);
+	});
+
+	it('rejects mismatched account-bound Events pagination without a follow-up request', async () => {
+		const link =
+			'<https://api.github.com/user/43/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(1);
+	});
+
+	it('rejects noncanonical account-bound Events pagination spellings', async () => {
+		const link =
+			'<https://api.github.com/user/042/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(1);
+	});
+
 	it('retrieves at most three pages and rejects a page-four link', async () => {
 		const pageLink = (page: number) =>
 			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;

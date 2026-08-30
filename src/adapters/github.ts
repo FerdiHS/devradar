@@ -750,11 +750,17 @@ function splitLinkHeader(value: string): string[] | undefined {
 function validateNextUrl(
 	value: string,
 	username: string,
+	githubAccountId: string,
 	currentPage: number,
 ): NextPage | undefined {
 	const queryIndex = value.indexOf('?');
-	const expectedBase = `${API_ORIGIN}/users/${username}/events/public`;
-	if (queryIndex < 0 || value.slice(0, queryIndex) !== expectedBase)
+	const expectedUsernameBase = `${API_ORIGIN}/users/${username}/events/public`;
+	const expectedAccountBase = `${API_ORIGIN}/user/${githubAccountId}/events/public`;
+	if (
+		queryIndex < 0 ||
+		(value.slice(0, queryIndex) !== expectedUsernameBase &&
+			value.slice(0, queryIndex) !== expectedAccountBase)
+	)
 		return undefined;
 	const rawPath = value.slice(0, queryIndex);
 	if (
@@ -776,7 +782,8 @@ function validateNextUrl(
 		url.username !== '' ||
 		url.password !== '' ||
 		url.hash !== '' ||
-		url.pathname !== `/users/${username}/events/public`
+		(url.pathname !== `/users/${username}/events/public` &&
+			url.pathname !== `/user/${githubAccountId}/events/public`)
 	)
 		return undefined;
 	const parameters = [...url.searchParams.entries()];
@@ -790,12 +797,15 @@ function validateNextUrl(
 		pages[0]?.[1] !== String(currentPage + 1)
 	)
 		return undefined;
+	if (url.pathname === `/user/${githubAccountId}/events/public`)
+		url.pathname = `/users/${username}/events/public`;
 	return { url: url.toString(), page: currentPage + 1 };
 }
 
 function parseNextPage(
 	response: GitHubTransportResponse,
 	username: string,
+	githubAccountId: string,
 	currentPage: number,
 ): LinkParseResult {
 	const value = headerValue(response.headers, 'link');
@@ -853,7 +863,12 @@ function parseNextPage(
 			relation.split(' ').some((token) => token.toLowerCase() === 'next')
 		) {
 			if (next !== undefined) return { ok: false };
-			next = validateNextUrl(target, username, currentPage);
+			next = validateNextUrl(
+				target,
+				username,
+				githubAccountId,
+				currentPage,
+			);
 			if (next === undefined) return { ok: false };
 		}
 	}
@@ -1212,7 +1227,12 @@ export class GitHubAdapter {
 				);
 			}
 
-			const next = parseNextPage(response, input.username, page);
+			const next = parseNextPage(
+				response,
+				input.username,
+				input.githubAccountId,
+				page,
+			);
 			if (!next.ok)
 				return resultPersonFailure(
 					failure(
