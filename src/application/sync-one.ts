@@ -131,6 +131,9 @@ export class SyncOneApplication {
 
 		const attemptAt = this.currentInstant();
 		if (!attemptAt) return failed('internal');
+		const selectionState = resolveSelection(runtime.settings, selection);
+		if (selectionState === 'invalid-selection')
+			return failed('invalid-selection');
 		const settings = validatePersistedSettingsV1(
 			runtime.settings,
 			attemptAt,
@@ -474,6 +477,33 @@ function resolvePerson(
 		(person) => person.githubAccountId === selection.githubAccountId,
 	);
 	return matches.length === 1 ? matches[0] : undefined;
+}
+
+function resolveSelection(
+	settings: DevRadarSettingsV1,
+	selection: SyncOneSelection,
+): 'invalid-selection' | 'defer' {
+	if (
+		!selection ||
+		typeof selection !== 'object' ||
+		typeof selection.githubAccountId !== 'string' ||
+		!isCanonicalPositiveDecimalString(selection.githubAccountId)
+	)
+		return 'invalid-selection';
+	if (!Array.isArray(settings.followedPeople)) return 'defer';
+	let matches = 0;
+	for (const person of settings.followedPeople) {
+		if (
+			person !== null &&
+			typeof person === 'object' &&
+			typeof person.githubAccountId === 'string' &&
+			person.githubAccountId === selection.githubAccountId
+		) {
+			matches += 1;
+			if (matches > 1) return 'invalid-selection';
+		}
+	}
+	return matches === 0 ? 'invalid-selection' : 'defer';
 }
 
 function isBlockedByPolicy(

@@ -477,6 +477,30 @@ describe('Sync One application', () => {
 		expect(fakes.notes.read).not.toHaveBeenCalled();
 	});
 
+	it('fails duplicate durable selections before provider or note work', async () => {
+		const fakes = dependencies(
+			settings({
+				followedPeople: [
+					...settings().followedPeople,
+					{
+						username: 'hubot',
+						githubAccountId: '583231',
+						notePath: 'People/hubot.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: createEmptyPersonSyncState(),
+					},
+				],
+			}),
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'failed', reason: 'invalid-selection' });
+		expect(fakes.github.retrieveEvents).not.toHaveBeenCalled();
+		expect(fakes.notes.read).not.toHaveBeenCalled();
+	});
+
 	it('returns a note failure when the associated note cannot be read', async () => {
 		const fakes = dependencies();
 		fakes.notes.read.mockResolvedValue({
