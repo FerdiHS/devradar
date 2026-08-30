@@ -466,6 +466,29 @@ describe('Sync One application', () => {
 		expect(fakes.saveCandidateWithinMutation).not.toHaveBeenCalled();
 	});
 
+	it('honors a provider policy skip at the application decision boundary', async () => {
+		const boundary = '2026-08-20T12:00:00.000Z';
+		const fakes = dependencies(
+			settings({
+				githubRequestPolicy: { rateLimitNotBefore: boundary },
+			}),
+			{
+				kind: 'no-request',
+				requestAttempted: false,
+				notBefore: boundary,
+				policy: {},
+			},
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'skipped', reason: 'provider-policy' });
+		expect(fakes.github.retrieveEvents).toHaveBeenCalledOnce();
+		expect(fakes.notes.read).not.toHaveBeenCalled();
+		expect(fakes.saveCandidateWithinMutation).not.toHaveBeenCalled();
+	});
+
 	it('fails stale durable selections before provider or note work', async () => {
 		const fakes = dependencies();
 		const application = new SyncOneApplication(fakes.deps);

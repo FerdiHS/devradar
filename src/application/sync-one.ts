@@ -173,14 +173,7 @@ export class SyncOneApplication {
 			);
 
 		if (provider.kind === 'no-request') {
-			if (
-				isApprovedPolicySkip(
-					provider,
-					settings.value,
-					person,
-					attemptAt,
-				)
-			)
+			if (isApprovedPolicySkip(provider, settings.value, person))
 				return { kind: 'skipped', reason: 'provider-policy' };
 			return this.finishFailure(
 				{
@@ -525,13 +518,11 @@ function isApprovedPolicySkip(
 	provider: Extract<SyncOneProviderResult, { readonly kind: 'no-request' }>,
 	settings: DevRadarSettingsV1,
 	person: FollowedPersonV1,
-	now: string,
 ): boolean {
 	const returned = provider.notBefore;
 	if (!returned) return false;
 	const valid = validateCanonicalPluginTimestamp(returned);
-	if (!valid.ok || compareCanonicalTimestamps(valid.value, now) <= 0)
-		return false;
+	if (!valid.ok) return false;
 	const configured = [
 		settings.githubRequestPolicy?.rateLimitNotBefore,
 		person.syncState.github.pollNotBefore,
