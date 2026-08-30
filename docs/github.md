@@ -19,6 +19,13 @@ Use these endpoints:
   GitHub `login` before persisting an association;
 - `GET /users/{username}/events/public` for per-sync public activity retrieval.
 
+GitHub may also emit the exact `/user/{githubAccountId}/events/public` alias
+for a followed person. DevRadar accepts that alias only when the numeric
+`{githubAccountId}` exactly matches the stored durable account ID for that
+person, and it canonicalizes the alias to `/users/{username}/events/public`
+before transport. A numeric alias with a mismatched ID or any other
+noncanonical target fails closed.
+
 Ordinary note-path/tracking-start edits and per-sync retrieval do not perform a
 separate profile preflight. The Events request itself determines whether
 activity is currently retrievable.
@@ -136,7 +143,10 @@ Events request is page 1. Before requesting a next link, validate that it:
 - uses HTTPS;
 - has host `api.github.com`;
 - targets the public user-events endpoint;
-- refers to the canonical followed username;
+- refers to the canonical followed username, or to the exact
+  `/user/{githubAccountId}/events/public` alias only when the alias ID exactly
+  matches the stored durable account ID and the request can be rewritten to the
+  canonical `/users/{username}/events/public` transport target;
 - is the only `rel="next"` target in the response;
 - contains exactly one `page` query parameter whose positive value is the
   current page number plus one;
@@ -340,6 +350,8 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - identity resolution success and failure;
 - unsafe/non-safe integer IDs failing closed;
 - durable account-ID binding and event actor-ID/login mismatch;
+- matching numeric aliases canonicalized to `/users/{username}/events/public`;
+- mismatched or noncanonical numeric aliases failing closed;
 - organization, bot, and other unsupported identity types;
 - one-, two-, and three-page retrieval through `Link`;
 - invalid pagination origins, paths, and identities;
