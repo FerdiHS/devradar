@@ -699,6 +699,49 @@ describe('GitHub Events pagination and completeness', () => {
 		);
 	});
 
+	it('canonicalizes account-bound aliases on later pagination hops', async () => {
+		const usernameLink =
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"';
+		const accountLink =
+			'<https://api.github.com/user/42/events/public?page=3&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link: usernameLink } }),
+			response([event({ id: '2' })], { headers: { link: accountLink } }),
+			response([event({ id: '3' })]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests.map((request) => request.url)).toEqual([
+			'https://api.github.com/users/octocat/events/public?per_page=100',
+			'https://api.github.com/users/octocat/events/public?page=2&per_page=100',
+			'https://api.github.com/users/octocat/events/public?page=3&per_page=100',
+		]);
+	});
+
+	it('rejects an account-bound alias beyond the page ceiling', async () => {
+		const pageLink = (page: number) =>
+			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;
+		const accountPageFourLink =
+			'<https://api.github.com/user/42/events/public?page=4&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link: pageLink(2) } }),
+			response([event({ id: '2' })], { headers: { link: pageLink(3) } }),
+			response([event({ id: '3' })], {
+				headers: { link: accountPageFourLink },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'provider-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(3);
+	});
+
 	it('rejects mismatched account-bound Events pagination without a follow-up request', async () => {
 		const link =
 			'<https://api.github.com/user/43/events/public?page=2&per_page=100>; rel="next"';
