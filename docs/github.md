@@ -17,7 +17,11 @@ Use these endpoints:
 
 - `GET /users/{username}` during follow and re-follow to resolve the canonical
   GitHub `login` before persisting an association;
-- `GET /users/{username}/events/public` for per-sync public activity retrieval.
+- `GET /users/{username}/events/public` for per-sync public activity retrieval;
+- `GET /repos/{owner}/{repo}/pulls/{pull_number}` only to enrich a supported
+  pull-request event whose event payload does not include its title. The
+  adapter may request this endpoint only when the URL exactly matches the
+  event's canonical repository and positive pull-request number.
 
 GitHub may also emit the exact `/user/{githubAccountId}/events/public` alias
 for a followed person. DevRadar accepts that alias only when the numeric
@@ -86,7 +90,9 @@ pagination, a maximum recent timeline, and delayed event availability.
 The MVP intentionally uses only these GitHub REST operations:
 
 - `GET /users/{username}` for public identity resolution;
-- `GET /users/{username}/events/public` for public activity retrieval; and
+- `GET /users/{username}/events/public` for public activity retrieval;
+- `GET /repos/{owner}/{repo}/pulls/{pull_number}` for validated pull-request
+  title enrichment; and
 - validated `rel="next"` links for subsequent Events pages.
 
 The production boundary rejects requests outside this URL and public-header
@@ -165,10 +171,13 @@ documented deferred event families are ignored after that minimum check; their
 irrelevant payload fields are not validated. `PushEvent`, `PullRequestEvent`,
 and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
 `actor.id`/`actor.login` envelope plus their mapping-specific fields. A
-malformed supported event is provider data failure for that person, not an
-unsupported event. The v0.2.0 Push mapping consumes `payload.ref` and may use
-`payload.head`; `payload.before` is optional semantic metadata but is not an
-adapter requirement.
+`PullRequestEvent` may omit `payload.pull_request.title`; when it does, the
+adapter may fetch the title from the exact validated pull-request detail
+endpoint described above. A missing or malformed title in that response is
+provider data failure for that person. A malformed supported event is provider
+data failure for that person, not an unsupported event. The v0.2.0 Push mapping
+consumes `payload.ref` and may use `payload.head`; `payload.before` is optional
+semantic metadata but is not an adapter requirement.
 
 The page ceiling is separate from the one-retry-total budget for one logical
 Events operation. A valid next link from page 3 that would request page 4 is a

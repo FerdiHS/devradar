@@ -1,10 +1,12 @@
 import {
 	canonicalizeRepository,
+	canonicalizePositiveNumber,
 	canonicalizeTimestamp,
 	createIssueActivity,
 	createPullRequestActivity,
 	createPushActivity,
 	type Activity,
+	type PullRequestAction,
 	validateRef,
 } from '../domain/activity';
 import {
@@ -156,7 +158,32 @@ type MappingResult =
 	| { readonly kind: 'activity'; readonly activity: Activity }
 	| { readonly kind: 'ignored' }
 	| { readonly kind: 'identity-mismatch' }
-	| { readonly kind: 'invalid' };
+	| { readonly kind: 'invalid' }
+	| {
+			readonly kind: 'pull-request-needs-details';
+			readonly envelope: EventEnvelope;
+			readonly number: string;
+			readonly eventAction: PullRequestAction;
+			readonly normalizedAction?: PullRequestAction;
+			readonly requiresMerged: boolean;
+			readonly url: string;
+	  };
+
+type PullRequestTitleResult =
+	| {
+			readonly kind: 'success';
+			readonly title: string;
+			readonly merged?: boolean;
+			readonly state: BoundaryState;
+			readonly retryUsed: boolean;
+	  }
+	| {
+			readonly kind: 'failure';
+			readonly state: BoundaryState;
+			readonly retryUsed: boolean;
+			readonly scope: 'person' | 'provider';
+			readonly failure: GitHubFailure;
+	  };
 
 const failure = (
 	category: GitHubFailureCategory,
@@ -657,24 +684,49 @@ function mapSupportedEvent(
 	if (type === 'PullRequestEvent') {
 		if (!['opened', 'reopened', 'closed', 'merged'].includes(action))
 			return { kind: 'ignored' };
+		const eventAction = action as PullRequestAction;
 		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
 		if (pullRequest === undefined) return { kind: 'invalid' };
 		const number = readOwn(payload, 'number');
 		const title = readOwn(pullRequest, 'title');
-		if (
-			(typeof number !== 'string' && typeof number !== 'number') ||
-			typeof title !== 'string'
-		)
+		if (typeof number !== 'string' && typeof number !== 'number')
 			return { kind: 'invalid' };
-		let normalizedAction: 'opened' | 'reopened' | 'closed' | 'merged';
+		const merged = readOwn(pullRequest, 'merged');
+		let normalizedAction: PullRequestAction | undefined;
 		if (action === 'opened' || action === 'reopened')
 			normalizedAction = action;
 		else {
-			const merged = readOwn(pullRequest, 'merged');
-			if (typeof merged !== 'boolean') return { kind: 'invalid' };
-			normalizedAction = merged ? 'merged' : 'closed';
-			if (action === 'merged' && !merged) return { kind: 'invalid' };
+			if (merged !== undefined && typeof merged !== 'boolean')
+				return { kind: 'invalid' };
+			if (typeof merged === 'boolean') {
+				normalizedAction = merged ? 'merged' : 'closed';
+				if (action === 'merged' && !merged) return { kind: 'invalid' };
+			}
 		}
+		if (title === undefined || normalizedAction === undefined) {
+			const canonicalNumber = canonicalizePositiveNumber(number);
+			const pullRequestUrl = readOwn(pullRequest, 'url');
+			const expectedUrl = canonicalNumber.ok
+				? `${API_ORIGIN}/repos/${envelope.repository}/pulls/${canonicalNumber.value}`
+				: undefined;
+			if (
+				!canonicalNumber.ok ||
+				typeof pullRequestUrl !== 'string' ||
+				pullRequestUrl !== expectedUrl
+			)
+				return { kind: 'invalid' };
+			return {
+				kind: 'pull-request-needs-details',
+				envelope,
+				number: canonicalNumber.value,
+				eventAction,
+				...(normalizedAction === undefined ? {} : { normalizedAction }),
+				requiresMerged: normalizedAction === undefined,
+				url: pullRequestUrl,
+			};
+		}
+		if (typeof title !== 'string' || normalizedAction === undefined)
+			return { kind: 'invalid' };
 		const activity = createPullRequestActivity({
 			...envelope,
 			number,
@@ -890,6 +942,124 @@ export class GitHubAdapter {
 		this.now = options.now ?? Date.now;
 	}
 
+	private async retrievePullRequestTitle(
+		url: string,
+		eventAction: PullRequestAction,
+		requiresMerged: boolean,
+		initialState: BoundaryState,
+		initialRetryUsed: boolean,
+	): Promise<PullRequestTitleResult> {
+		let state = initialState;
+		let retryUsed = initialRetryUsed;
+		let response: GitHubTransportResponse | undefined;
+		let responseObservation: ResponseObservation | undefined;
+		let responseTime: number | undefined;
+		while (response === undefined) {
+			try {
+				response = await this.transport({
+					url,
+					headers: REQUEST_HEADERS(this.pluginVersion),
+				});
+			} catch (error) {
+				if (error instanceof GitHubTransportContractError)
+					return {
+						kind: 'failure',
+						state,
+						retryUsed,
+						scope: 'provider',
+						failure: failure('transport-contract', error.message),
+					};
+				if (retryUsed)
+					return {
+						kind: 'failure',
+						state,
+						retryUsed,
+						scope: 'person',
+						failure: failure(
+							'transport',
+							'GitHub transport failed after retry budget',
+						),
+					};
+				retryUsed = true;
+				continue;
+			}
+			if (
+				response.status >= 500 &&
+				response.status <= 599 &&
+				!retryUsed
+			) {
+				const retryResponseTime = this.now();
+				const retryObservation = observeResponse(
+					response,
+					retryResponseTime,
+					state,
+				);
+				state = retryObservation.boundary;
+				if (retryObservation.quotaExhausted) {
+					responseObservation = retryObservation;
+					responseTime = retryResponseTime;
+					break;
+				}
+				response = undefined;
+				retryUsed = true;
+			}
+		}
+
+		responseTime ??= this.now();
+		const observation =
+			responseObservation ??
+			observeResponse(response, responseTime, state);
+		state = observation.boundary;
+		if (observation.failure !== undefined)
+			return {
+				kind: 'failure',
+				state,
+				retryUsed,
+				scope: observation.failure.scope,
+				failure: observation.failure.failure,
+			};
+		const body = asRecord(response.json);
+		const title = body === undefined ? undefined : readOwn(body, 'title');
+		const merged = body === undefined ? undefined : readOwn(body, 'merged');
+		if (response.status !== 200) {
+			const classified = classifyUnexpectedResponse(
+				response,
+				responseTime,
+				state,
+			);
+			return {
+				kind: 'failure',
+				state: classified.state,
+				retryUsed,
+				scope: classified.failure.scope,
+				failure: classified.failure.value,
+			};
+		}
+		if (
+			typeof title !== 'string' ||
+			(requiresMerged &&
+				(typeof merged !== 'boolean' ||
+					(eventAction === 'merged' && merged !== true)))
+		)
+			return {
+				kind: 'failure',
+				state,
+				retryUsed,
+				scope: 'person',
+				failure: failure(
+					'malformed-provider-data',
+					'malformed GitHub pull request response',
+				),
+			};
+		return {
+			kind: 'success',
+			title,
+			...(typeof merged === 'boolean' ? { merged } : {}),
+			state,
+			retryUsed,
+		};
+	}
+
 	async resolveIdentity(
 		input: GitHubIdentityRequest,
 	): Promise<GitHubIdentityResult> {
@@ -1025,7 +1195,7 @@ export class GitHubAdapter {
 	async retrieveEvents(
 		input: GitHubEventsRequest,
 	): Promise<GitHubResult<{ readonly activities: readonly Activity[] }>> {
-		const state: BoundaryState = {};
+		let state: BoundaryState = {};
 		const globalPolicy = policyBoundary([
 			input.globalPolicy?.rateLimitNotBefore,
 		]);
@@ -1185,12 +1355,12 @@ export class GitHubAdapter {
 				);
 
 			for (const event of response.json) {
-				const mapped = mapEvent(
+				let mapped = mapEvent(
 					event,
 					input.username,
 					input.githubAccountId,
 				);
-				if (mapped.kind === 'invalid')
+				if (mapped.kind === 'invalid') {
 					return resultPersonFailure(
 						failure(
 							'malformed-provider-data',
@@ -1198,6 +1368,7 @@ export class GitHubAdapter {
 						),
 						{ ...observation.boundary, pollNotBeforeMs },
 					);
+				}
 				if (mapped.kind === 'identity-mismatch')
 					return resultPersonFailure(
 						failure(
@@ -1206,6 +1377,49 @@ export class GitHubAdapter {
 						),
 						{ ...observation.boundary, pollNotBeforeMs },
 					);
+				if (mapped.kind === 'pull-request-needs-details') {
+					const titleResult = await this.retrievePullRequestTitle(
+						mapped.url,
+						mapped.eventAction,
+						mapped.requiresMerged,
+						{ ...observation.boundary, pollNotBeforeMs },
+						retryUsed,
+					);
+					state = titleResult.state;
+					retryUsed = titleResult.retryUsed;
+					if (titleResult.kind === 'failure')
+						return titleResult.scope === 'provider'
+							? resultProviderFailure(
+									titleResult.failure,
+									titleResult.state,
+								)
+							: resultPersonFailure(
+									titleResult.failure,
+									titleResult.state,
+								);
+					const activity = createPullRequestActivity({
+						...mapped.envelope,
+						number: mapped.number,
+						title: titleResult.title,
+						action:
+							mapped.normalizedAction ??
+							(mapped.eventAction === 'closed' ||
+							mapped.eventAction === 'merged'
+								? titleResult.merged
+									? 'merged'
+									: 'closed'
+								: mapped.eventAction),
+					});
+					if (!activity.ok)
+						return resultPersonFailure(
+							failure(
+								'malformed-provider-data',
+								'malformed GitHub pull request response',
+							),
+							titleResult.state,
+						);
+					mapped = { kind: 'activity', activity: activity.value };
+				}
 				if (mapped.kind !== 'activity') continue;
 				const existing = activities.get(
 					mapped.activity.providerEventId,
