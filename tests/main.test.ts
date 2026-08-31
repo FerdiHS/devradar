@@ -506,6 +506,8 @@ describe('Sync One command wiring', () => {
 
 		expect(syncOne).not.toHaveBeenCalled();
 		expect(obsidianNotice).not.toHaveBeenCalled();
+		await syncOneCommand(plugin).callback?.();
+		expect(modalState.instances).toHaveLength(2);
 	});
 
 	it('coalesces command activation while picker or Sync One is pending', async () => {
