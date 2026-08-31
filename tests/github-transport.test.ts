@@ -85,14 +85,6 @@ describe('Obsidian GitHub transport boundary', () => {
 			'https://api.github.com/repos/octocat/hello-world',
 		],
 		[
-			'pull request query',
-			'https://api.github.com/repos/octocat/hello-world/pulls/4?draft=true',
-		],
-		[
-			'noncanonical pull request number',
-			'https://api.github.com/repos/octocat/hello-world/pulls/04',
-		],
-		[
 			'fragment',
 			'https://api.github.com/users/octocat/events/public?per_page=100#page',
 		],
@@ -198,28 +190,6 @@ describe('Obsidian GitHub transport boundary', () => {
 		).resolves.toMatchObject({
 			status: 200,
 			json: {},
-		});
-		expect(requestUrl).toHaveBeenCalledOnce();
-	});
-
-	it('accepts an exact Pull Request detail URL', async () => {
-		requestUrl.mockResolvedValue({
-			status: 200,
-			headers: {},
-			text: '{"title":"Improve docs"}',
-		});
-		const { createObsidianGitHubTransport } =
-			await import('../src/adapters/github-transport');
-		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
-
-		await expect(
-			transport({
-				url: 'https://api.github.com/repos/octocat/hello-world/pulls/4',
-				headers: VALID_HEADERS,
-			}),
-		).resolves.toMatchObject({
-			status: 200,
-			json: { title: 'Improve docs' },
 		});
 		expect(requestUrl).toHaveBeenCalledOnce();
 	});

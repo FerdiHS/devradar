@@ -79,12 +79,6 @@ the activity; the corresponding metadata is omitted.
 The supported event families and payload shapes are verified against the
 [documented GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/github-event-types?apiVersion=2026-03-10).
 
-The Events API payload for a supported pull request may omit its title. The
-GitHub adapter may retrieve that title from the exact canonical pull-request
-REST endpoint before producing the activity; the normalized activity still
-requires a valid title and canonical source link. No arbitrary provider URL is
-followed.
-
 ## Canonical source links
 
 Source links are deterministic and must not be copied from arbitrary external
