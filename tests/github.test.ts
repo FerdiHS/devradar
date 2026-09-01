@@ -541,7 +541,7 @@ describe('GitHub Events validation and mapping', () => {
 		expect(caseOnlyResult).toMatchObject({ kind: 'success' });
 	});
 
-	it('enriches a trimmed Pull Request event from its canonical detail endpoint', async () => {
+	it('ignores the provider URL when enriching a trimmed Pull Request event', async () => {
 		const trimmed = event({
 			id: '2',
 			type: 'PullRequestEvent',
@@ -550,7 +550,7 @@ describe('GitHub Events validation and mapping', () => {
 				number: 4,
 				pull_request: {
 					id: 123,
-					url: 'https://api.github.com/repos/octocat/hello-world/pulls/4',
+					url: 'https://example.com/untrusted/pulls/999',
 					head: {},
 					base: {},
 				},
