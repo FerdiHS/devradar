@@ -867,6 +867,45 @@ describe('GitHub Events validation and mapping', () => {
 		expect(requests).toHaveLength(2);
 	});
 
+	it('preserves detail rate-limit state when a later event fails', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const malformed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 5,
+				pull_request: { title: 'Malformed', merged: 'yes' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed, malformed]),
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+				},
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+			policy: {
+				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
+			},
+		});
+		expect(requests).toHaveLength(2);
+	});
+
 	it('handles every supported PR merge condition and Issue action', async () => {
 		const events = [
 			['opened', undefined],

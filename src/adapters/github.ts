@@ -1384,7 +1384,7 @@ export class GitHubAdapter {
 							'malformed-provider-data',
 							'malformed supported GitHub event',
 						),
-						{ ...observation.boundary, pollNotBeforeMs },
+						{ ...state, pollNotBeforeMs },
 					);
 				if (mapped.kind === 'identity-mismatch')
 					return resultPersonFailure(
@@ -1392,7 +1392,7 @@ export class GitHubAdapter {
 							'identity-mismatch',
 							'GitHub event actor does not match followed person',
 						),
-						{ ...observation.boundary, pollNotBeforeMs },
+						{ ...state, pollNotBeforeMs },
 					);
 				if (mapped.kind === 'pull-request-needs-details') {
 					if (observation.quotaExhausted || detailQuotaExhausted)
@@ -1455,7 +1455,7 @@ export class GitHubAdapter {
 								'malformed-provider-data',
 								'conflicting duplicate GitHub event',
 							),
-							{ ...observation.boundary, pollNotBeforeMs },
+							{ ...state, pollNotBeforeMs },
 						);
 					continue;
 				}
