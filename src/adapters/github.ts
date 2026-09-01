@@ -188,6 +188,29 @@ type PullRequestDetailsResult =
 			readonly failure: GitHubFailure;
 	  };
 
+function isMatchingPullRequestDetails(
+	body: Record<string, unknown>,
+	repository: string,
+	number: string,
+): boolean {
+	const rawNumber = readOwn(body, 'number');
+	if (typeof rawNumber !== 'string' && typeof rawNumber !== 'number')
+		return false;
+	const responseNumber = canonicalizePositiveNumber(rawNumber);
+	const base = asRecord(readOwn(body, 'base'));
+	const responseRepository = canonicalizeRepository(
+		base === undefined
+			? undefined
+			: readOwn(asRecord(readOwn(base, 'repo')) ?? {}, 'full_name'),
+	);
+	return (
+		responseNumber.ok &&
+		responseNumber.value === number &&
+		responseRepository.ok &&
+		responseRepository.value.toLowerCase() === repository.toLowerCase()
+	);
+}
+
 const failure = (
 	category: GitHubFailureCategory,
 	message: string,
@@ -940,6 +963,8 @@ export class GitHubAdapter {
 
 	private async retrievePullRequestDetails(
 		url: string,
+		repository: string,
+		number: string,
 		eventAction: PullRequestAction,
 		requiresMerged: boolean,
 		initialState: BoundaryState,
@@ -1038,6 +1063,8 @@ export class GitHubAdapter {
 		const title = body === undefined ? undefined : readOwn(body, 'title');
 		const merged = body === undefined ? undefined : readOwn(body, 'merged');
 		if (
+			body === undefined ||
+			!isMatchingPullRequestDetails(body, repository, number) ||
 			typeof title !== 'string' ||
 			(requiresMerged &&
 				(typeof merged !== 'boolean' ||
@@ -1392,6 +1419,8 @@ export class GitHubAdapter {
 						);
 					const details = await this.retrievePullRequestDetails(
 						mapped.url,
+						mapped.envelope.repository,
+						mapped.number,
 						mapped.eventAction,
 						mapped.requiresMerged,
 						{ ...state, pollNotBeforeMs },

@@ -27,6 +27,14 @@ function response(
 	};
 }
 
+function pullRequestDetails(overrides: Record<string, unknown> = {}) {
+	return {
+		number: 4,
+		base: { repo: { full_name: 'octocat/hello-world' } },
+		...overrides,
+	};
+}
+
 function identity(overrides: Record<string, unknown> = {}) {
 	return {
 		login: USERNAME,
@@ -558,7 +566,9 @@ describe('GitHub Events validation and mapping', () => {
 		});
 		const { adapter: github, requests } = adapter([
 			response([trimmed]),
-			response({ title: 'Improve docs', merged: true }),
+			response(
+				pullRequestDetails({ title: 'Improve docs', merged: true }),
+			),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -582,6 +592,34 @@ describe('GitHub Events validation and mapping', () => {
 		);
 	});
 
+	it('rejects a detail response for a different Pull Request', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Close docs' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({
+				number: 5,
+				title: 'Wrong Pull Request',
+				merged: true,
+				base: { repo: { full_name: 'octocat/hello-world' } },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
 	it('enriches a Pull Request when only its merge state is trimmed', async () => {
 		const trimmed = event({
 			id: '2',
@@ -594,7 +632,9 @@ describe('GitHub Events validation and mapping', () => {
 		});
 		const { adapter: github, requests } = adapter([
 			response([trimmed]),
-			response({ title: 'Close docs', merged: false }),
+			response(
+				pullRequestDetails({ title: 'Close docs', merged: false }),
+			),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -626,7 +666,9 @@ describe('GitHub Events validation and mapping', () => {
 		});
 		const { adapter: github } = adapter([
 			response([trimmed]),
-			response({ title: 'Current title', merged: true }),
+			response(
+				pullRequestDetails({ title: 'Current title', merged: true }),
+			),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -655,7 +697,7 @@ describe('GitHub Events validation and mapping', () => {
 		});
 		const { adapter: github, requests } = adapter([
 			response([trimmed]),
-			response({ title: 'Close docs' }),
+			response(pullRequestDetails()),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -702,7 +744,7 @@ describe('GitHub Events validation and mapping', () => {
 		const { adapter: github, requests } = adapter([
 			response([trimmed]),
 			response({ message: 'temporary' }, { status: 503 }),
-			response({ title: 'Improve docs' }),
+			response(pullRequestDetails({ title: 'Improve docs' })),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -726,15 +768,12 @@ describe('GitHub Events validation and mapping', () => {
 
 		const exhausted = adapter([
 			response([trimmed]),
-			response(
-				{ title: 'Improve docs' },
-				{
-					headers: {
-						'x-ratelimit-remaining': '0',
-						'x-ratelimit-reset': String((NOW + 120_000) / 1000),
-					},
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
 				},
-			),
+			}),
 		]);
 		const exhaustedResult =
 			await exhausted.adapter.retrieveEvents(eventsRequest());
@@ -760,15 +799,12 @@ describe('GitHub Events validation and mapping', () => {
 			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"';
 		const { adapter: github, requests } = adapter([
 			response([trimmed], { headers: { link: nextPage } }),
-			response(
-				{ title: 'Improve docs' },
-				{
-					headers: {
-						'x-ratelimit-remaining': '0',
-						'x-ratelimit-reset': String((NOW + 120_000) / 1000),
-					},
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
 				},
-			),
+			}),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
