@@ -1,5 +1,9 @@
 import { Platform, requestUrl } from 'obsidian';
-import { isCanonicalGitHubUsername } from '../domain/primitives';
+import {
+	isCanonicalGitHubUsername,
+	isCanonicalPositiveDecimalString,
+} from '../domain/primitives';
+import { canonicalizeRepository } from '../domain/activity';
 import type {
 	GitHubTransport,
 	GitHubTransportRequest,
@@ -34,6 +38,16 @@ function isApprovedRequestUrl(value: string): boolean {
 		parts.length === 3 &&
 		parts[1] === 'users' &&
 		isCanonicalGitHubUsername(parts[2])
+	)
+		return url.search === '' && !value.includes('?');
+	if (
+		parts.length === 6 &&
+		parts[1] === 'repos' &&
+		parts[2] !== undefined &&
+		parts[3] !== undefined &&
+		parts[4] === 'pulls' &&
+		isCanonicalPositiveDecimalString(parts[5]) &&
+		canonicalizeRepository(`${parts[2]}/${parts[3]}`).ok
 	)
 		return url.search === '' && !value.includes('?');
 	if (

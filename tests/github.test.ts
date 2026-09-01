@@ -541,6 +541,216 @@ describe('GitHub Events validation and mapping', () => {
 		expect(caseOnlyResult).toMatchObject({ kind: 'success' });
 	});
 
+	it('enriches a trimmed Pull Request event from its canonical detail endpoint', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {
+					id: 123,
+					url: 'https://api.github.com/repos/octocat/hello-world/pulls/4',
+					head: {},
+					base: {},
+				},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ title: 'Improve docs', merged: true }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						family: 'pull-request',
+						action: 'merged',
+						number: '4',
+						title: 'Improve docs',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(2);
+		expect(requests[1]?.url).toBe(
+			'https://api.github.com/repos/octocat/hello-world/pulls/4',
+		);
+	});
+
+	it('enriches a Pull Request when only its merge state is trimmed', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Close docs' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ title: 'Close docs', merged: false }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						family: 'pull-request',
+						action: 'closed',
+						number: '4',
+						title: 'Close docs',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('fails a trimmed Pull Request when its detail response is incomplete', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Close docs' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ title: 'Close docs' }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('returns a person failure when Pull Request detail retrieval fails', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ message: 'Not Found' }, { status: 404 }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'not-found' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('shares the Events retry budget with Pull Request detail retrieval', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ message: 'temporary' }, { status: 503 }),
+			response({ title: 'Improve docs' }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests).toHaveLength(3);
+
+		const sharedBudget = adapter([
+			response({ message: 'temporary' }, { status: 503 }),
+			response([trimmed]),
+			response({ message: 'temporary' }, { status: 503 }),
+		]);
+		const sharedBudgetResult =
+			await sharedBudget.adapter.retrieveEvents(eventsRequest());
+
+		expect(sharedBudgetResult).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'unexpected-status' },
+		});
+		expect(sharedBudget.requests).toHaveLength(3);
+
+		const exhausted = adapter([
+			response([trimmed]),
+			response(
+				{ title: 'Improve docs' },
+				{
+					headers: {
+						'x-ratelimit-remaining': '0',
+						'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+					},
+				},
+			),
+		]);
+		const exhaustedResult =
+			await exhausted.adapter.retrieveEvents(eventsRequest());
+
+		expect(exhaustedResult).toMatchObject({
+			kind: 'success',
+			policy: {
+				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
+			},
+		});
+	});
+
+	it('stops before the next Events page after detail quota exhaustion', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const nextPage =
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([trimmed], { headers: { link: nextPage } }),
+			response(
+				{ title: 'Improve docs' },
+				{
+					headers: {
+						'x-ratelimit-remaining': '0',
+						'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+					},
+				},
+			),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'provider-failure',
+			failure: { category: 'rate-limit' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
 	it('handles every supported PR merge condition and Issue action', async () => {
 		const events = [
 			['opened', undefined],

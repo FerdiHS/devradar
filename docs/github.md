@@ -17,7 +17,10 @@ Use these endpoints:
 
 - `GET /users/{username}` during follow and re-follow to resolve the canonical
   GitHub `login` before persisting an association;
-- `GET /users/{username}/events/public` for per-sync public activity retrieval.
+- `GET /users/{username}/events/public` for per-sync public activity retrieval;
+- `GET /repos/{owner}/{repo}/pulls/{number}` only to complete a structurally
+  valid supported Pull Request event whose required title or merge state is
+  missing.
 
 GitHub may also emit the exact `/user/{githubAccountId}/events/public` alias
 for a followed person. DevRadar accepts that alias only when the numeric
@@ -87,11 +90,14 @@ The MVP intentionally uses only these GitHub REST operations:
 
 - `GET /users/{username}` for public identity resolution;
 - `GET /users/{username}/events/public` for public activity retrieval; and
+- `GET /repos/{owner}/{repo}/pulls/{number}` only for the narrowly scoped
+  trimmed Pull Request enrichment described in this document; and
 - validated `rel="next"` links for subsequent Events pages.
 
 The production boundary rejects requests outside this URL and public-header
-scope before calling `requestUrl()`; the adapter remains responsible for
-canonical identity and pagination validation.
+scope before calling `requestUrl()`; the adapter constructs the Pull Request
+detail URL from validated repository and number values and remains responsible
+for canonical identity and pagination validation.
 
 GitHub's current [user](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10)
 and [public-user-events](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)
@@ -165,10 +171,13 @@ documented deferred event families are ignored after that minimum check; their
 irrelevant payload fields are not validated. `PushEvent`, `PullRequestEvent`,
 and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
 `actor.id`/`actor.login` envelope plus their mapping-specific fields. A
-malformed supported event is provider data failure for that person, not an
-unsupported event. The v0.2.0 Push mapping consumes `payload.ref` and may use
-`payload.head`; `payload.before` is optional semantic metadata but is not an
-adapter requirement.
+structurally valid supported Pull Request event may omit its title or
+applicable merge state; in that case, retrieve the canonical Pull Request
+detail endpoint above and validate the returned fields before mapping it. A
+malformed supported event or detail response is provider data failure for that
+person, not an unsupported event. The v0.2.0 Push mapping consumes
+`payload.ref` and may use `payload.head`; `payload.before` is optional semantic
+metadata but is not an adapter requirement.
 
 The page ceiling is separate from the one-retry-total budget for one logical
 Events operation. A valid next link from page 3 that would request page 4 is a
@@ -376,6 +385,9 @@ Future tests use sanitized local fixtures and no live GitHub requests. Cover:
 - quota exhaustion on a final successful page;
 - page-2 and page-3 failures;
 - `404` and malformed responses;
+- trimmed Pull Request events and canonical detail requests;
+- malformed or failed Pull Request detail responses;
+- retry and rate-limit state shared by Events and Pull Request detail requests;
 - unsupported API-version/provider-contract failure;
 - one successful retry and repeated transient/`5xx` failures;
 - no retry for normal `4xx` or rate limits;

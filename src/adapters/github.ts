@@ -1,10 +1,12 @@
 import {
 	canonicalizeRepository,
+	canonicalizePositiveNumber,
 	canonicalizeTimestamp,
 	createIssueActivity,
 	createPullRequestActivity,
 	createPushActivity,
 	type Activity,
+	type PullRequestAction,
 	validateRef,
 } from '../domain/activity';
 import {
@@ -156,7 +158,34 @@ type MappingResult =
 	| { readonly kind: 'activity'; readonly activity: Activity }
 	| { readonly kind: 'ignored' }
 	| { readonly kind: 'identity-mismatch' }
+	| {
+			readonly kind: 'pull-request-needs-details';
+			readonly envelope: EventEnvelope;
+			readonly number: string;
+			readonly eventAction: PullRequestAction;
+			readonly normalizedAction?: PullRequestAction;
+			readonly requiresMerged: boolean;
+			readonly url: string;
+	  }
 	| { readonly kind: 'invalid' };
+
+type PullRequestDetailsResult =
+	| {
+			readonly kind: 'success';
+			readonly title: string;
+			readonly merged?: boolean;
+			readonly state: BoundaryState;
+			readonly retryUsed: boolean;
+			readonly quotaExhausted: boolean;
+	  }
+	| {
+			readonly kind: 'failure';
+			readonly state: BoundaryState;
+			readonly retryUsed: boolean;
+			readonly quotaExhausted: boolean;
+			readonly scope: 'person' | 'provider';
+			readonly failure: GitHubFailure;
+	  };
 
 const failure = (
 	category: GitHubFailureCategory,
@@ -657,24 +686,41 @@ function mapSupportedEvent(
 	if (type === 'PullRequestEvent') {
 		if (!['opened', 'reopened', 'closed', 'merged'].includes(action))
 			return { kind: 'ignored' };
+		const eventAction = action as PullRequestAction;
 		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
 		if (pullRequest === undefined) return { kind: 'invalid' };
 		const number = readOwn(payload, 'number');
 		const title = readOwn(pullRequest, 'title');
-		if (
-			(typeof number !== 'string' && typeof number !== 'number') ||
-			typeof title !== 'string'
-		)
+		if (typeof number !== 'string' && typeof number !== 'number')
 			return { kind: 'invalid' };
-		let normalizedAction: 'opened' | 'reopened' | 'closed' | 'merged';
+		if (title !== undefined && typeof title !== 'string')
+			return { kind: 'invalid' };
+		let normalizedAction: PullRequestAction | undefined;
 		if (action === 'opened' || action === 'reopened')
-			normalizedAction = action;
+			normalizedAction = eventAction;
 		else {
 			const merged = readOwn(pullRequest, 'merged');
-			if (typeof merged !== 'boolean') return { kind: 'invalid' };
-			normalizedAction = merged ? 'merged' : 'closed';
-			if (action === 'merged' && !merged) return { kind: 'invalid' };
+			if (merged !== undefined && typeof merged !== 'boolean')
+				return { kind: 'invalid' };
+			if (typeof merged === 'boolean') {
+				normalizedAction = merged ? 'merged' : 'closed';
+				if (eventAction === 'merged' && !merged)
+					return { kind: 'invalid' };
+			}
 		}
+		const canonicalNumber = canonicalizePositiveNumber(number);
+		if (!canonicalNumber.ok) return { kind: 'invalid' };
+		if (title === undefined || normalizedAction === undefined)
+			return {
+				kind: 'pull-request-needs-details',
+				envelope,
+				number: canonicalNumber.value,
+				eventAction,
+				...(normalizedAction === undefined ? {} : { normalizedAction }),
+				requiresMerged:
+					eventAction === 'closed' || eventAction === 'merged',
+				url: `${API_ORIGIN}/repos/${envelope.repository}/pulls/${canonicalNumber.value}`,
+			};
 		const activity = createPullRequestActivity({
 			...envelope,
 			number,
@@ -888,6 +934,132 @@ export class GitHubAdapter {
 		this.pluginVersion = options.pluginVersion;
 		this.transport = options.transport;
 		this.now = options.now ?? Date.now;
+	}
+
+	private async retrievePullRequestDetails(
+		url: string,
+		eventAction: PullRequestAction,
+		requiresMerged: boolean,
+		initialState: BoundaryState,
+		initialRetryUsed: boolean,
+	): Promise<PullRequestDetailsResult> {
+		let state = initialState;
+		let retryUsed = initialRetryUsed;
+		let response: GitHubTransportResponse | undefined;
+		let responseObservation: ResponseObservation | undefined;
+		let responseTime: number | undefined;
+
+		while (response === undefined) {
+			try {
+				response = await this.transport({
+					url,
+					headers: REQUEST_HEADERS(this.pluginVersion),
+				});
+			} catch (error) {
+				if (error instanceof GitHubTransportContractError)
+					return {
+						kind: 'failure',
+						state,
+						retryUsed,
+						quotaExhausted: false,
+						scope: 'provider',
+						failure: failure('transport-contract', error.message),
+					};
+				if (retryUsed)
+					return {
+						kind: 'failure',
+						state,
+						retryUsed,
+						quotaExhausted: false,
+						scope: 'person',
+						failure: failure(
+							'transport',
+							'GitHub transport failed after retry budget',
+						),
+					};
+				retryUsed = true;
+				continue;
+			}
+			if (
+				response.status >= 500 &&
+				response.status <= 599 &&
+				!retryUsed
+			) {
+				const retryResponseTime = this.now();
+				const retryObservation = observeResponse(
+					response,
+					retryResponseTime,
+					state,
+				);
+				state = retryObservation.boundary;
+				if (retryObservation.quotaExhausted) {
+					responseObservation = retryObservation;
+					responseTime = retryResponseTime;
+					break;
+				}
+				response = undefined;
+				retryUsed = true;
+			}
+		}
+
+		responseTime ??= this.now();
+		const observation =
+			responseObservation ??
+			observeResponse(response, responseTime, state);
+		state = observation.boundary;
+		if (observation.failure !== undefined)
+			return {
+				kind: 'failure',
+				state,
+				retryUsed,
+				quotaExhausted: observation.quotaExhausted,
+				scope: observation.failure.scope,
+				failure: observation.failure.failure,
+			};
+		if (response.status !== 200) {
+			const classified = classifyUnexpectedResponse(
+				response,
+				responseTime,
+				state,
+			);
+			return {
+				kind: 'failure',
+				state: classified.state,
+				retryUsed,
+				quotaExhausted: observation.quotaExhausted,
+				scope: classified.failure.scope,
+				failure: classified.failure.value,
+			};
+		}
+
+		const body = asRecord(response.json);
+		const title = body === undefined ? undefined : readOwn(body, 'title');
+		const merged = body === undefined ? undefined : readOwn(body, 'merged');
+		if (
+			typeof title !== 'string' ||
+			(requiresMerged &&
+				(typeof merged !== 'boolean' ||
+					(eventAction === 'merged' && merged !== true)))
+		)
+			return {
+				kind: 'failure',
+				state,
+				retryUsed,
+				quotaExhausted: observation.quotaExhausted,
+				scope: 'person',
+				failure: failure(
+					'malformed-provider-data',
+					'malformed GitHub pull request response',
+				),
+			};
+		return {
+			kind: 'success',
+			title,
+			...(typeof merged === 'boolean' ? { merged } : {}),
+			state,
+			retryUsed,
+			quotaExhausted: observation.quotaExhausted,
+		};
 	}
 
 	async resolveIdentity(
@@ -1184,8 +1356,9 @@ export class GitHubAdapter {
 					{ ...observation.boundary, pollNotBeforeMs },
 				);
 
+			let detailQuotaExhausted = false;
 			for (const event of response.json) {
-				const mapped = mapEvent(
+				let mapped = mapEvent(
 					event,
 					input.username,
 					input.githubAccountId,
@@ -1206,6 +1379,58 @@ export class GitHubAdapter {
 						),
 						{ ...observation.boundary, pollNotBeforeMs },
 					);
+				if (mapped.kind === 'pull-request-needs-details') {
+					if (observation.quotaExhausted || detailQuotaExhausted)
+						return resultProviderFailure(
+							failure(
+								'rate-limit',
+								'quota boundary prevents complete Events retrieval',
+							),
+							{ ...state, pollNotBeforeMs },
+						);
+					const details = await this.retrievePullRequestDetails(
+						mapped.url,
+						mapped.eventAction,
+						mapped.requiresMerged,
+						{ ...state, pollNotBeforeMs },
+						retryUsed,
+					);
+					state.rateLimitNotBeforeMs =
+						details.state.rateLimitNotBeforeMs;
+					pollNotBeforeMs = maxBoundary(
+						pollNotBeforeMs,
+						details.state.pollNotBeforeMs,
+					);
+					retryUsed = details.retryUsed;
+					detailQuotaExhausted ||= details.quotaExhausted;
+					if (details.kind === 'failure')
+						return details.scope === 'provider'
+							? resultProviderFailure(details.failure, {
+									...details.state,
+									pollNotBeforeMs,
+								})
+							: resultPersonFailure(details.failure, {
+									...details.state,
+									pollNotBeforeMs,
+								});
+					const activity = createPullRequestActivity({
+						...mapped.envelope,
+						number: mapped.number,
+						title: details.title,
+						action:
+							mapped.normalizedAction ??
+							(details.merged ? 'merged' : 'closed'),
+					});
+					if (!activity.ok)
+						return resultPersonFailure(
+							failure(
+								'malformed-provider-data',
+								'malformed GitHub pull request response',
+							),
+							{ ...state, pollNotBeforeMs },
+						);
+					mapped = { kind: 'activity', activity: activity.value };
+				}
 				if (mapped.kind !== 'activity') continue;
 				const existing = activities.get(
 					mapped.activity.providerEventId,
@@ -1227,6 +1452,8 @@ export class GitHubAdapter {
 				);
 			}
 
+			const currentState = { ...state, pollNotBeforeMs };
+
 			const next = parseNextPage(
 				response,
 				input.username,
@@ -1239,12 +1466,12 @@ export class GitHubAdapter {
 						'pagination',
 						'invalid GitHub Events pagination link',
 					),
-					{ ...observation.boundary, pollNotBeforeMs },
+					currentState,
 				);
 			if (next.next === undefined)
 				return resultSuccess(
 					{ activities: [...activities.values()] },
-					{ ...observation.boundary, pollNotBeforeMs },
+					currentState,
 				);
 			if (page >= MAX_EVENTS_PAGES)
 				return resultProviderFailure(
@@ -1252,15 +1479,15 @@ export class GitHubAdapter {
 						'pagination',
 						'GitHub Events page ceiling exceeded',
 					),
-					{ ...observation.boundary, pollNotBeforeMs },
+					currentState,
 				);
-			if (observation.quotaExhausted)
+			if (observation.quotaExhausted || detailQuotaExhausted)
 				return resultProviderFailure(
 					failure(
 						'rate-limit',
 						'quota boundary prevents complete Events retrieval',
 					),
-					{ ...observation.boundary, pollNotBeforeMs },
+					currentState,
 				);
 			page = next.next.page;
 			url = next.next.url;
