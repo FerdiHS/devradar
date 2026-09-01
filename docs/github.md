@@ -97,7 +97,11 @@ The MVP intentionally uses only these GitHub REST operations:
 The production boundary rejects requests outside this URL and public-header
 scope before calling `requestUrl()`; the adapter constructs the Pull Request
 detail URL from validated repository and number values and remains responsible
-for canonical identity and pagination validation.
+for canonical identity and pagination validation. Before using a detail
+response, require its positive `number` and `base.repo.full_name` to match the
+requested Pull Request number and canonical repository identity. Missing,
+malformed, or mismatched detail identity is a person-scoped provider-data
+failure.
 
 GitHub's current [user](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10)
 and [public-user-events](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)

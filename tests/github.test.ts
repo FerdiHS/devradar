@@ -620,6 +620,34 @@ describe('GitHub Events validation and mapping', () => {
 		expect(requests).toHaveLength(2);
 	});
 
+	it('rejects a detail response for a different repository', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Close docs' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({
+				number: 4,
+				title: 'Wrong Repository',
+				merged: true,
+				base: { repo: { full_name: 'octocat/other-repository' } },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
 	it('enriches a Pull Request when only its merge state is trimmed', async () => {
 		const trimmed = event({
 			id: '2',
