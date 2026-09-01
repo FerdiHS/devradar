@@ -1,6 +1,7 @@
 import {
 	compareActivities,
 	compareCanonicalTimestamps,
+	repositoryUrl,
 	type Activity,
 	type CanonicalEventId,
 } from './activity';
@@ -17,6 +18,10 @@ import {
 export type SyncDomainError =
 	| {
 			readonly kind: 'conflicting-provider-activity';
+			readonly providerEventId: CanonicalEventId;
+	  }
+	| {
+			readonly kind: 'ambiguous-reconciliation';
 			readonly providerEventId: CanonicalEventId;
 	  }
 	| {
@@ -157,6 +162,38 @@ function mergeEntries(
 	return merged;
 }
 
+type RetainedMatch<T> =
+	| { readonly kind: 'match'; readonly candidate: T }
+	| { readonly kind: 'none' }
+	| { readonly kind: 'ambiguous' };
+
+function findRetainedMatch(
+	activity: Activity,
+	available: readonly {
+		readonly entry: RetainedActivityEntry;
+		used: boolean;
+	}[],
+): RetainedMatch<{ readonly entry: RetainedActivityEntry; used: boolean }> {
+	const exact = available.find(
+		(candidate) =>
+			!candidate.used &&
+			candidate.entry.markdown === renderActivityEntry(activity),
+	);
+	if (exact) return { kind: 'match', candidate: exact };
+	if (activity.family !== 'pull-request' || activity.titleSource !== 'detail')
+		return { kind: 'none' };
+	const prefix = `- \`${activity.timestamp}\` — Pull request [#${activity.number}](${activity.sourceUrl}) ${activity.action} in [${activity.repository}](${repositoryUrl(activity.repository)}): `;
+	const candidates = available.filter(
+		(candidate) =>
+			!candidate.used && candidate.entry.markdown.startsWith(prefix),
+	);
+	if (candidates.length > 1) return { kind: 'ambiguous' };
+	const candidate = candidates[0];
+	return candidate === undefined
+		? { kind: 'none' }
+		: { kind: 'match', candidate };
+}
+
 export function reconcileActivities(
 	input: ReconciliationInput,
 ): SyncResult<ReconciliationPlan> {
@@ -192,13 +229,14 @@ export function reconcileActivities(
 	const reconciledActivities: Activity[] = [];
 	const newActivities: Activity[] = [];
 	for (const activity of orderedUnseen) {
-		const markdown = renderActivityEntry(activity);
-		const match = available.find(
-			(candidate) =>
-				!candidate.used && candidate.entry.markdown === markdown,
-		);
-		if (match) {
-			match.used = true;
+		const match = findRetainedMatch(activity, available);
+		if (match.kind === 'ambiguous')
+			return failure({
+				kind: 'ambiguous-reconciliation',
+				providerEventId: activity.providerEventId,
+			});
+		if (match.kind === 'match') {
+			match.candidate.used = true;
 			reconciledActivities.push(activity);
 		} else newActivities.push(activity);
 	}
@@ -224,17 +262,18 @@ export function confirmAccounting(
 	}));
 	const ordered = unique.value.slice().sort(compareActivities);
 	for (const activity of ordered) {
-		const markdown = renderActivityEntry(activity);
-		const match = available.find(
-			(candidate) =>
-				!candidate.used && candidate.entry.markdown === markdown,
-		);
-		if (!match)
+		const match = findRetainedMatch(activity, available);
+		if (match.kind === 'ambiguous')
+			return failure({
+				kind: 'ambiguous-reconciliation',
+				providerEventId: activity.providerEventId,
+			});
+		if (match.kind !== 'match')
 			return failure({
 				kind: 'unconfirmed-accounting',
 				providerEventId: activity.providerEventId,
 			});
-		match.used = true;
+		match.candidate.used = true;
 	}
 	return success({
 		kind: 'confirmed-accounting',

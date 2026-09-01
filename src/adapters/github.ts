@@ -1442,7 +1442,10 @@ export class GitHubAdapter {
 							),
 							{ ...state, pollNotBeforeMs },
 						);
-					mapped = { kind: 'activity', activity: activity.value };
+					mapped = {
+						kind: 'activity',
+						activity: { ...activity.value, titleSource: 'detail' },
+					};
 				}
 				if (mapped.kind !== 'activity') continue;
 				const existing = activities.get(

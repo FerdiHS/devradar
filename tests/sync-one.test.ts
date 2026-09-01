@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createIssueActivity, type Activity } from '../src/domain/activity';
+import {
+	createIssueActivity,
+	createPullRequestActivity,
+	type Activity,
+} from '../src/domain/activity';
 import { renderActivityEntry } from '../src/domain/person-note';
 import type { ApplicationMutationGuard } from '../src/application/mutation-guard';
 import {
@@ -41,6 +45,19 @@ const activity = (
 	});
 	if (!result.ok) throw new Error(result.error.message);
 	return result.value;
+};
+
+const detailPullRequestActivity = (providerEventId: string, title: string) => {
+	const result = createPullRequestActivity({
+		providerEventId,
+		timestamp: '2026-08-18T03:00:00Z',
+		repository: 'octocat/hello-world',
+		number: '5',
+		title,
+		action: 'closed',
+	});
+	if (!result.ok) throw new Error(result.error.message);
+	return { ...result.value, titleSource: 'detail' as const };
 };
 
 const settings = (
@@ -611,7 +628,8 @@ describe('Sync One application', () => {
 	});
 
 	it('keeps the note and enters settings recovery when state persistence fails, then recovers canonically', async () => {
-		const newActivity = activity('3');
+		const firstActivity = detailPullRequestActivity('3', 'Title A');
+		const recoveredActivity = detailPullRequestActivity('3', 'Title B');
 		const initialSettings = settings();
 		let noteMarkdown = note();
 		let saveCalls = 0;
@@ -659,9 +677,10 @@ describe('Sync One application', () => {
 			},
 		};
 		const github = {
-			retrieveEvents: vi.fn(async () =>
-				successfulProvider([newActivity]),
-			),
+			retrieveEvents: vi
+				.fn()
+				.mockResolvedValueOnce(successfulProvider([firstActivity]))
+				.mockResolvedValueOnce(successfulProvider([recoveredActivity])),
 		};
 		const now = vi
 			.fn()
@@ -679,7 +698,10 @@ describe('Sync One application', () => {
 		const first = await application.syncOne({ githubAccountId: '583231' });
 
 		expect(first).toEqual({ kind: 'failed', reason: 'persistence' });
-		expect(noteMarkdown).toContain(renderActivityEntry(newActivity));
+		expect(noteMarkdown).toContain(renderActivityEntry(firstActivity));
+		expect(noteMarkdown).not.toContain(
+			renderActivityEntry(recoveredActivity),
+		);
 		expect(settingsAuthority.getSettingsState()).toEqual({
 			kind: 'recovery',
 			diagnostic: { kind: 'write-failure' },
@@ -704,6 +726,6 @@ describe('Sync One application', () => {
 		expect(
 			persistence.save.mock.calls[1]?.[0].followedPeople[0]?.syncState
 				.seenEvents,
-		).toEqual([{ id: '3', createdAt: newActivity.timestamp }]);
+		).toEqual([{ id: '3', createdAt: firstActivity.timestamp }]);
 	});
 });

@@ -287,6 +287,7 @@ export interface PushActivity {
 export interface PullRequestActivity {
 	readonly family: 'pull-request';
 	readonly action: PullRequestAction;
+	readonly titleSource?: 'event' | 'detail';
 	readonly providerEventId: CanonicalEventId;
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
