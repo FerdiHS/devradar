@@ -162,6 +162,7 @@ type MappingResult =
 			readonly kind: 'pull-request-needs-details';
 			readonly envelope: EventEnvelope;
 			readonly number: string;
+			readonly title?: string;
 			readonly eventAction: PullRequestAction;
 			readonly normalizedAction?: PullRequestAction;
 			readonly requiresMerged: boolean;
@@ -715,6 +716,7 @@ function mapSupportedEvent(
 				kind: 'pull-request-needs-details',
 				envelope,
 				number: canonicalNumber.value,
+				...(typeof title === 'string' ? { title } : {}),
 				eventAction,
 				...(normalizedAction === undefined ? {} : { normalizedAction }),
 				requiresMerged:
@@ -1416,7 +1418,7 @@ export class GitHubAdapter {
 					const activity = createPullRequestActivity({
 						...mapped.envelope,
 						number: mapped.number,
-						title: details.title,
+						title: mapped.title ?? details.title,
 						action:
 							mapped.normalizedAction ??
 							(details.merged ? 'merged' : 'closed'),

@@ -615,6 +615,35 @@ describe('GitHub Events validation and mapping', () => {
 		expect(requests).toHaveLength(2);
 	});
 
+	it('preserves an event title when only its merge state is trimmed', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Event title' },
+			},
+		});
+		const { adapter: github } = adapter([
+			response([trimmed]),
+			response({ title: 'Current title', merged: true }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						action: 'merged',
+						title: 'Event title',
+					},
+				],
+			},
+		});
+	});
+
 	it('fails a trimmed Pull Request when its detail response is incomplete', async () => {
 		const trimmed = event({
 			type: 'PullRequestEvent',
