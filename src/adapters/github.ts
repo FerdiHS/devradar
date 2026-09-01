@@ -162,10 +162,7 @@ type MappingResult =
 			readonly kind: 'pull-request-needs-details';
 			readonly envelope: EventEnvelope;
 			readonly number: string;
-			readonly title?: string;
-			readonly eventAction: PullRequestAction;
-			readonly normalizedAction?: PullRequestAction;
-			readonly requiresMerged: boolean;
+			readonly action: PullRequestAction;
 			readonly url: string;
 	  }
 	| { readonly kind: 'invalid' };
@@ -174,7 +171,6 @@ type PullRequestDetailsResult =
 	| {
 			readonly kind: 'success';
 			readonly title: string;
-			readonly merged?: boolean;
 			readonly state: BoundaryState;
 			readonly retryUsed: boolean;
 			readonly quotaExhausted: boolean;
@@ -719,31 +715,28 @@ function mapSupportedEvent(
 			return { kind: 'invalid' };
 		if (title !== undefined && typeof title !== 'string')
 			return { kind: 'invalid' };
-		let normalizedAction: PullRequestAction | undefined;
+		let normalizedAction: PullRequestAction;
 		if (action === 'opened' || action === 'reopened')
 			normalizedAction = eventAction;
 		else {
 			const merged = readOwn(pullRequest, 'merged');
 			if (merged !== undefined && typeof merged !== 'boolean')
 				return { kind: 'invalid' };
-			if (typeof merged === 'boolean') {
-				normalizedAction = merged ? 'merged' : 'closed';
-				if (eventAction === 'merged' && !merged)
-					return { kind: 'invalid' };
-			}
+			if (eventAction === 'merged' && merged === false)
+				return { kind: 'invalid' };
+			normalizedAction =
+				eventAction === 'merged' || merged === true
+					? 'merged'
+					: 'closed';
 		}
 		const canonicalNumber = canonicalizePositiveNumber(number);
 		if (!canonicalNumber.ok) return { kind: 'invalid' };
-		if (title === undefined || normalizedAction === undefined)
+		if (title === undefined)
 			return {
 				kind: 'pull-request-needs-details',
 				envelope,
 				number: canonicalNumber.value,
-				...(typeof title === 'string' ? { title } : {}),
-				eventAction,
-				...(normalizedAction === undefined ? {} : { normalizedAction }),
-				requiresMerged:
-					eventAction === 'closed' || eventAction === 'merged',
+				action: normalizedAction,
 				url: `${API_ORIGIN}/repos/${envelope.repository}/pulls/${canonicalNumber.value}`,
 			};
 		const activity = createPullRequestActivity({
@@ -965,8 +958,6 @@ export class GitHubAdapter {
 		url: string,
 		repository: string,
 		number: string,
-		eventAction: PullRequestAction,
-		requiresMerged: boolean,
 		initialState: BoundaryState,
 		initialRetryUsed: boolean,
 	): Promise<PullRequestDetailsResult> {
@@ -1061,14 +1052,10 @@ export class GitHubAdapter {
 
 		const body = asRecord(response.json);
 		const title = body === undefined ? undefined : readOwn(body, 'title');
-		const merged = body === undefined ? undefined : readOwn(body, 'merged');
 		if (
 			body === undefined ||
 			!isMatchingPullRequestDetails(body, repository, number) ||
-			typeof title !== 'string' ||
-			(requiresMerged &&
-				(typeof merged !== 'boolean' ||
-					(eventAction === 'merged' && merged !== true)))
+			typeof title !== 'string'
 		)
 			return {
 				kind: 'failure',
@@ -1084,7 +1071,6 @@ export class GitHubAdapter {
 		return {
 			kind: 'success',
 			title,
-			...(typeof merged === 'boolean' ? { merged } : {}),
 			state,
 			retryUsed,
 			quotaExhausted: observation.quotaExhausted,
@@ -1421,8 +1407,6 @@ export class GitHubAdapter {
 						mapped.url,
 						mapped.envelope.repository,
 						mapped.number,
-						mapped.eventAction,
-						mapped.requiresMerged,
 						{ ...state, pollNotBeforeMs },
 						retryUsed,
 					);
@@ -1447,10 +1431,8 @@ export class GitHubAdapter {
 					const activity = createPullRequestActivity({
 						...mapped.envelope,
 						number: mapped.number,
-						title: mapped.title ?? details.title,
-						action:
-							mapped.normalizedAction ??
-							(details.merged ? 'merged' : 'closed'),
+						title: details.title,
+						action: mapped.action,
 					});
 					if (!activity.ok)
 						return resultPersonFailure(

@@ -579,7 +579,7 @@ describe('GitHub Events validation and mapping', () => {
 				activities: [
 					{
 						family: 'pull-request',
-						action: 'merged',
+						action: 'closed',
 						number: '4',
 						title: 'Improve docs',
 					},
@@ -598,7 +598,7 @@ describe('GitHub Events validation and mapping', () => {
 			payload: {
 				action: 'closed',
 				number: 4,
-				pull_request: { title: 'Close docs' },
+				pull_request: {},
 			},
 		});
 		const { adapter: github, requests } = adapter([
@@ -626,7 +626,7 @@ describe('GitHub Events validation and mapping', () => {
 			payload: {
 				action: 'closed',
 				number: 4,
-				pull_request: { title: 'Close docs' },
+				pull_request: {},
 			},
 		});
 		const { adapter: github, requests } = adapter([
@@ -648,7 +648,7 @@ describe('GitHub Events validation and mapping', () => {
 		expect(requests).toHaveLength(2);
 	});
 
-	it('enriches a Pull Request when only its merge state is trimmed', async () => {
+	it('treats a trimmed closed Pull Request action as authoritative', async () => {
 		const trimmed = event({
 			id: '2',
 			type: 'PullRequestEvent',
@@ -658,12 +658,7 @@ describe('GitHub Events validation and mapping', () => {
 				pull_request: { title: 'Close docs' },
 			},
 		});
-		const { adapter: github, requests } = adapter([
-			response([trimmed]),
-			response(
-				pullRequestDetails({ title: 'Close docs', merged: false }),
-			),
-		]);
+		const { adapter: github, requests } = adapter([response([trimmed])]);
 
 		const result = await github.retrieveEvents(eventsRequest());
 
@@ -680,10 +675,10 @@ describe('GitHub Events validation and mapping', () => {
 				],
 			},
 		});
-		expect(requests).toHaveLength(2);
+		expect(requests).toHaveLength(1);
 	});
 
-	it('preserves an event title when only its merge state is trimmed', async () => {
+	it('does not use current Pull Request state when a closed event is trimmed', async () => {
 		const trimmed = event({
 			type: 'PullRequestEvent',
 			payload: {
@@ -692,11 +687,36 @@ describe('GitHub Events validation and mapping', () => {
 				pull_request: { title: 'Event title' },
 			},
 		});
-		const { adapter: github } = adapter([
+		const { adapter: github, requests } = adapter([response([trimmed])]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						action: 'closed',
+						title: 'Event title',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(1);
+	});
+
+	it('preserves a merged event action when its title is trimmed', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'merged',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
 			response([trimmed]),
-			response(
-				pullRequestDetails({ title: 'Current title', merged: true }),
-			),
+			response(pullRequestDetails({ title: 'Merge docs' })),
 		]);
 
 		const result = await github.retrieveEvents(eventsRequest());
@@ -706,12 +726,15 @@ describe('GitHub Events validation and mapping', () => {
 			data: {
 				activities: [
 					{
+						family: 'pull-request',
 						action: 'merged',
-						title: 'Event title',
+						number: '4',
+						title: 'Merge docs',
 					},
 				],
 			},
 		});
+		expect(requests).toHaveLength(2);
 	});
 
 	it('fails a trimmed Pull Request when its detail response is incomplete', async () => {
@@ -720,7 +743,7 @@ describe('GitHub Events validation and mapping', () => {
 			payload: {
 				action: 'closed',
 				number: 4,
-				pull_request: { title: 'Close docs' },
+				pull_request: {},
 			},
 		});
 		const { adapter: github, requests } = adapter([
