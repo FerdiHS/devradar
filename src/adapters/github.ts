@@ -940,7 +940,31 @@ function parseNextPage(
 }
 
 function hasSameActivity(left: Activity, right: Activity): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
+	if (
+		left.family !== right.family ||
+		left.action !== right.action ||
+		left.providerEventId !== right.providerEventId ||
+		left.timestamp !== right.timestamp ||
+		left.repository !== right.repository
+	)
+		return false;
+	if (left.family === 'push' && right.family === 'push')
+		return (
+			left.ref === right.ref && left.pushSourceUrl === right.pushSourceUrl
+		);
+	if (left.family === 'pull-request' && right.family === 'pull-request')
+		return (
+			left.number === right.number &&
+			left.title === right.title &&
+			left.sourceUrl === right.sourceUrl
+		);
+	if (left.family === 'issue' && right.family === 'issue')
+		return (
+			left.number === right.number &&
+			left.title === right.title &&
+			left.sourceUrl === right.sourceUrl
+		);
+	return false;
 }
 
 export class GitHubAdapter {

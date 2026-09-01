@@ -1354,6 +1354,40 @@ describe('GitHub Events pagination and completeness', () => {
 			failure: { category: 'malformed-provider-data' },
 		});
 	});
+
+	it('collapses a duplicate PR when one title is detail-enriched', async () => {
+		const eventTitle = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Improve docs', merged: true },
+			},
+		});
+		const trimmedTitle = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { merged: true },
+			},
+		});
+		const { adapter: github } = adapter([
+			response([eventTitle, trimmedTitle]),
+			response(pullRequestDetails({ title: 'Improve docs' })),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [expect.objectContaining({ providerEventId: '2' })],
+			},
+		});
+	});
 });
 
 describe('GitHub policy and status handling', () => {
