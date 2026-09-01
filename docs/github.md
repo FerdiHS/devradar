@@ -104,8 +104,9 @@ requested Pull Request number and canonical repository identity. Missing,
 malformed, or mismatched detail identity is a person-scoped provider-data
 failure.
 
-GitHub's current [user](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10)
-and [public-user-events](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10)
+GitHub's current [user](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10),
+[public-user-events](https://docs.github.com/en/rest/activity/events?apiVersion=2026-03-10),
+and [pull-request](https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28)
 reference pages document no `3xx` response for these operations. DevRadar does
 not use the explicitly redirect-capable [archive](https://docs.github.com/en/rest/repos/contents?apiVersion=2026-03-10),
 [release-asset](https://docs.github.com/en/rest/releases/assets?apiVersion=2022-11-28),
