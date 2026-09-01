@@ -19,8 +19,9 @@ Use these endpoints:
   GitHub `login` before persisting an association;
 - `GET /users/{username}/events/public` for per-sync public activity retrieval;
 - `GET /repos/{owner}/{repo}/pulls/{number}` only to complete a structurally
-  valid supported Pull Request event whose required title or merge state is
-  missing.
+  valid supported Pull Request event whose required title is missing. The
+  Events action remains authoritative for historical close/merge semantics;
+  current Pull Request state is never used to reinterpret that action.
 
 GitHub may also emit the exact `/user/{githubAccountId}/events/public` alias
 for a followed person. DevRadar accepts that alias only when the numeric
@@ -175,11 +176,13 @@ documented deferred event families are ignored after that minimum check; their
 irrelevant payload fields are not validated. `PushEvent`, `PullRequestEvent`,
 and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
 `actor.id`/`actor.login` envelope plus their mapping-specific fields. A
-structurally valid supported Pull Request event may omit its title or
-applicable merge state; in that case, retrieve the canonical Pull Request
-detail endpoint above and validate the returned fields before mapping it. A
-malformed supported event or detail response is provider data failure for that
-person, not an unsupported event. The v0.2.0 Push mapping consumes
+structurally valid supported Pull Request event may omit its title; in that
+case, retrieve the canonical Pull Request detail endpoint above and validate
+the returned identity and title before mapping it. The event action remains
+authoritative: a trimmed `closed` action remains `closed`, and a `merged`
+action remains `merged`; the current detail response must not reinterpret the
+historical action. A malformed supported event or detail response is provider
+data failure for that person, not an unsupported event. The v0.2.0 Push mapping consumes
 `payload.ref` and may use `payload.head`; `payload.before` is optional semantic
 metadata but is not an adapter requirement.
 
