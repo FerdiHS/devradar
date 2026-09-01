@@ -634,7 +634,10 @@ function updateSettings(
 }
 
 function failureReason(error: SyncDomainError): SyncOneFailureReason {
-	return error.kind === 'unconfirmed-accounting' ? 'note' : 'provider';
+	return error.kind === 'unconfirmed-accounting' ||
+		error.kind === 'ambiguous-reconciliation'
+		? 'note'
+		: 'provider';
 }
 
 function failureReasonForProvider(

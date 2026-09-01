@@ -555,6 +555,28 @@ describe('Sync One application', () => {
 		expect(fakes.saveCandidateWithinMutation).toHaveBeenCalledOnce();
 	});
 
+	it('returns a note failure for ambiguous retained PR reconciliation', async () => {
+		const first = detailPullRequestActivity('1', 'Title A');
+		const second = detailPullRequestActivity('2', 'Title B');
+		const fakes = dependencies(
+			settings(),
+			successfulProvider([detailPullRequestActivity('3', 'Title C')]),
+		);
+		fakes.notes.read.mockResolvedValue({
+			kind: 'read',
+			markdown: note(
+				[renderActivityEntry(first), renderActivityEntry(second)].join(
+					'\n',
+				),
+			),
+		});
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'failed', reason: 'note' });
+	});
+
 	it('returns an internal failure when a provider capability rejects', async () => {
 		const fakes = dependencies();
 		fakes.github.retrieveEvents.mockRejectedValue(new Error('boom'));
