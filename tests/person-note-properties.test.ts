@@ -85,6 +85,7 @@ describe('person-note association Properties', () => {
 		for (const yaml of [
 			'created: !!timestamp 2024-01-01',
 			'items: !!set\n  first: null',
+			'title: My note\n# used by another plugin\ncategory: people',
 		]) {
 			expect(
 				inspectAssociationProperties(`---\n${yaml}\n---\n`, identity),

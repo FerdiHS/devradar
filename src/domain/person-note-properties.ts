@@ -57,12 +57,12 @@ function collidesWithReserved(value: unknown): boolean {
 function inspectNode(node: unknown): PersonNoteFailure | undefined {
 	if (isAlias(node)) return frontmatterFailure('unsupported-construct');
 	if (isScalar(node)) {
-		if (node.anchor || node.tag)
+		if (node.anchor || node.tag || node.comment || node.commentBefore)
 			return frontmatterFailure('unsupported-construct');
 		return undefined;
 	}
 	if (isSeq(node)) {
-		if (node.anchor || node.tag)
+		if (node.anchor || node.tag || node.comment || node.commentBefore)
 			return frontmatterFailure('unsupported-construct');
 		for (const child of node.items) {
 			const error = inspectNode(child);
@@ -71,7 +71,7 @@ function inspectNode(node: unknown): PersonNoteFailure | undefined {
 		return undefined;
 	}
 	if (isMap(node)) {
-		if (node.anchor || node.tag)
+		if (node.anchor || node.tag || node.comment || node.commentBefore)
 			return frontmatterFailure('unsupported-construct');
 		for (const item of node.items) {
 			if (item.key && isScalar(item.key) && item.key.value === '<<')
@@ -158,7 +158,12 @@ export function inspectAssociationProperties(
 	} catch {
 		return failure(frontmatterFailure('malformed'));
 	}
-	if (document.errors.length > 0 || document.warnings.length > 0)
+	if (
+		document.errors.length > 0 ||
+		document.warnings.length > 0 ||
+		document.comment ||
+		document.commentBefore
+	)
 		return failure(frontmatterFailure('malformed'));
 	const nodeError = inspectNode(document.contents);
 	if (nodeError) return failure(nodeError);
