@@ -81,7 +81,8 @@ content remain user-owned.
 
 DevRadar must:
 
-- preserve all content outside its managed section;
+- during ordinary synchronization, preserve all content outside its managed
+  section;
 - never overwrite an entire existing note;
 - never automatically delete, rename, or move a note;
 - leave note Markdown unchanged when synchronization produces no semantic
