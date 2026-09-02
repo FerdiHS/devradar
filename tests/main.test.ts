@@ -1,11 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const obsidianPlatform = vi.hoisted(() => ({ isMobile: false }));
+const obsidianPlatform = vi.hoisted(() => ({
+	isMobile: false,
+	isMobileApp: false,
+}));
+const obsidianNotice = vi.hoisted(() => vi.fn());
+const modalState = vi.hoisted(() => ({
+	instances: [] as Array<{
+		getItems: () => unknown[];
+		onChooseItem: (item: unknown) => void;
+		onClose: () => void;
+		open: () => void;
+	}>,
+}));
 
 vi.mock('obsidian', () => ({
 	Plugin: class {},
 	normalizePath: (path: string) => path,
 	Platform: obsidianPlatform,
+	Notice: obsidianNotice,
+	FuzzySuggestModal: class {
+		constructor(_app: unknown) {
+			modalState.instances.push(this);
+		}
+		getItems(): unknown[] {
+			return [];
+		}
+		onChooseItem(_item: unknown): void {}
+		onClose(): void {}
+		open(): void {}
+	},
 	PluginSettingTab: class {
 		constructor(
 			readonly app: unknown,
@@ -15,8 +39,45 @@ vi.mock('obsidian', () => ({
 }));
 
 import DevRadarPlugin from '../src/main';
+import type { SyncOneResult } from '../src/application/sync-one';
 
 const EMPTY = { schemaVersion: 1, followedPeople: [] };
+const FOLLOWED = {
+	schemaVersion: 1,
+	followedPeople: [
+		{
+			username: 'octocat',
+			githubAccountId: '583231',
+			notePath: 'People/octocat.md',
+			trackingStart: { mode: 'available-recent' },
+			syncState: { seenEvents: [], github: {} },
+		},
+	],
+};
+
+type RegisteredCommand = { callback?: () => unknown };
+
+function syncOneCommand(plugin: FakePlugin): RegisteredCommand {
+	const calls = plugin.addCommand.mock.calls as unknown as Array<
+		[RegisteredCommand]
+	>;
+	const command = calls[0]?.[0];
+	if (!command?.callback)
+		throw new Error('Sync One command was not registered');
+	return command;
+}
+
+function pickerInstance(): (typeof modalState.instances)[number] {
+	const picker = modalState.instances[0];
+	if (!picker) throw new Error('Sync One picker was not opened');
+	return picker;
+}
+
+function latestPicker(): (typeof modalState.instances)[number] {
+	const picker = modalState.instances[modalState.instances.length - 1];
+	if (!picker) throw new Error('Sync One picker was not opened');
+	return picker;
+}
 
 type FakePlugin = DevRadarPlugin & {
 	loadData: () => Promise<unknown>;
@@ -28,6 +89,7 @@ type FakePlugin = DevRadarPlugin & {
 	manifest: { id: string; dir?: string };
 	saveData: (data: unknown) => Promise<void>;
 	addSettingTab: ReturnType<typeof vi.fn>;
+	addCommand: ReturnType<typeof vi.fn>;
 };
 
 type FakePluginOptions = {
@@ -53,6 +115,7 @@ function fakePlugin(
 	plugin.loadData = loadData;
 	plugin.saveData = saveData;
 	plugin.addSettingTab = vi.fn() as FakePlugin['addSettingTab'];
+	plugin.addCommand = vi.fn() as FakePlugin['addCommand'];
 	return plugin;
 }
 
@@ -60,6 +123,9 @@ describe('DevRadarPlugin settings lifecycle', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		obsidianPlatform.isMobile = false;
+		obsidianPlatform.isMobileApp = false;
+		obsidianNotice.mockReset();
+		modalState.instances.length = 0;
 		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
 	});
 
@@ -357,5 +423,221 @@ describe('DevRadarPlugin settings lifecycle', () => {
 			kind: 'recovery',
 			diagnostic: { kind: 'internal-failure' },
 		});
+	});
+});
+
+describe('Sync One command wiring', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		obsidianPlatform.isMobile = false;
+		obsidianPlatform.isMobileApp = false;
+		obsidianNotice.mockReset();
+		modalState.instances.length = 0;
+		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+	});
+
+	it('fails closed on Mobile before opening the picker', async () => {
+		obsidianPlatform.isMobileApp = true;
+		const plugin = fakePlugin(async () => EMPTY);
+
+		await plugin.onload();
+		await syncOneCommand(plugin).callback?.();
+
+		expect(modalState.instances).toHaveLength(0);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync one is unavailable on mobile.',
+		);
+	});
+
+	it('reports when there are no followed people', async () => {
+		const plugin = fakePlugin(async () => EMPTY);
+
+		await plugin.onload();
+		await syncOneCommand(plugin).callback?.();
+
+		expect(modalState.instances).toHaveLength(0);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'No followed people are available to sync.',
+		);
+	});
+
+	it('passes only the durable account ID after picker selection', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<unknown>;
+				};
+			}
+		).syncOneApplication;
+		const syncOne = vi
+			.spyOn(application, 'syncOne')
+			.mockResolvedValue({ kind: 'unchanged' });
+
+		await syncOneCommand(plugin).callback?.();
+		const picker = pickerInstance();
+		picker.onChooseItem({
+			username: 'octocat',
+			githubAccountId: '583231',
+		});
+		await Promise.resolve();
+
+		expect(syncOne).toHaveBeenCalledWith({ githubAccountId: '583231' });
+	});
+
+	it('does not invoke Sync One when the picker is cancelled', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<unknown>;
+				};
+			}
+		).syncOneApplication;
+		const syncOne = vi
+			.spyOn(application, 'syncOne')
+			.mockResolvedValue({ kind: 'unchanged' });
+
+		await syncOneCommand(plugin).callback?.();
+		pickerInstance().onClose();
+		await Promise.resolve();
+
+		expect(syncOne).not.toHaveBeenCalled();
+		expect(obsidianNotice).not.toHaveBeenCalled();
+		await syncOneCommand(plugin).callback?.();
+		expect(modalState.instances).toHaveLength(2);
+	});
+
+	it('coalesces command activation while picker or Sync One is pending', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<unknown>;
+				};
+			}
+		).syncOneApplication;
+		let release!: (value: { kind: 'unchanged' }) => void;
+		const pending = new Promise<{ kind: 'unchanged' }>((resolve) => {
+			release = resolve;
+		});
+		const syncOne = vi
+			.spyOn(application, 'syncOne')
+			.mockReturnValue(pending);
+
+		await syncOneCommand(plugin).callback?.();
+		await syncOneCommand(plugin).callback?.();
+		expect(modalState.instances).toHaveLength(1);
+		expect(syncOne).not.toHaveBeenCalled();
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync one is already in progress.',
+		);
+
+		const picker = pickerInstance();
+		picker.onClose();
+		picker.onChooseItem({
+			username: 'octocat',
+			githubAccountId: '583231',
+		});
+		await Promise.resolve();
+		await syncOneCommand(plugin).callback?.();
+		expect(syncOne).toHaveBeenCalledTimes(1);
+		expect(modalState.instances).toHaveLength(1);
+
+		release({ kind: 'unchanged' });
+		await pending;
+		await Promise.resolve();
+	});
+
+	it('maps every Sync One result to concise safe feedback', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<SyncOneResult>;
+				};
+			}
+		).syncOneApplication;
+		const syncOne = vi.spyOn(application, 'syncOne');
+		const cases: ReadonlyArray<readonly [SyncOneResult, string]> = [
+			[{ kind: 'updated' }, "Sync one updated the person's note."],
+			[{ kind: 'unchanged' }, 'Sync one found no changes.'],
+			[
+				{ kind: 'skipped', reason: 'provider-policy' },
+				'Sync one skipped: GitHub policy is active.',
+			],
+			[
+				{ kind: 'failed', reason: 'settings-not-ready' },
+				'Sync one is unavailable until settings are ready.',
+			],
+			[
+				{ kind: 'failed', reason: 'unsupported-platform' },
+				'Sync one is unavailable on mobile.',
+			],
+			[
+				{ kind: 'failed', reason: 'invalid-selection' },
+				'Sync one could not find the selected person.',
+			],
+			[
+				{ kind: 'failed', reason: 'configuration' },
+				'Sync one could not use the current configuration.',
+			],
+			[
+				{ kind: 'failed', reason: 'provider' },
+				'Sync one could not retrieve GitHub activity.',
+			],
+			[
+				{ kind: 'failed', reason: 'note' },
+				'Sync one could not update the associated note.',
+			],
+			[
+				{ kind: 'failed', reason: 'persistence' },
+				'Sync one could not save synchronization state.',
+			],
+			[
+				{ kind: 'failed', reason: 'internal' },
+				'Sync one failed unexpectedly.',
+			],
+		];
+
+		for (const [result, message] of cases) {
+			syncOne.mockResolvedValueOnce(result);
+			await syncOneCommand(plugin).callback?.();
+			latestPicker().onChooseItem({
+				username: 'octocat',
+				githubAccountId: '583231',
+			});
+			await Promise.resolve();
+			expect(obsidianNotice).toHaveBeenLastCalledWith(message);
+		}
+	});
+
+	it('handles an application rejection without an unhandled promise', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncOneApplication: {
+					syncOne: (selection: unknown) => Promise<unknown>;
+				};
+			}
+		).syncOneApplication;
+		vi.spyOn(application, 'syncOne').mockRejectedValue(new Error('boom'));
+
+		await syncOneCommand(plugin).callback?.();
+		pickerInstance().onChooseItem({
+			username: 'octocat',
+			githubAccountId: '583231',
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync one failed unexpectedly.',
+		);
 	});
 });

@@ -763,9 +763,9 @@ export function renderNewPersonNote(
 function replaceParsedSection(
 	input: string,
 	section: ParsedSection,
-	activities: readonly Activity[],
+	entries: readonly ManagedActivityEntry[],
 ): PersonNoteResult<PersonNoteChange> {
-	const body = renderManagedContent(activities, section.lineEnding);
+	const body = renderManagedEntries(entries, section.lineEnding);
 	const markdown =
 		input.slice(0, section.beginMarkerEnd) +
 		section.lineEnding +
@@ -775,10 +775,10 @@ function replaceParsedSection(
 	return success({ markdown, changed: markdown !== input });
 }
 
-export function replaceManagedContent(
+export function replaceManagedEntries(
 	input: string,
 	expectedIdentity: PersonIdentity,
-	activities: readonly Activity[],
+	entries: readonly ManagedActivityEntry[],
 ): PersonNoteResult<PersonNoteChange> {
 	const parsed = parsePersonNote(input, expectedIdentity);
 	if (parsed.kind === 'invalid') return failure(parsed.error);
@@ -790,7 +790,22 @@ export function replaceManagedContent(
 	return replaceParsedSection(
 		input,
 		parsed.section as ParsedSection,
-		activities,
+		entries,
+	);
+}
+
+export function replaceManagedContent(
+	input: string,
+	expectedIdentity: PersonIdentity,
+	activities: readonly Activity[],
+): PersonNoteResult<PersonNoteChange> {
+	return replaceManagedEntries(
+		input,
+		expectedIdentity,
+		activities
+			.slice()
+			.sort(compareActivities)
+			.map((activity) => ({ kind: 'new' as const, activity })),
 	);
 }
 
@@ -805,7 +820,10 @@ export function associatePersonNote(
 		return replaceParsedSection(
 			input,
 			parsed.section as ParsedSection,
-			activities,
+			activities
+				.slice()
+				.sort(compareActivities)
+				.map((activity) => ({ kind: 'new' as const, activity })),
 		);
 
 	const lineEnding = detectLineEnding(input);

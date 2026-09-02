@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createIssueActivity, type Activity } from '../src/domain/activity';
+import {
+	createIssueActivity,
+	createPullRequestActivity,
+	type Activity,
+} from '../src/domain/activity';
 import {
 	parseCanonicalActivityEntries,
 	renderActivityEntry,
@@ -38,6 +42,22 @@ const issue = (
 	});
 	if (!result.ok) throw new Error(result.error.message);
 	return result.value;
+};
+
+const detailPullRequest = (
+	providerEventId: string,
+	title: string,
+): Activity => {
+	const result = createPullRequestActivity({
+		providerEventId,
+		timestamp: '2026-08-18T03:00:00Z',
+		repository: 'octocat/hello-world',
+		number: '5',
+		title,
+		action: 'closed',
+	});
+	if (!result.ok) throw new Error(result.error.message);
+	return { ...result.value, titleSource: 'detail' as const };
 };
 
 const retained = (...activities: Activity[]): RetainedActivityEntry[] =>
@@ -109,6 +129,63 @@ describe('synchronization reconciliation', () => {
 		expect(
 			result.newActivities.map((item) => item.providerEventId),
 		).toEqual(['1']);
+	});
+
+	it('reduces duplicate PR provenance consistently before reconciliation', () => {
+		const eventActivity = detailPullRequest('1', 'Title B');
+		const eventSourced = { ...eventActivity, titleSource: undefined };
+		const retainedActivity = detailPullRequest('9', 'Title A');
+		const plans = [
+			[eventSourced, eventActivity],
+			[eventActivity, eventSourced],
+		].map((activities) =>
+			ok(
+				reconcileActivities(
+					planInput(
+						activities,
+						undefined,
+						retained(retainedActivity),
+					),
+				),
+			),
+		);
+
+		expect(plans[0]).toEqual(plans[1]);
+		expect(plans[0]?.newActivities).toHaveLength(1);
+	});
+
+	it('reconciles mutable detail titles using stable Pull Request identity', () => {
+		const retainedActivity = detailPullRequest('1', 'Title A');
+		const currentActivity = detailPullRequest('1', 'Title B');
+		const result = ok(
+			reconcileActivities(
+				planInput(
+					[currentActivity],
+					undefined,
+					retained(retainedActivity),
+				),
+			),
+		);
+
+		expect(result.reconciledActivities).toEqual([currentActivity]);
+		expect(result.newActivities).toEqual([]);
+	});
+
+	it('fails closed when mutable detail identity is ambiguous', () => {
+		const first = detailPullRequest('1', 'Title A');
+		const second = detailPullRequest('2', 'Title B');
+		const current = detailPullRequest('3', 'Title C');
+		const result = reconcileActivities(
+			planInput([current], undefined, retained(first, second)),
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			error: {
+				kind: 'ambiguous-reconciliation',
+				providerEventId: '3',
+			},
+		});
 	});
 
 	it('fails when a prior seen event timestamp conflicts with current activity', () => {

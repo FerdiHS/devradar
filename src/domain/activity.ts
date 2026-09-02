@@ -287,6 +287,7 @@ export interface PushActivity {
 export interface PullRequestActivity {
 	readonly family: 'pull-request';
 	readonly action: PullRequestAction;
+	readonly titleSource?: 'event' | 'detail';
 	readonly providerEventId: CanonicalEventId;
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
@@ -468,6 +469,18 @@ export function compareActivities(a: Activity, b: Activity): number {
 		: a.providerEventId > b.providerEventId
 			? 1
 			: 0;
+}
+
+export function preferCanonicalActivity(
+	current: Activity,
+	candidate: Activity,
+): Activity {
+	return current.family === 'pull-request' &&
+		candidate.family === 'pull-request' &&
+		current.titleSource === 'detail' &&
+		candidate.titleSource !== 'detail'
+		? candidate
+		: current;
 }
 
 export function normalizeProviderText(input: string): string {

@@ -212,8 +212,8 @@ A stale preflight or reconciliation result must never authorize `seenEvents`,
 `lastSuccessfulSyncAt`, successful-sync state, or equivalent note-derived state
 advancement. Those effects may advance only after current-content note
 accounting succeeds or current-content reconciliation establishes the same
-canonical activity. The executable end-to-end state-advancement test remains
-deferred to the future note-persistence/Sync One composition issue.
+canonical activity. The executable end-to-end state-advancement test is covered
+by the Sync One composition acceptance evidence.
 
 ### Issue #85 feasibility status
 
@@ -238,11 +238,11 @@ diagnostic reached `Vault.process()` on the same runtime.
 The probe also observed the canonical semantic no-op result with zero wrapper
 invocations; that counter is non-gating harness evidence only. No physical
 filesystem-I/O conclusion is drawn. This PASS resolves the Issue #85 contract
-for the exercised Desktop strategy and unblocks only later Desktop
-note-persistence implementation; it does not itself implement persistence,
+for the exercised Desktop strategy and supplies the current-content prerequisite
+for Sync One note persistence; it does not itself implement persistence,
 authorize Mobile, or advance stale reconciliation/state. The executable
-end-to-end state-advancement test remains deferred to the future note-
-persistence/Sync One composition issue.
+end-to-end state-advancement test is covered by the Sync One composition
+acceptance evidence.
 
 Future implementation tests must cover a note changing between its initial read
 and commit: changes outside the managed section preserve the latest content;
@@ -254,8 +254,8 @@ returns identical Markdown; neither establishes anything about internal
 filesystem I/O. Tests must also verify that stale reconciliation cannot advance
 `seenEvents`, and that a current-content change invalidating earlier
 reconciliation is recomputed or fails safely. The executable end-to-end
-state-advancement test remains deferred to the future note-persistence/Sync One
-composition issue.
+state-advancement test is covered by the Sync One composition acceptance
+evidence.
 
 Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note

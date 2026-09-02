@@ -194,6 +194,41 @@ describe('Obsidian GitHub transport boundary', () => {
 		expect(requestUrl).toHaveBeenCalledOnce();
 	});
 
+	it('accepts the canonical Pull Request detail endpoint', async () => {
+		requestUrl.mockResolvedValue({
+			status: 200,
+			headers: {},
+			text: '{}',
+		});
+		const { createObsidianGitHubTransport } =
+			await import('../src/adapters/github-transport');
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
+
+		await expect(
+			transport({
+				url: 'https://api.github.com/repos/octocat/hello-world/pulls/4',
+				headers: VALID_HEADERS,
+			}),
+		).resolves.toMatchObject({ status: 200, json: {} });
+		expect(requestUrl).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		'https://api.github.com/repos/octocat/hello-world/pulls/0',
+		'https://api.github.com/repos/octocat/hello-world/pulls/4?draft=true',
+		'https://api.github.com/repos/octocat/hello-world/pulls/4#fragment',
+		'https://api.github.com/repos/octocat/../hello-world/pulls/4',
+	])('rejects an unsafe Pull Request detail endpoint %s', async (url) => {
+		const { createObsidianGitHubTransport } =
+			await import('../src/adapters/github-transport');
+		const transport = createObsidianGitHubTransport(PLUGIN_VERSION);
+
+		await expect(
+			transport({ url, headers: VALID_HEADERS }),
+		).rejects.toThrow(GitHubTransportContractError);
+		expect(requestUrl).not.toHaveBeenCalled();
+	});
+
 	it('fails closed on Mobile before requestUrl', async () => {
 		obsidianPlatform.isMobileApp = true;
 		const { createObsidianGitHubTransport } =

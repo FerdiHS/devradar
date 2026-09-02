@@ -27,6 +27,14 @@ function response(
 	};
 }
 
+function pullRequestDetails(overrides: Record<string, unknown> = {}) {
+	return {
+		number: 4,
+		base: { repo: { full_name: 'octocat/hello-world' } },
+		...overrides,
+	};
+}
+
 function identity(overrides: Record<string, unknown> = {}) {
 	return {
 		login: USERNAME,
@@ -541,6 +549,363 @@ describe('GitHub Events validation and mapping', () => {
 		expect(caseOnlyResult).toMatchObject({ kind: 'success' });
 	});
 
+	it('ignores the provider URL when enriching a trimmed Pull Request event', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {
+					id: 123,
+					url: 'https://example.com/untrusted/pulls/999',
+					head: {},
+					base: {},
+				},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response(
+				pullRequestDetails({ title: 'Improve docs', merged: true }),
+			),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						family: 'pull-request',
+						action: 'closed',
+						number: '4',
+						title: 'Improve docs',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(2);
+		expect(requests[1]?.url).toBe(
+			'https://api.github.com/repos/octocat/hello-world/pulls/4',
+		);
+	});
+
+	it('rejects a detail response for a different Pull Request', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({
+				number: 5,
+				title: 'Wrong Pull Request',
+				merged: true,
+				base: { repo: { full_name: 'octocat/hello-world' } },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('rejects a detail response for a different repository', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({
+				number: 4,
+				title: 'Wrong Repository',
+				merged: true,
+				base: { repo: { full_name: 'octocat/other-repository' } },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('treats a trimmed closed Pull Request action as authoritative', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Close docs' },
+			},
+		});
+		const { adapter: github, requests } = adapter([response([trimmed])]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						family: 'pull-request',
+						action: 'closed',
+						number: '4',
+						title: 'Close docs',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(1);
+	});
+
+	it('does not use current Pull Request state when a closed event is trimmed', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Event title' },
+			},
+		});
+		const { adapter: github, requests } = adapter([response([trimmed])]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						action: 'closed',
+						title: 'Event title',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(1);
+	});
+
+	it('preserves a merged event action when its title is trimmed', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'merged',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response(pullRequestDetails({ title: 'Merge docs' })),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					{
+						family: 'pull-request',
+						action: 'merged',
+						number: '4',
+						title: 'Merge docs',
+					},
+				],
+			},
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('fails a trimmed Pull Request when its detail response is incomplete', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response(pullRequestDetails()),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('returns a person failure when Pull Request detail retrieval fails', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ message: 'Not Found' }, { status: 404 }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'not-found' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('shares the Events retry budget with Pull Request detail retrieval', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed]),
+			response({ message: 'temporary' }, { status: 503 }),
+			response(pullRequestDetails({ title: 'Improve docs' })),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests).toHaveLength(3);
+
+		const sharedBudget = adapter([
+			response({ message: 'temporary' }, { status: 503 }),
+			response([trimmed]),
+			response({ message: 'temporary' }, { status: 503 }),
+		]);
+		const sharedBudgetResult =
+			await sharedBudget.adapter.retrieveEvents(eventsRequest());
+
+		expect(sharedBudgetResult).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'unexpected-status' },
+		});
+		expect(sharedBudget.requests).toHaveLength(3);
+
+		const exhausted = adapter([
+			response([trimmed]),
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+				},
+			}),
+		]);
+		const exhaustedResult =
+			await exhausted.adapter.retrieveEvents(eventsRequest());
+
+		expect(exhaustedResult).toMatchObject({
+			kind: 'success',
+			policy: {
+				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
+			},
+		});
+	});
+
+	it('stops before the next Events page after detail quota exhaustion', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'opened',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const nextPage =
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([trimmed], { headers: { link: nextPage } }),
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+				},
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'provider-failure',
+			failure: { category: 'rate-limit' },
+		});
+		expect(requests).toHaveLength(2);
+	});
+
+	it('preserves detail rate-limit state when a later event fails', async () => {
+		const trimmed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: {},
+			},
+		});
+		const malformed = event({
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 5,
+				pull_request: { title: 'Malformed', merged: 'yes' },
+			},
+		});
+		const { adapter: github, requests } = adapter([
+			response([trimmed, malformed]),
+			response(pullRequestDetails({ title: 'Improve docs' }), {
+				headers: {
+					'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String((NOW + 120_000) / 1000),
+				},
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'malformed-provider-data' },
+			policy: {
+				rateLimitNotBefore: new Date(NOW + 120_000).toISOString(),
+			},
+		});
+		expect(requests).toHaveLength(2);
+	});
+
 	it('handles every supported PR merge condition and Issue action', async () => {
 		const events = [
 			['opened', undefined],
@@ -682,6 +1047,98 @@ describe('GitHub Events validation and mapping', () => {
 });
 
 describe('GitHub Events pagination and completeness', () => {
+	it('canonicalizes account-bound Events pagination to the username endpoint', async () => {
+		const link =
+			'<https://api.github.com/user/42/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+			response([event({ id: '2' })]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests).toHaveLength(2);
+		expect(requests[1]?.url).toBe(
+			'https://api.github.com/users/octocat/events/public?page=2&per_page=100',
+		);
+	});
+
+	it('canonicalizes account-bound aliases on later pagination hops', async () => {
+		const usernameLink =
+			'<https://api.github.com/users/octocat/events/public?page=2&per_page=100>; rel="next"';
+		const accountLink =
+			'<https://api.github.com/user/42/events/public?page=3&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link: usernameLink } }),
+			response([event({ id: '2' })], { headers: { link: accountLink } }),
+			response([event({ id: '3' })]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({ kind: 'success' });
+		expect(requests.map((request) => request.url)).toEqual([
+			'https://api.github.com/users/octocat/events/public?per_page=100',
+			'https://api.github.com/users/octocat/events/public?page=2&per_page=100',
+			'https://api.github.com/users/octocat/events/public?page=3&per_page=100',
+		]);
+	});
+
+	it('rejects an account-bound alias beyond the page ceiling', async () => {
+		const pageLink = (page: number) =>
+			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;
+		const accountPageFourLink =
+			'<https://api.github.com/user/42/events/public?page=4&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link: pageLink(2) } }),
+			response([event({ id: '2' })], { headers: { link: pageLink(3) } }),
+			response([event({ id: '3' })], {
+				headers: { link: accountPageFourLink },
+			}),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'provider-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(3);
+	});
+
+	it('rejects mismatched account-bound Events pagination without a follow-up request', async () => {
+		const link =
+			'<https://api.github.com/user/43/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(1);
+	});
+
+	it('rejects noncanonical account-bound Events pagination spellings', async () => {
+		const link =
+			'<https://api.github.com/user/042/events/public?page=2&per_page=100>; rel="next"';
+		const { adapter: github, requests } = adapter([
+			response([event()], { headers: { link } }),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'person-failure',
+			failure: { category: 'pagination' },
+		});
+		expect(requests).toHaveLength(1);
+	});
+
 	it('retrieves at most three pages and rejects a page-four link', async () => {
 		const pageLink = (page: number) =>
 			`<https://api.github.com/users/${USERNAME}/events/public?page=${page}&per_page=100>; rel="next"`;
@@ -895,6 +1352,81 @@ describe('GitHub Events pagination and completeness', () => {
 		expect(crossPageConflictResult).toMatchObject({
 			kind: 'person-failure',
 			failure: { category: 'malformed-provider-data' },
+		});
+	});
+
+	it('prefers Event provenance for equivalent duplicate PRs', async () => {
+		const eventTitle = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { title: 'Improve docs', merged: true },
+			},
+		});
+		const trimmedTitle = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { merged: true },
+			},
+		});
+		for (const events of [
+			[eventTitle, trimmedTitle],
+			[trimmedTitle, eventTitle],
+		]) {
+			const { adapter: github } = adapter([
+				response(events),
+				response(pullRequestDetails({ title: 'Improve docs' })),
+			]);
+			const result = await github.retrieveEvents(eventsRequest());
+
+			expect(result).toMatchObject({
+				kind: 'success',
+				data: {
+					activities: [
+						expect.objectContaining({ providerEventId: '2' }),
+					],
+				},
+			});
+			if (result.kind === 'success')
+				expect(result.data.activities[0]).not.toHaveProperty(
+					'titleSource',
+				);
+		}
+	});
+
+	it('retains detail provenance when all equivalent duplicate PRs are enriched', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { merged: true },
+			},
+		});
+		const { adapter: github } = adapter([
+			response([trimmed, trimmed]),
+			response(pullRequestDetails({ title: 'Improve docs' })),
+			response(pullRequestDetails({ title: 'Improve docs' })),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result).toMatchObject({
+			kind: 'success',
+			data: {
+				activities: [
+					expect.objectContaining({
+						providerEventId: '2',
+						titleSource: 'detail',
+					}),
+				],
+			},
 		});
 	});
 });

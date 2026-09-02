@@ -9,6 +9,8 @@ import {
 	renderNewPersonNote,
 	associatePersonNote,
 	replaceManagedContent,
+	replaceManagedEntries,
+	type ManagedActivityEntry,
 	type PersonIdentity,
 	type PersonNoteInspection,
 } from '../src/domain/person-note';
@@ -101,6 +103,34 @@ describe('person-note parsing', () => {
 		expect(replaceManagedContent(note, identity, [])).toEqual({
 			ok: true,
 			value: { markdown: note, changed: false },
+		});
+	});
+
+	it('replaces managed content without dropping retained entries', () => {
+		const oldActivity = activity('10', '2026-08-18T03:00:00Z', 'old');
+		const newActivity = activity('11', '2026-08-19T03:00:00Z', 'new');
+		const note = section(`\n${renderActivityEntry(oldActivity)}\n`);
+		const entries: ManagedActivityEntry[] = [
+			{ kind: 'new', activity: newActivity },
+			{
+				kind: 'retained',
+				entry: {
+					timestamp: oldActivity.timestamp,
+					markdown: renderActivityEntry(oldActivity),
+				},
+			},
+		];
+
+		const result = replaceManagedEntries(note, identity, entries);
+
+		expect(result).toEqual({
+			ok: true,
+			value: {
+				markdown: section(
+					`\n${renderActivityEntry(newActivity)}\n${renderActivityEntry(oldActivity)}`,
+				),
+				changed: true,
+			},
 		});
 	});
 
@@ -641,6 +671,23 @@ describe('person-note association and replacement', () => {
 			ok: true,
 			value: { markdown: changed.value.markdown, changed: false },
 		});
+	});
+
+	it('keeps public activity replacement newest-first', () => {
+		const older = activity('1', '2026-08-18T03:00:00Z', 'older');
+		const newer = activity('2', '2026-08-19T03:00:00Z', 'newer');
+		const result = replaceManagedContent(section('Old content'), identity, [
+			older,
+			newer,
+		]);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(
+			result.value.markdown.indexOf(renderActivityEntry(newer)),
+		).toBeLessThan(
+			result.value.markdown.indexOf(renderActivityEntry(older)),
+		);
 	});
 
 	it('replaces an empty managed region and then reports a no-op', () => {

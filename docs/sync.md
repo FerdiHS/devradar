@@ -81,6 +81,14 @@ For eligible events absent from `seenEvents`:
    event ID only after state persistence succeeds. If none is available,
    include the event as new activity.
 
+When a Pull Request title was supplied by the current detail response because
+the historical event omitted it, exact Markdown matching remains preferred. If
+the title changed between attempts, reconciliation may instead consume one
+retained Pull Request entry with the same timestamp, repository, action, and
+number, but only when that stable identity matches exactly one unused entry.
+Multiple matches are ambiguous and fail the sync safely; this fallback is not a
+replacement for the provider event ID as primary identity.
+
 One existing canonical line can therefore reconcile only one provider event.
 Two distinct unseen events with identical canonical rendering and one existing
 occurrence produce one reconciled event and one newly rendered occurrence. This
