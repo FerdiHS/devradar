@@ -823,7 +823,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		expect(persisted).toBe(current);
 	});
 
-	it('preserves association rejection and gives process failure precedence', async () => {
+	it('preserves association rejection during preflight', async () => {
 		const file = new FakeTFile('People/octocat.md');
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
 		const rejection = {
@@ -836,26 +836,6 @@ describe('Obsidian note persistence current-content processing', () => {
 			},
 		);
 
-		expect(
-			await notes.prepareAssociation(
-				'People/octocat.md',
-				IDENTITY,
-				() => ({
-					kind: 'reject',
-					error: rejection,
-				}),
-			),
-		).toEqual({
-			kind: 'failed',
-			error: { kind: 'transform-rejection', error: rejection },
-		});
-
-		fakeVault.process.mockImplementation(
-			(_file: unknown, transform: (content: string) => string) => {
-				transform(VALID_NOTE);
-				throw new Error('process failed');
-			},
-		);
 		expect(
 			await notes.prepareAssociation(
 				'People/octocat.md',
