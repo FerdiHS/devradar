@@ -409,6 +409,30 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
+	it('reports frontmatter API failure without initializing the note', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const processFrontMatter = vi.fn(async () => {
+			throw new Error('frontmatter failed');
+		});
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockResolvedValue(
+			'---\ntitle: User note\n---\n\nUser content',
+		);
+		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
+
+		await expect(
+			notesWithProperties.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				() => ({ kind: 'initialize', markdown: 'initialized' }),
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'process-failure' },
+		});
+		expect(fakeVault.process).not.toHaveBeenCalled();
+	});
+
 	it('rejects an invalid identity before creating a missing association target', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		const invalidIdentity: PersonIdentity = {
