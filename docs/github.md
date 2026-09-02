@@ -180,7 +180,8 @@ and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
 structurally valid supported Pull Request event may omit its title; in that
 case, retrieve the canonical Pull Request detail endpoint above and validate
 the returned identity and title before mapping it. The event action remains
-authoritative: a trimmed `closed` action remains `closed`, and a `merged`
+authoritative: `closed` with event-supplied `merged: true` maps to `merged`,
+`closed` with `merged: false` or missing remains `closed`, and a `merged`
 action remains `merged`; the current detail response must not reinterpret the
 historical action. A malformed supported event or detail response is provider
 data failure for that person, not an unsupported event. The v0.2.0 Push mapping consumes
