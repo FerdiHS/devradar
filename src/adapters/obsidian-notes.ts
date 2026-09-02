@@ -148,6 +148,26 @@ async function prepareAssociation(
 		if (!requireApiVersion('1.4.4'))
 			return failed({ kind: 'process-failure' });
 		try {
+			const currentBeforeProperties = await vault.read(target.file);
+			const properties = inspectAssociationProperties(
+				currentBeforeProperties,
+				identity,
+			);
+			if (!properties.ok)
+				return failed({
+					kind: 'transform-rejection',
+					error: properties.error,
+				});
+			const result = transform(currentBeforeProperties);
+			if (result.kind === 'reject')
+				return failed({
+					kind: 'transform-rejection',
+					error: result.error,
+				});
+		} catch {
+			return failed({ kind: 'process-failure' });
+		}
+		try {
 			// The runtime guard above protects older declared-compatible versions.
 			await fileManager['processFrontMatter'](
 				target.file,

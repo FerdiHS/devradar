@@ -361,6 +361,54 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
+	it('rechecks ownership before adding missing Properties', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const markerFree = '---\ntitle: User note\n---\n\nUser content';
+		const foreign = VALID_NOTE.replaceAll(
+			'github="octocat"',
+			'github="other-person"',
+		);
+		const processFrontMatter = vi.fn(async () => undefined);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read
+			.mockResolvedValueOnce(markerFree)
+			.mockResolvedValueOnce(foreign);
+		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
+
+		await expect(
+			notesWithProperties.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				(content) => {
+					const associated = associatePersonNote(
+						content,
+						IDENTITY,
+						[],
+					);
+					return associated.ok
+						? {
+								kind: 'initialize',
+								markdown: associated.value.markdown,
+							}
+						: { kind: 'reject', error: associated.error };
+				},
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: {
+					kind: 'identity-mismatch',
+					reason: 'expected',
+					actual: { username: 'other-person', githubId: '583231' },
+					expected: IDENTITY,
+				},
+			},
+		});
+		expect(processFrontMatter).not.toHaveBeenCalled();
+		expect(fakeVault.process).not.toHaveBeenCalled();
+	});
+
 	it('rejects an invalid identity before creating a missing association target', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		const invalidIdentity: PersonIdentity = {
