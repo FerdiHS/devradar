@@ -131,6 +131,29 @@ describe('synchronization reconciliation', () => {
 		).toEqual(['1']);
 	});
 
+	it('reduces duplicate PR provenance consistently before reconciliation', () => {
+		const eventActivity = detailPullRequest('1', 'Title B');
+		const eventSourced = { ...eventActivity, titleSource: undefined };
+		const retainedActivity = detailPullRequest('9', 'Title A');
+		const plans = [
+			[eventSourced, eventActivity],
+			[eventActivity, eventSourced],
+		].map((activities) =>
+			ok(
+				reconcileActivities(
+					planInput(
+						activities,
+						undefined,
+						retained(retainedActivity),
+					),
+				),
+			),
+		);
+
+		expect(plans[0]).toEqual(plans[1]);
+		expect(plans[0]?.newActivities).toHaveLength(1);
+	});
+
 	it('reconciles mutable detail titles using stable Pull Request identity', () => {
 		const retainedActivity = detailPullRequest('1', 'Title A');
 		const currentActivity = detailPullRequest('1', 'Title B');

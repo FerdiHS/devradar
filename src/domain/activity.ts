@@ -471,6 +471,18 @@ export function compareActivities(a: Activity, b: Activity): number {
 			: 0;
 }
 
+export function preferCanonicalActivity(
+	current: Activity,
+	candidate: Activity,
+): Activity {
+	return current.family === 'pull-request' &&
+		candidate.family === 'pull-request' &&
+		current.titleSource === 'detail' &&
+		candidate.titleSource !== 'detail'
+		? candidate
+		: current;
+}
+
 export function normalizeProviderText(input: string): string {
 	const punctuation = new Set(
 		Array.from('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'),

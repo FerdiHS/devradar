@@ -5,6 +5,7 @@ import {
 	createIssueActivity,
 	createPullRequestActivity,
 	createPushActivity,
+	preferCanonicalActivity,
 	type Activity,
 	type PullRequestAction,
 	validateRef,
@@ -1484,6 +1485,10 @@ export class GitHubAdapter {
 							),
 							{ ...state, pollNotBeforeMs },
 						);
+					activities.set(
+						mapped.activity.providerEventId,
+						preferCanonicalActivity(existing, mapped.activity),
+					);
 					continue;
 				}
 				activities.set(

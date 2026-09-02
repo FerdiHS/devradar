@@ -1355,7 +1355,7 @@ describe('GitHub Events pagination and completeness', () => {
 		});
 	});
 
-	it('collapses a duplicate PR when one title is detail-enriched', async () => {
+	it('prefers Event provenance for equivalent duplicate PRs', async () => {
 		const eventTitle = event({
 			id: '2',
 			type: 'PullRequestEvent',
@@ -1374,8 +1374,44 @@ describe('GitHub Events pagination and completeness', () => {
 				pull_request: { merged: true },
 			},
 		});
+		for (const events of [
+			[eventTitle, trimmedTitle],
+			[trimmedTitle, eventTitle],
+		]) {
+			const { adapter: github } = adapter([
+				response(events),
+				response(pullRequestDetails({ title: 'Improve docs' })),
+			]);
+			const result = await github.retrieveEvents(eventsRequest());
+
+			expect(result).toMatchObject({
+				kind: 'success',
+				data: {
+					activities: [
+						expect.objectContaining({ providerEventId: '2' }),
+					],
+				},
+			});
+			if (result.kind === 'success')
+				expect(result.data.activities[0]).not.toHaveProperty(
+					'titleSource',
+				);
+		}
+	});
+
+	it('retains detail provenance when all equivalent duplicate PRs are enriched', async () => {
+		const trimmed = event({
+			id: '2',
+			type: 'PullRequestEvent',
+			payload: {
+				action: 'closed',
+				number: 4,
+				pull_request: { merged: true },
+			},
+		});
 		const { adapter: github } = adapter([
-			response([eventTitle, trimmedTitle]),
+			response([trimmed, trimmed]),
+			response(pullRequestDetails({ title: 'Improve docs' })),
 			response(pullRequestDetails({ title: 'Improve docs' })),
 		]);
 
@@ -1384,7 +1420,12 @@ describe('GitHub Events pagination and completeness', () => {
 		expect(result).toMatchObject({
 			kind: 'success',
 			data: {
-				activities: [expect.objectContaining({ providerEventId: '2' })],
+				activities: [
+					expect.objectContaining({
+						providerEventId: '2',
+						titleSource: 'detail',
+					}),
+				],
 			},
 		});
 	});

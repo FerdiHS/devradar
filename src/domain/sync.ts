@@ -1,6 +1,7 @@
 import {
 	compareActivities,
 	compareCanonicalTimestamps,
+	preferCanonicalActivity,
 	repositoryUrl,
 	type Activity,
 	type CanonicalEventId,
@@ -108,7 +109,12 @@ function uniqueActivities(
 					providerEventId: activity.providerEventId,
 				},
 			};
-		byId.set(activity.providerEventId, existing ?? activity);
+		byId.set(
+			activity.providerEventId,
+			existing === undefined
+				? activity
+				: preferCanonicalActivity(existing, activity),
+		);
 	}
 	return { ok: true, value: [...byId.values()] };
 }
