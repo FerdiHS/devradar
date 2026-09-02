@@ -82,6 +82,20 @@ describe('person-note association Properties', () => {
 				reason: 'unsupported-construct',
 			},
 		});
+		for (const yaml of [
+			'created: !!timestamp 2024-01-01',
+			'items: !!set\n  first: null',
+		]) {
+			expect(
+				inspectAssociationProperties(`---\n${yaml}\n---\n`, identity),
+			).toEqual({
+				ok: false,
+				error: {
+					kind: 'frontmatter-failure',
+					reason: 'unsupported-construct',
+				},
+			});
+		}
 	});
 
 	it('rejects BOM-prefixed malformed frontmatter', () => {

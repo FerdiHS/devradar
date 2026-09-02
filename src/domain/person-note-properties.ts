@@ -57,11 +57,13 @@ function collidesWithReserved(value: unknown): boolean {
 function inspectNode(node: unknown): PersonNoteFailure | undefined {
 	if (isAlias(node)) return frontmatterFailure('unsupported-construct');
 	if (isScalar(node)) {
-		if (node.anchor) return frontmatterFailure('unsupported-construct');
+		if (node.anchor || node.tag)
+			return frontmatterFailure('unsupported-construct');
 		return undefined;
 	}
 	if (isSeq(node)) {
-		if (node.anchor) return frontmatterFailure('unsupported-construct');
+		if (node.anchor || node.tag)
+			return frontmatterFailure('unsupported-construct');
 		for (const child of node.items) {
 			const error = inspectNode(child);
 			if (error) return error;
@@ -69,7 +71,8 @@ function inspectNode(node: unknown): PersonNoteFailure | undefined {
 		return undefined;
 	}
 	if (isMap(node)) {
-		if (node.anchor) return frontmatterFailure('unsupported-construct');
+		if (node.anchor || node.tag)
+			return frontmatterFailure('unsupported-construct');
 		for (const item of node.items) {
 			if (item.key && isScalar(item.key) && item.key.value === '<<')
 				return frontmatterFailure('unsupported-construct');

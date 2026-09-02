@@ -75,7 +75,6 @@ export type PersonNoteFailure =
 			readonly kind: 'frontmatter-failure';
 			readonly reason:
 				| 'malformed'
-				| 'duplicate-key'
 				| 'reserved-key-variant'
 				| 'invalid-property'
 				| 'missing-property'
