@@ -133,7 +133,7 @@ function extractFrontmatter(
 			markdown,
 		);
 	if (!match)
-		return markdown.startsWith('---')
+		return markdown.startsWith('---') || markdown.startsWith('\uFEFF---')
 			? { kind: 'invalid', error: frontmatterFailure('malformed') }
 			: { kind: 'none' };
 	return { kind: 'yaml', source: match[1] ?? '' };

@@ -84,6 +84,15 @@ describe('person-note association Properties', () => {
 		});
 	});
 
+	it('rejects BOM-prefixed malformed frontmatter', () => {
+		expect(
+			inspectAssociationProperties('\uFEFF---\nfoo: bar', identity),
+		).toEqual({
+			ok: false,
+			error: { kind: 'frontmatter-failure', reason: 'malformed' },
+		});
+	});
+
 	it('returns only missing canonical keys for frontmatter objects', () => {
 		expect(
 			validateAssociationPropertyObject(
