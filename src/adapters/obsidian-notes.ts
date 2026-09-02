@@ -124,15 +124,6 @@ async function prepareAssociation(
 	} catch {
 		return failed({ kind: 'process-failure' });
 	}
-	const initialProperties = inspectAssociationProperties(
-		currentMarkdown,
-		identity,
-	);
-	if (!initialProperties.ok)
-		return failed({
-			kind: 'transform-rejection',
-			error: initialProperties.error,
-		});
 	let initialTransform: ReturnType<AssociationTransform>;
 	try {
 		initialTransform = transform(currentMarkdown);
@@ -144,9 +135,10 @@ async function prepareAssociation(
 			kind: 'transform-rejection',
 			error: initialTransform.error,
 		});
-	if (initialProperties.value.missing.length > 0) {
+	if (initialTransform.kind === 'initialize') {
 		if (!requireApiVersion('1.4.4'))
 			return failed({ kind: 'process-failure' });
+		let needsProperties = false;
 		try {
 			const currentBeforeProperties = await vault.read(target.file);
 			const properties = inspectAssociationProperties(
@@ -164,37 +156,42 @@ async function prepareAssociation(
 					kind: 'transform-rejection',
 					error: result.error,
 				});
+			needsProperties = properties.value.missing.length > 0;
 		} catch {
 			return failed({ kind: 'process-failure' });
 		}
-		try {
-			// The runtime guard above protects older declared-compatible versions.
-			await fileManager['processFrontMatter'](
-				target.file,
-				(frontmatter: Record<string, unknown>) => {
-					const validatedProperties =
-						validateAssociationPropertyObject(
-							frontmatter,
-							identity,
-						);
-					if (!validatedProperties.ok)
-						throw new FrontmatterError(validatedProperties.error);
-					for (const property of validatedProperties.value.missing) {
-						frontmatter[property] =
-							property === 'devradarGithubId'
-								? identity.githubId
-								: identity.username;
-					}
-				},
-			);
-		} catch (error) {
-			if (error instanceof FrontmatterError)
-				return failed({
-					kind: 'transform-rejection',
-					error: error.failure,
-				});
-			return failed({ kind: 'process-failure' });
-		}
+		if (needsProperties)
+			try {
+				// The runtime guard above protects older declared-compatible versions.
+				await fileManager['processFrontMatter'](
+					target.file,
+					(frontmatter: Record<string, unknown>) => {
+						const validatedProperties =
+							validateAssociationPropertyObject(
+								frontmatter,
+								identity,
+							);
+						if (!validatedProperties.ok)
+							throw new FrontmatterError(
+								validatedProperties.error,
+							);
+						for (const property of validatedProperties.value
+							.missing) {
+							frontmatter[property] =
+								property === 'devradarGithubId'
+									? identity.githubId
+									: identity.username;
+						}
+					},
+				);
+			} catch (error) {
+				if (error instanceof FrontmatterError)
+					return failed({
+						kind: 'transform-rejection',
+						error: error.failure,
+					});
+				return failed({ kind: 'process-failure' });
+			}
 	}
 
 	let decision: AssociationDecision | undefined;
@@ -202,6 +199,15 @@ async function prepareAssociation(
 		if (requireApiVersion('1.1.0')) {
 			await vault.process(target.file, (currentMarkdown) => {
 				try {
+					const result = transform(currentMarkdown);
+					if (result.kind === 'reject') {
+						decision = { kind: 'reject', error: result.error };
+						return currentMarkdown;
+					}
+					if (result.kind === 'reuse') {
+						decision = { kind: 'reuse' };
+						return currentMarkdown;
+					}
 					const properties = inspectAssociationProperties(
 						currentMarkdown,
 						identity,
@@ -216,15 +222,6 @@ async function prepareAssociation(
 									}
 								: properties.error,
 						};
-						return currentMarkdown;
-					}
-					const result = transform(currentMarkdown);
-					if (result.kind === 'reject') {
-						decision = { kind: 'reject', error: result.error };
-						return currentMarkdown;
-					}
-					if (result.kind === 'reuse') {
-						decision = { kind: 'reuse' };
 						return currentMarkdown;
 					}
 					decision = {
