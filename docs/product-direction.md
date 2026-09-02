@@ -74,6 +74,11 @@ If an account becomes unavailable, deleted, renamed, suspended, private, or othe
 
 DevRadar owns only an explicitly marked managed section. The user owns everything else in the note.
 
+During explicit association only, DevRadar may add the reserved string
+Properties `devradarGithubId` and `devradarGithubUsername`. They are metadata,
+not synchronization authority; all unrelated frontmatter and other note
+content remain user-owned.
+
 DevRadar must:
 
 - preserve all content outside its managed section;
@@ -93,6 +98,7 @@ Users may edit the managed section, but DevRadar may rewrite that section during
 
 A newly created person note should contain only:
 
+- the reserved GitHub identity Properties;
 - a heading;
 - the GitHub username;
 - a public GitHub profile link;

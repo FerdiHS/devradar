@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { Vault } from 'obsidian';
+import type { FileManager, Vault } from 'obsidian';
 import type { CanonicalEventId } from '../src/domain/activity';
 import type { SyncDomainError } from '../src/domain/sync';
 import type {
@@ -18,8 +18,11 @@ import {
 	type PersonIdentity,
 } from '../src/domain/person-note';
 
-const { FakeTFile, requireApiVersion } = vi.hoisted(() => ({
+const { FakeTFile, FakeTFolder, requireApiVersion } = vi.hoisted(() => ({
 	FakeTFile: class FakeTFile {
+		constructor(readonly path: string) {}
+	},
+	FakeTFolder: class FakeTFolder {
 		constructor(readonly path: string) {}
 	},
 	requireApiVersion: vi.fn(() => true),
@@ -27,31 +30,43 @@ const { FakeTFile, requireApiVersion } = vi.hoisted(() => ({
 
 vi.mock('obsidian', () => ({
 	TFile: FakeTFile,
+	TFolder: FakeTFolder,
 	requireApiVersion,
 }));
 
 function vault() {
 	const fakeVault = {
 		getAbstractFileByPath: vi.fn(),
-		read: vi.fn(),
+		read: vi.fn(async () => VALID_NOTE),
 		create: vi.fn(),
+		createFolder: vi.fn(),
 		process: vi.fn(),
 	};
 	return fakeVault satisfies Pick<
 		Vault,
-		'getAbstractFileByPath' | 'read' | 'create' | 'process'
+		'getAbstractFileByPath' | 'read' | 'create' | 'createFolder' | 'process'
 	>;
 }
 
 type FakeVault = ReturnType<typeof vault>;
 
-function adapter(fakeVault: FakeVault): NotePersistence {
-	return createObsidianNotePersistence(fakeVault);
+function adapter(
+	fakeVault: FakeVault,
+	fileManager: Pick<FileManager, 'processFrontMatter'> = {
+		processFrontMatter: vi.fn(async () => undefined),
+	},
+): NotePersistence {
+	return createObsidianNotePersistence(fakeVault, fileManager);
 }
 
 const IDENTITY: PersonIdentity = { username: 'octocat', githubId: '583231' };
 
 const VALID_NOTE = [
+	'---',
+	'devradarGithubId: "583231"',
+	'devradarGithubUsername: "octocat"',
+	'---',
+	'',
 	'Before',
 	'',
 	'<!-- devradar:begin github="octocat" github-id="583231" -->',
@@ -261,6 +276,91 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		);
 	});
 
+	it('adds missing Properties before initializing a marker-free note', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		let current = '---\ntitle: User note\n---\n\nUser content';
+		const processFrontMatter = vi.fn(
+			async (
+				_file: unknown,
+				callback: (frontmatter: Record<string, unknown>) => void,
+			) => {
+				const frontmatter: Record<string, unknown> = {
+					title: 'User note',
+				};
+				callback(frontmatter);
+				current = `---\ntitle: ${String(frontmatter.title)}\ndevradarGithubId: "583231"\ndevradarGithubUsername: "octocat"\n---\n\nUser content`;
+			},
+		);
+		const fileManager = {
+			processFrontMatter: processFrontMatter as Pick<
+				FileManager,
+				'processFrontMatter'
+			>['processFrontMatter'],
+		};
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockResolvedValue(current);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, callback: (content: string) => string) => {
+				current = callback(current);
+			},
+		);
+		const notesWithProperties = adapter(fakeVault, fileManager);
+		const result = await notesWithProperties.prepareAssociation(
+			'People/octocat.md',
+			IDENTITY,
+			(content) => {
+				const associated = associatePersonNote(content, IDENTITY, []);
+				return associated.ok
+					? {
+							kind: 'initialize',
+							markdown: associated.value.markdown,
+						}
+					: { kind: 'reject', error: associated.error };
+			},
+		);
+
+		expect(result).toEqual({ kind: 'initialized' });
+		expect(processFrontMatter).toHaveBeenCalledOnce();
+		expect(current).toContain('devradarGithubId: "583231"');
+		expect(current).toContain(
+			'<!-- devradar:begin github="octocat" github-id="583231" -->',
+		);
+	});
+
+	it('fails before mutation when the frontmatter API is unavailable', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const processFrontMatter = vi.fn(async () => undefined);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockResolvedValue('User content without frontmatter');
+		requireApiVersion.mockReturnValueOnce(false);
+		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
+
+		await expect(
+			notesWithProperties.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				(content) => {
+					const associated = associatePersonNote(
+						content,
+						IDENTITY,
+						[],
+					);
+					return associated.ok
+						? {
+								kind: 'initialize',
+								markdown: associated.value.markdown,
+							}
+						: { kind: 'reject', error: associated.error };
+				},
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'process-failure' },
+		});
+		expect(processFrontMatter).not.toHaveBeenCalled();
+		expect(fakeVault.process).not.toHaveBeenCalled();
+	});
+
 	it('rejects an invalid identity before creating a missing association target', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		const invalidIdentity: PersonIdentity = {
@@ -296,6 +396,118 @@ describe('Obsidian note persistence path and target boundaries', () => {
 			),
 		).toEqual({ kind: 'failed', error: { kind: 'create-failure' } });
 	});
+
+	it('creates missing parent folders in root-to-leaf order', async () => {
+		fakeVault.getAbstractFileByPath
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce(undefined);
+		fakeVault.createFolder.mockResolvedValue(undefined);
+		fakeVault.create.mockResolvedValue(
+			new FakeTFile('People/Team/octocat.md'),
+		);
+
+		await notes.prepareAssociation(
+			'People/Team/octocat.md',
+			IDENTITY,
+			() => ({ kind: 'reuse' }),
+		);
+
+		expect(fakeVault.createFolder.mock.calls).toEqual([
+			['People'],
+			['People/Team'],
+		]);
+		expect(fakeVault.create).toHaveBeenCalledWith(
+			'People/Team/octocat.md',
+			expect.any(String),
+		);
+	});
+
+	it('reuses existing folders and does not create one for a root note', async () => {
+		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
+		fakeVault.create.mockResolvedValue(new FakeTFile('octocat.md'));
+		expect(
+			await notes.prepareAssociation('octocat.md', IDENTITY, () => ({
+				kind: 'reuse',
+			})),
+		).toEqual({ kind: 'created' });
+		expect(fakeVault.createFolder).not.toHaveBeenCalled();
+
+		fakeVault.getAbstractFileByPath
+			.mockReset()
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce(new FakeTFolder('People'));
+		fakeVault.create.mockResolvedValue(new FakeTFile('People/octocat.md'));
+		expect(
+			await notes.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				() => ({
+					kind: 'reuse',
+				}),
+			),
+		).toEqual({ kind: 'created' });
+		expect(fakeVault.createFolder).not.toHaveBeenCalled();
+		expect(fakeVault.create).toHaveBeenCalledWith(
+			'People/octocat.md',
+			expect.any(String),
+		);
+	});
+
+	it('fails without creating the note when a parent is not a folder', async () => {
+		fakeVault.getAbstractFileByPath
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce({ path: 'People' });
+		await expect(
+			notes.prepareAssociation('People/octocat.md', IDENTITY, () => ({
+				kind: 'reuse',
+			})),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'create-failure' },
+		});
+		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
+
+	it('keeps earlier folders when a later folder creation fails', async () => {
+		fakeVault.getAbstractFileByPath
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce(undefined);
+		fakeVault.createFolder
+			.mockResolvedValueOnce(undefined)
+			.mockRejectedValueOnce(new Error('folder failed'));
+		await expect(
+			notes.prepareAssociation(
+				'People/Team/octocat.md',
+				IDENTITY,
+				() => ({ kind: 'reuse' }),
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'create-failure' },
+		});
+		expect(fakeVault.createFolder).toHaveBeenCalledWith('People');
+		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
+
+	it('fails safely when a parent lookup throws', async () => {
+		fakeVault.getAbstractFileByPath
+			.mockReturnValueOnce(undefined)
+			.mockImplementationOnce(() => {
+				throw new Error('lookup failed');
+			});
+		await expect(
+			notes.prepareAssociation(
+				'People/Team/octocat.md',
+				IDENTITY,
+				() => ({ kind: 'reuse' }),
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'create-failure' },
+		});
+		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
 });
 
 describe('Obsidian note persistence current-content processing', () => {
@@ -316,7 +528,7 @@ describe('Obsidian note persistence current-content processing', () => {
 		);
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
 		let persisted: string | undefined;
-		fakeVault.read.mockImplementation(() => persisted);
+		fakeVault.read.mockImplementation(async () => persisted ?? current);
 		fakeVault.process.mockImplementation(
 			(_file: unknown, transform: (content: string) => string) => {
 				persisted = transform(current);
@@ -340,6 +552,25 @@ describe('Obsidian note persistence current-content processing', () => {
 			kind: 'read',
 			markdown: expected,
 		});
+	});
+
+	it('keeps ordinary processing independent from association Properties', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const processFrontMatter = vi.fn(async () => undefined);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, callback: (content: string) => string) => {
+				callback(VALID_NOTE.replace('583231', 'not-a-valid-id'));
+			},
+		);
+		const ordinaryNotes = adapter(fakeVault, { processFrontMatter });
+
+		await ordinaryNotes.process('People/octocat.md', (content) => ({
+			kind: 'replace',
+			markdown: content,
+		}));
+
+		expect(processFrontMatter).not.toHaveBeenCalled();
 	});
 
 	it('reports unchanged when the current transform returns identical content', async () => {
@@ -376,7 +607,10 @@ describe('Obsidian note persistence current-content processing', () => {
 				IDENTITY,
 				() => ({ kind: 'reuse' }),
 			),
-		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
+		).toEqual({
+			kind: 'failed',
+			error: { kind: 'process-failure' },
+		});
 		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
@@ -422,7 +656,10 @@ describe('Obsidian note persistence current-content processing', () => {
 					providerEventId: '123' as CanonicalEventId,
 				},
 			})),
-		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
+		).toEqual({
+			kind: 'failed',
+			error: { kind: 'process-failure' },
+		});
 	});
 
 	it('reports thrown transforms as transform failure', async () => {
@@ -580,12 +817,16 @@ describe('Obsidian note persistence current-content processing', () => {
 					error: rejection,
 				}),
 			),
-		).toEqual({ kind: 'failed', error: { kind: 'process-failure' } });
+		).toEqual({
+			kind: 'failed',
+			error: { kind: 'transform-rejection', error: rejection },
+		});
 	});
 
 	it('initializes marker-free current content through the association transform', async () => {
 		const file = new FakeTFile('People/octocat.md');
-		const current = 'Current user content';
+		const current =
+			'---\ndevradarGithubId: "583231"\ndevradarGithubUsername: "octocat"\n---\n\nCurrent user content';
 		const associated = associatePersonNote(current, IDENTITY, []);
 		if (!associated.ok) throw new Error('expected association fixture');
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);

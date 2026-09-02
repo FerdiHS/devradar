@@ -9,11 +9,13 @@ vault adapter.
 
 DevRadar owns only the content between its canonical managed-section markers.
 Everything outside that range is user-owned, including headings, frontmatter,
-profile links, observations, whitespace, and line endings.
+profile links, observations, whitespace, and line endings. During explicit
+association only, DevRadar may add the reserved string Properties
+`devradarGithubId` and `devradarGithubUsername`; these are metadata only.
 
-DevRadar must preserve outside content exactly, must not overwrite an entire
-existing note, and must never automatically delete, move, rename, or recreate
-a note after it has been associated.
+DevRadar must preserve outside content exactly during ordinary synchronization,
+must not overwrite an entire existing note, and must never automatically
+delete, move, rename, or recreate a note after it has been associated.
 
 ## Canonical markers
 
@@ -83,6 +85,11 @@ the managed section:
 
 <!-- prettier-ignore -->
 ```md
+---
+devradarGithubId: "583231"
+devradarGithubUsername: "octocat"
+---
+
 # octocat
 
 GitHub: [@octocat](https://github.com/octocat)
@@ -93,6 +100,13 @@ GitHub: [@octocat](https://github.com/octocat)
 _No activity recorded by DevRadar yet._
 <!-- devradar:end github="octocat" github-id="583231" -->
 ```
+
+During explicit association, missing reserved Properties may be added.
+Conflicting, wrong-type, duplicate, case-colliding, malformed, or unsupported
+frontmatter fails closed and is never overwritten. Matching values are not
+intentionally rewritten. The supported frontmatter API may normalize YAML
+presentation; note body and managed-section bytes remain preserved. Ordinary
+synchronization never reads, repairs, migrates, or rewrites these Properties.
 
 Do not copy display names, bios, avatars, locations, employment information,
 or other profile metadata. After creation, the heading and profile line are

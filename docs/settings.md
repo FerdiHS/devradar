@@ -198,12 +198,15 @@ Creating an association follows this order:
 4. Validate username, account-ID, and effective note-path uniqueness.
 5. Inspect and prepare the destination according to
    [`person-note.md`](person-note.md).
+   Explicit association may add missing reserved identity Properties and fails
+   closed on malformed or conflicting frontmatter.
 6. Initialize or reuse the correct same-person managed section.
 7. Persist the followed-person configuration with empty internal sync state.
 
-The association is not active until it can be safely persisted. If note
-initialization succeeds but settings persistence fails, do not destructively
-roll back the note; a later retry may reuse the valid same-person section.
+The association is not active until note preparation and settings persistence
+both succeed. If note initialization or Properties preparation succeeds but
+settings persistence fails, do not destructively roll back the note; a later
+retry may reuse it. Any property-only remnant is non-authoritative.
 
 ## Note-path changes
 

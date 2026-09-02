@@ -133,6 +133,10 @@ Unfollowing removes that active state and creates no inactive-person tombstone.
 
 ## Per-person sync boundary
 
+Sync One uses persisted followed-person configuration and managed-marker
+identity as its binding sources of truth. It never reads, repairs, migrates,
+recreates, or rewrites `devradarGithubId` or `devradarGithubUsername`.
+
 Use one process-local application mutation boundary shared by Sync One, Sync
 All, follow and re-follow, note-path changes, tracking-start changes,
 unfollow, and plugin-owned settings saves. A sync acquires this boundary before

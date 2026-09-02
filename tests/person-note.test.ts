@@ -541,7 +541,7 @@ describe('person-note rendering', () => {
 			`${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`,
 		);
 		expect(ok(renderNewPersonNote(identity))).toBe(
-			`# octocat\n\nGitHub: [@octocat](https://github.com/octocat)\n\n${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`,
+			`---\ndevradarGithubId: "583231"\ndevradarGithubUsername: "octocat"\n---\n\n# octocat\n\nGitHub: [@octocat](https://github.com/octocat)\n\n${begin}\n## DevRadar activity\n\n_No activity recorded by DevRadar yet._\n${end}`,
 		);
 	});
 
