@@ -37,6 +37,8 @@ describe('person-note association Properties', () => {
 	it.each([
 		'devradarGithubId: 583231',
 		'devradarGithubUsername: [octocat]',
+		'devradarGithubId: null',
+		'devradarGithubUsername: {name: octocat}',
 		'devradarGithubId: "583230"',
 		'devradarGithubUsername: "other"',
 	])('rejects invalid reserved values: %s', (property) => {
@@ -45,6 +47,18 @@ describe('person-note association Properties', () => {
 		).toMatchObject({
 			ok: false,
 			error: { kind: 'frontmatter-failure' },
+		});
+	});
+
+	it('rejects duplicate canonical reserved keys', () => {
+		expect(
+			inspectAssociationProperties(
+				'---\ndevradarGithubId: "583231"\ndevradarGithubId: "583231"\n---\n',
+				identity,
+			),
+		).toEqual({
+			ok: false,
+			error: { kind: 'frontmatter-failure', reason: 'malformed' },
 		});
 	});
 

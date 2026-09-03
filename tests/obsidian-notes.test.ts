@@ -949,6 +949,57 @@ describe('Obsidian note persistence current-content processing', () => {
 		).toEqual({ kind: 'reused' });
 	});
 
+	it.each([
+		VALID_NOTE.replace(/^---[\s\S]*?---\n\n/, ''),
+		VALID_NOTE.replace('devradarGithubId: "583231"\n', ''),
+		VALID_NOTE.replace(
+			'devradarGithubId: "583231"',
+			'devradarGithubId: "1"',
+		),
+		VALID_NOTE.replace(
+			'devradarGithubId: "583231"',
+			'devradarGithubId: []',
+		),
+	])(
+		'reuses associated notes without relying on Properties: %s',
+		async (current) => {
+			const file = new FakeTFile('People/octocat.md');
+			const processFrontMatter = vi.fn(async () => undefined);
+			fakeVault.getAbstractFileByPath.mockReturnValue(file);
+			fakeVault.read.mockResolvedValue(current);
+			fakeVault.process.mockImplementation(
+				(_file: unknown, transform: (content: string) => string) => {
+					expect(transform(current)).toBe(current);
+				},
+			);
+
+			const notesWithProperties = adapter(fakeVault, {
+				processFrontMatter,
+			});
+			expect(
+				await notesWithProperties.prepareAssociation(
+					'People/octocat.md',
+					IDENTITY,
+					(content) => {
+						const parsed = parsePersonNote(content, IDENTITY);
+						return parsed.kind === 'valid-section'
+							? { kind: 'reuse' }
+							: parsed.kind === 'invalid'
+								? { kind: 'reject', error: parsed.error }
+								: {
+										kind: 'reject',
+										error: {
+											kind: 'missing-marker',
+											missing: 'associated-section',
+										},
+									};
+					},
+				),
+			).toEqual({ kind: 'reused' });
+			expect(processFrontMatter).not.toHaveBeenCalled();
+		},
+	);
+
 	it('reports association transform throws as transform failure', async () => {
 		const file = new FakeTFile('People/octocat.md');
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
