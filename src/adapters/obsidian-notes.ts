@@ -141,6 +141,13 @@ async function prepareAssociation(
 		let needsProperties = false;
 		try {
 			const currentBeforeProperties = await vault.read(target.file);
+			const result = transform(currentBeforeProperties);
+			if (result.kind === 'reject')
+				return failed({
+					kind: 'transform-rejection',
+					error: result.error,
+				});
+			if (result.kind === 'reuse') return { kind: 'reused' };
 			const properties = inspectAssociationProperties(
 				currentBeforeProperties,
 				identity,
@@ -149,12 +156,6 @@ async function prepareAssociation(
 				return failed({
 					kind: 'transform-rejection',
 					error: properties.error,
-				});
-			const result = transform(currentBeforeProperties);
-			if (result.kind === 'reject')
-				return failed({
-					kind: 'transform-rejection',
-					error: result.error,
 				});
 			needsProperties = properties.value.missing.length > 0;
 		} catch {

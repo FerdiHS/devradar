@@ -433,6 +433,45 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
+	it('does not migrate a same-person association discovered on recheck', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const markerFree = 'User content';
+		const associated = VALID_NOTE.replace(
+			'devradarGithubId: "583231"',
+			'devradarGithubId: "wrong-id"',
+		);
+		const processFrontMatter = vi.fn(async () => undefined);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read
+			.mockResolvedValueOnce(markerFree)
+			.mockResolvedValueOnce(associated);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, transform: (content: string) => string) => {
+				expect(transform(associated)).toBe(associated);
+			},
+		);
+		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
+
+		await expect(
+			notesWithProperties.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				(content) => {
+					const parsed = parsePersonNote(content, IDENTITY);
+					return parsed.kind === 'valid-section'
+						? { kind: 'reuse' }
+						: parsed.kind === 'invalid'
+							? { kind: 'reject', error: parsed.error }
+							: {
+									kind: 'initialize',
+									markdown: content,
+								};
+				},
+			),
+		).resolves.toEqual({ kind: 'reused' });
+		expect(processFrontMatter).not.toHaveBeenCalled();
+	});
+
 	it('rejects an invalid identity before creating a missing association target', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		const invalidIdentity: PersonIdentity = {
