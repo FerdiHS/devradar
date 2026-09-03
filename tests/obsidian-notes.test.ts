@@ -327,6 +327,54 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		);
 	});
 
+	it('associates a marker-free note without existing frontmatter', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		let current = 'User content';
+		const processFrontMatter = vi.fn(
+			async (
+				_file: unknown,
+				callback: (frontmatter: Record<string, unknown>) => void,
+			) => {
+				const frontmatter: Record<string, unknown> = {};
+				callback(frontmatter);
+				current = `---\ndevradarGithubId: "${String(frontmatter.devradarGithubId)}"\ndevradarGithubUsername: "${String(frontmatter.devradarGithubUsername)}"\n---\n\nUser content`;
+			},
+		);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockImplementation(async () => current);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, callback: (content: string) => string) => {
+				current = callback(current);
+			},
+		);
+		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
+
+		await expect(
+			notesWithProperties.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				(content) => {
+					const associated = associatePersonNote(
+						content,
+						IDENTITY,
+						[],
+					);
+					return associated.ok
+						? {
+								kind: 'initialize',
+								markdown: associated.value.markdown,
+							}
+						: { kind: 'reject', error: associated.error };
+				},
+			),
+		).resolves.toEqual({ kind: 'initialized' });
+		expect(processFrontMatter).toHaveBeenCalledOnce();
+		expect(current).toContain('User content');
+		expect(current).toContain(
+			'<!-- devradar:begin github="octocat" github-id="583231" -->',
+		);
+	});
+
 	it('fails before mutation when the frontmatter API is unavailable', async () => {
 		const file = new FakeTFile('People/octocat.md');
 		const processFrontMatter = vi.fn(async () => undefined);
