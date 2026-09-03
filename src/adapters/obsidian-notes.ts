@@ -136,8 +136,6 @@ async function prepareAssociation(
 			error: initialTransform.error,
 		});
 	if (initialTransform.kind === 'initialize') {
-		if (!requireApiVersion('1.4.4'))
-			return failed({ kind: 'process-failure' });
 		let needsProperties = false;
 		try {
 			const currentBeforeProperties = await vault.read(target.file);
@@ -147,20 +145,24 @@ async function prepareAssociation(
 					kind: 'transform-rejection',
 					error: result.error,
 				});
-			if (result.kind === 'reuse') return { kind: 'reused' };
-			const properties = inspectAssociationProperties(
-				currentBeforeProperties,
-				identity,
-			);
-			if (!properties.ok)
-				return failed({
-					kind: 'transform-rejection',
-					error: properties.error,
-				});
-			needsProperties = properties.value.missing.length > 0;
+			if (result.kind === 'initialize') {
+				const properties = inspectAssociationProperties(
+					currentBeforeProperties,
+					identity,
+				);
+				if (!properties.ok)
+					return failed({
+						kind: 'transform-rejection',
+						error: properties.error,
+					});
+				needsProperties = properties.value.missing.length > 0;
+			}
 		} catch {
 			return failed({ kind: 'process-failure' });
 		}
+		if (needsProperties)
+			if (!requireApiVersion('1.4.4'))
+				return failed({ kind: 'process-failure' });
 		if (needsProperties)
 			try {
 				// The runtime guard above protects older declared-compatible versions.

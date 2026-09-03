@@ -481,12 +481,16 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		expect(fakeVault.process).not.toHaveBeenCalled();
 	});
 
-	it('does not migrate a same-person association discovered on recheck', async () => {
+	it('revalidates a same-person association through current content', async () => {
 		const file = new FakeTFile('People/octocat.md');
 		const markerFree = 'User content';
 		const associated = VALID_NOTE.replace(
 			'devradarGithubId: "583231"',
 			'devradarGithubId: "wrong-id"',
+		);
+		const foreign = associated.replaceAll(
+			'github="octocat"',
+			'github="other-person"',
 		);
 		const processFrontMatter = vi.fn(async () => undefined);
 		fakeVault.getAbstractFileByPath.mockReturnValue(file);
@@ -495,7 +499,7 @@ describe('Obsidian note persistence path and target boundaries', () => {
 			.mockResolvedValueOnce(associated);
 		fakeVault.process.mockImplementation(
 			(_file: unknown, transform: (content: string) => string) => {
-				expect(transform(associated)).toBe(associated);
+				expect(transform(foreign)).toBe(foreign);
 			},
 		);
 		const notesWithProperties = adapter(fakeVault, { processFrontMatter });
@@ -516,7 +520,18 @@ describe('Obsidian note persistence path and target boundaries', () => {
 								};
 				},
 			),
-		).resolves.toEqual({ kind: 'reused' });
+		).resolves.toEqual({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: {
+					kind: 'identity-mismatch',
+					reason: 'expected',
+					actual: { username: 'other-person', githubId: '583231' },
+					expected: IDENTITY,
+				},
+			},
+		});
 		expect(processFrontMatter).not.toHaveBeenCalled();
 	});
 
