@@ -947,6 +947,7 @@ describe('Obsidian note persistence current-content processing', () => {
 				},
 			),
 		).toEqual({ kind: 'reused' });
+		expect(fakeVault.createFolder).not.toHaveBeenCalled();
 	});
 
 	it.each([
