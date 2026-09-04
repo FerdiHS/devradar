@@ -597,6 +597,24 @@ describe('Obsidian note persistence path and target boundaries', () => {
 		);
 	});
 
+	it('fails before creating folders when the folder API is unavailable', async () => {
+		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
+		requireApiVersion.mockReturnValue(false);
+
+		await expect(
+			notes.prepareAssociation(
+				'People/Team/octocat.md',
+				IDENTITY,
+				() => ({ kind: 'reuse' }),
+			),
+		).resolves.toEqual({
+			kind: 'failed',
+			error: { kind: 'create-failure' },
+		});
+		expect(fakeVault.createFolder).not.toHaveBeenCalled();
+		expect(fakeVault.create).not.toHaveBeenCalled();
+	});
+
 	it('reuses existing folders and does not create one for a root note', async () => {
 		fakeVault.getAbstractFileByPath.mockReturnValue(undefined);
 		fakeVault.create.mockResolvedValue(new FakeTFile('octocat.md'));
