@@ -62,6 +62,26 @@ src/
 This is guidance for ownership, not a request to create empty folders or move
 existing files before a use case requires it.
 
+## Association API feasibility and compatibility
+
+Issues #103 and #106 use supported Obsidian APIs at separate mutation
+boundaries: `Vault.createFolder()` for missing parent folders,
+`FileManager.processFrontMatter()` for adding missing reserved association
+Properties, and `Vault.process()` for current-content marker mutation. The
+frontmatter API may normalize YAML presentation; it is not used for ordinary
+synchronization. Properties-first, marker-last ordering ensures that a failed
+association never activates settings, although supported APIs do not provide a
+single cross-operation transaction. A property-only remnant after a later
+failure is therefore bounded and non-authoritative.
+
+The implementation gates `createFolder()` at Obsidian 1.4.0 and
+`processFrontMatter()` at 1.4.4 while retaining the existing 1.1.0
+`Vault.process()` gate. The current plugin metadata remains unchanged by these
+issues; Issue #94 owns the eventual v0.2.0 compatibility-floor and release-
+metadata decision. Automated tests provide sanitized API substitutes; runtime
+behavior requiring a real Desktop vault must be smoke-tested on the target
+Obsidian version before release.
+
 ## Responsibilities and testability
 
 - The **domain** owns the canonical activity representation, followed-person
@@ -175,8 +195,10 @@ ambiguous state rather than guessing repairs. During sync of an associated
 note, a note may change only inside one unambiguous, identity-matching
 DevRadar-managed section. During explicit initial association only, a
 marker-free existing note may receive its first managed section at EOF as
-defined by [person-note](person-note.md). Preserve every byte outside that
-range. If safe preflight proves both that the intended Markdown is identical
+defined by [person-note](person-note.md), and missing reserved identity
+Properties may be added through the supported frontmatter API. Preserve every
+byte outside that range except documented frontmatter representation
+normalization during that explicit operation. If safe preflight proves both that the intended Markdown is identical
 to the observed note content and that no note-derived reconciliation or state
 advancement depends on the snapshot, report the semantic outcome `unchanged`
 without invoking the mutation primitive. Otherwise, re-establish current-note

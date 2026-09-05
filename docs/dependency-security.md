@@ -1,8 +1,9 @@
 # Dependency security and maintenance
 
 This repository uses npm development dependencies to type-check, lint, test,
-and bundle DevRadar. The plugin runtime has no npm production dependencies;
-`obsidian` is external to the generated bundle.
+and bundle DevRadar. The `yaml` package is a direct runtime dependency bundled
+for strict association-frontmatter validation; `obsidian` remains external to
+the generated bundle.
 
 ## Baseline review
 

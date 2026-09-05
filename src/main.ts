@@ -101,7 +101,10 @@ export default class DevRadarPlugin extends Plugin {
 			pluginVersion: this.manifest.version,
 			transport: createObsidianGitHubTransport(this.manifest.version),
 		});
-		const notes = createObsidianNotePersistence(this.app.vault);
+		const notes = createObsidianNotePersistence(
+			this.app.vault,
+			this.app.fileManager,
+		);
 		this.followApplication = new FollowApplication({
 			settings: this.settingsApplication,
 			github,

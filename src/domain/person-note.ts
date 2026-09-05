@@ -70,6 +70,16 @@ export type PersonNoteFailure =
 			readonly reason: 'begin-end' | 'expected';
 			readonly actual?: PersonIdentity;
 			readonly expected?: PersonIdentity;
+	  }
+	| {
+			readonly kind: 'frontmatter-failure';
+			readonly reason:
+				| 'malformed'
+				| 'reserved-key-variant'
+				| 'invalid-property'
+				| 'missing-property'
+				| 'unsupported-construct';
+			readonly property?: 'github-id' | 'github-username';
 	  };
 
 export type PersonNoteInspection =
@@ -756,7 +766,7 @@ export function renderNewPersonNote(
 	const rendered = renderManagedSection(identity, activities, '\n');
 	if (!rendered.ok) return rendered;
 	return success(
-		`# ${identity.username}\n\nGitHub: [@${identity.username}](https://github.com/${identity.username})\n\n${rendered.value}`,
+		`---\ndevradarGithubId: "${identity.githubId}"\ndevradarGithubUsername: "${identity.username}"\n---\n\n# ${identity.username}\n\nGitHub: [@${identity.username}](https://github.com/${identity.username})\n\n${rendered.value}`,
 	);
 }
 

@@ -1,10 +1,20 @@
-import { requireApiVersion, TFile, type Vault } from 'obsidian';
+import {
+	requireApiVersion,
+	TFile,
+	TFolder,
+	type FileManager,
+	type Vault,
+} from 'obsidian';
 import { canonicalizeDraftNotePath } from '../domain/settings';
 import {
 	renderNewPersonNote,
 	type PersonIdentity,
 	type PersonNoteFailure,
 } from '../domain/person-note';
+import {
+	inspectAssociationProperties,
+	validateAssociationPropertyObject,
+} from '../domain/person-note-properties';
 import type {
 	AssociationTransform,
 	CurrentContentTransform,
@@ -44,12 +54,16 @@ type ProcessDecision<TTransformError> =
 	| { readonly kind: 'throw' };
 
 export function createObsidianNotePersistence(
-	vault: Pick<Vault, 'getAbstractFileByPath' | 'read' | 'create' | 'process'>,
+	vault: Pick<
+		Vault,
+		'getAbstractFileByPath' | 'read' | 'create' | 'createFolder' | 'process'
+	>,
+	fileManager: Pick<FileManager, 'processFrontMatter'>,
 ): NotePersistence {
 	return {
 		read: (path) => read(vault, path),
 		prepareAssociation: (path, identity, transform) =>
-			prepareAssociation(vault, path, identity, transform),
+			prepareAssociation(vault, fileManager, path, identity, transform),
 		process: (path, transform) => process(vault, path, transform),
 	};
 }
@@ -73,7 +87,11 @@ async function read(
 }
 
 async function prepareAssociation(
-	vault: Pick<Vault, 'getAbstractFileByPath' | 'create' | 'process'>,
+	vault: Pick<
+		Vault,
+		'getAbstractFileByPath' | 'read' | 'create' | 'createFolder' | 'process'
+	>,
+	fileManager: Pick<FileManager, 'processFrontMatter'>,
 	path: string,
 	identity: PersonIdentity,
 	transform: AssociationTransform,
@@ -89,6 +107,7 @@ async function prepareAssociation(
 				error: rendered.error,
 			});
 		try {
+			await ensureParentFolders(vault, validated.path);
 			await vault.create(validated.path, rendered.value);
 			return { kind: 'created' };
 		} catch {
@@ -98,6 +117,85 @@ async function prepareAssociation(
 	if (target.kind === 'non-file') return failed({ kind: 'non-file-target' });
 	if (target.kind === 'lookup-failure')
 		return failed({ kind: 'process-failure' });
+
+	let currentMarkdown: string;
+	try {
+		currentMarkdown = await vault.read(target.file);
+	} catch {
+		return failed({ kind: 'process-failure' });
+	}
+	let initialTransform: ReturnType<AssociationTransform>;
+	try {
+		initialTransform = transform(currentMarkdown);
+	} catch {
+		return failed({ kind: 'transform-failure' });
+	}
+	if (initialTransform.kind === 'reject')
+		return failed({
+			kind: 'transform-rejection',
+			error: initialTransform.error,
+		});
+	if (initialTransform.kind === 'initialize') {
+		let needsProperties = false;
+		try {
+			const currentBeforeProperties = await vault.read(target.file);
+			const result = transform(currentBeforeProperties);
+			if (result.kind === 'reject')
+				return failed({
+					kind: 'transform-rejection',
+					error: result.error,
+				});
+			if (result.kind === 'initialize') {
+				const properties = inspectAssociationProperties(
+					currentBeforeProperties,
+					identity,
+				);
+				if (!properties.ok)
+					return failed({
+						kind: 'transform-rejection',
+						error: properties.error,
+					});
+				needsProperties = properties.value.missing.length > 0;
+			}
+		} catch {
+			return failed({ kind: 'process-failure' });
+		}
+		if (needsProperties)
+			if (!requireApiVersion('1.4.4'))
+				return failed({ kind: 'process-failure' });
+		if (needsProperties)
+			try {
+				// The runtime guard above protects older declared-compatible versions.
+				await fileManager['processFrontMatter'](
+					target.file,
+					(frontmatter: Record<string, unknown>) => {
+						const validatedProperties =
+							validateAssociationPropertyObject(
+								frontmatter,
+								identity,
+							);
+						if (!validatedProperties.ok)
+							throw new FrontmatterError(
+								validatedProperties.error,
+							);
+						for (const property of validatedProperties.value
+							.missing) {
+							frontmatter[property] =
+								property === 'devradarGithubId'
+									? identity.githubId
+									: identity.username;
+						}
+					},
+				);
+			} catch (error) {
+				if (error instanceof FrontmatterError)
+					return failed({
+						kind: 'transform-rejection',
+						error: error.failure,
+					});
+				return failed({ kind: 'process-failure' });
+			}
+	}
 
 	let decision: AssociationDecision | undefined;
 	try {
@@ -111,6 +209,22 @@ async function prepareAssociation(
 					}
 					if (result.kind === 'reuse') {
 						decision = { kind: 'reuse' };
+						return currentMarkdown;
+					}
+					const properties = inspectAssociationProperties(
+						currentMarkdown,
+						identity,
+					);
+					if (!properties.ok || properties.value.missing.length > 0) {
+						decision = {
+							kind: 'reject',
+							error: properties.ok
+								? {
+										kind: 'frontmatter-failure',
+										reason: 'missing-property',
+									}
+								: properties.error,
+						};
 						return currentMarkdown;
 					}
 					decision = {
@@ -137,6 +251,37 @@ async function prepareAssociation(
 	return decision.kind === 'reuse'
 		? { kind: 'reused' }
 		: { kind: 'initialized' };
+}
+
+class FrontmatterError extends Error {
+	constructor(readonly failure: PersonNoteFailure) {
+		super('frontmatter validation failed');
+	}
+}
+
+async function ensureParentFolders(
+	vault: Pick<Vault, 'getAbstractFileByPath' | 'createFolder'>,
+	path: string,
+): Promise<void> {
+	const parts = path.split('/');
+	for (let index = 1; index < parts.length; index += 1) {
+		const parent = parts.slice(0, index).join('/');
+		let target: unknown;
+		try {
+			target = vault.getAbstractFileByPath(parent);
+		} catch {
+			throw new Error('parent lookup failed');
+		}
+		if (target) {
+			if (!(target instanceof TFolder))
+				throw new Error('parent is not a folder');
+			continue;
+		}
+		if (!requireApiVersion('1.4.0'))
+			throw new Error('folder API unavailable');
+		// The runtime guard above protects older declared-compatible versions.
+		await vault['createFolder'](parent);
+	}
 }
 
 async function process<TTransformError>(
