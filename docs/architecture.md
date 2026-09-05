@@ -305,7 +305,7 @@ scraping, webhooks, and hidden background collection. Network processing stays
 sequential in this MVP, and cross-device or distributed locking is out of
 scope; the synchronization guard is process-local only.
 
-The `v0.2.0` implementation requires Obsidian `1.1.0` or later because safe
+The `v0.2.0` implementation requires Obsidian `1.4.4` or later because safe
 existing-note mutation relies on `Vault.process()` or an equivalent API with
 the same current-content guarantee. The current `0.1.0` manifest may remain
 at `1.0.0` until functional note-writing implementation ships; that release
