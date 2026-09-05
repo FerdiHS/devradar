@@ -2,7 +2,7 @@
 	"id": "devradar",
 	"name": "DevRadar",
 	"version": "0.2.0",
-	"minAppVersion": "1.1.0",
+	"minAppVersion": "1.4.4",
 	"description": "Follow selected GitHub users and record public activity in connected Markdown notes.",
 	"author": "FerdiHS",
 	"authorUrl": "https://github.com/FerdiHS",
