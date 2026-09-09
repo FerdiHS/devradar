@@ -373,18 +373,21 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		inputs = allElements(view.root).filter(
 			(element) => element.tag === 'input',
 		);
-		const date = inputs.find(
-			(element) => element.type === 'datetime-local',
-		);
+		const date = inputs.find((element) => element.type === 'date');
 		if (!date) throw new Error('expected date input');
 		expect(
 			allElements(view.root).find(
 				(element) =>
-					element.tag === 'label' && element.text === 'Date & time',
+					element.tag === 'label' && element.text === 'Start date',
 			)?.htmlFor,
 		).toBe('devradar-follow-from-date');
 		expect(date.id).toBe('devradar-follow-from-date');
-		date.value = '0001-08-01T12:34';
+		const time = inputs.find((element) => element.type === 'time');
+		if (!time) throw new Error('expected time input');
+		expect(time.id).toBe('devradar-follow-from-time');
+		time.value = '12:34';
+		time.emit('input');
+		date.value = '0001-08-01';
 		date.emit('input');
 
 		const button = allElements(view.root).find(
@@ -414,6 +417,107 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			'Follow skipped because GitHub requests are temporarily unavailable.',
 		);
 	});
+
+	it('submits date-only input at local midnight', async () => {
+		const view = tabFor(readyEmpty);
+		view.tab.display();
+		let inputs = allElements(view.root).filter(
+			(element) => element.tag === 'input',
+		);
+		inputs[0]!.value = 'octocat';
+		inputs[0]!.emit('input');
+		inputs[1]!.value = 'People/octocat.md';
+		inputs[1]!.emit('input');
+		const trackingStart = allElements(view.root).find(
+			(element) => element.tag === 'select',
+		);
+		if (!trackingStart) throw new Error('expected tracking-start select');
+		trackingStart.value = 'from-date';
+		trackingStart.emit('change');
+		inputs = allElements(view.root).filter(
+			(element) => element.tag === 'input',
+		);
+		const date = inputs.find((element) => element.type === 'date');
+		if (!date) throw new Error('expected date input');
+		date.value = '2026-08-01';
+		date.emit('input');
+		allElements(view.root)
+			.find(
+				(element) =>
+					element.tag === 'button' && element.text === 'Follow',
+			)
+			?.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const expected = new Date(0);
+		expected.setFullYear(2026, 7, 1);
+		expected.setHours(0, 0, 0, 0);
+		expect(view.follow).toHaveBeenCalledWith({
+			username: 'octocat',
+			notePath: 'People/octocat.md',
+			trackingStart: { mode: 'from-date', at: expected.toISOString() },
+		});
+	});
+
+	it.each([
+		[
+			'missing date',
+			'',
+			'',
+			'Choose a start date to use date-based tracking.',
+		],
+		[
+			'invalid time',
+			'2026-08-01',
+			'12:',
+			'Enter a valid start time in HH:MM format.',
+		],
+	] as const)(
+		'reports %s before submitting Follow',
+		async (_name, dateValue, timeValue, message) => {
+			const view = tabFor(readyEmpty);
+			view.tab.display();
+			let inputs = allElements(view.root).filter(
+				(element) => element.tag === 'input',
+			);
+			inputs[0]!.value = 'octocat';
+			inputs[0]!.emit('input');
+			inputs[1]!.value = 'People/octocat.md';
+			inputs[1]!.emit('input');
+			const trackingStart = allElements(view.root).find(
+				(element) => element.tag === 'select',
+			);
+			if (!trackingStart)
+				throw new Error('expected tracking-start select');
+			trackingStart.value = 'from-date';
+			trackingStart.emit('change');
+			inputs = allElements(view.root).filter(
+				(element) => element.tag === 'input',
+			);
+			const date = inputs.find((element) => element.type === 'date');
+			const time = inputs.find((element) => element.type === 'time');
+			if (!date || !time)
+				throw new Error('expected date and time inputs');
+			date.value = dateValue;
+			time.value = timeValue;
+			date.emit('input');
+			time.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+
+			expect(view.follow).not.toHaveBeenCalled();
+			expect(
+				allElements(view.root)
+					.map((element) => element.text)
+					.join('\n'),
+			).toContain(message);
+		},
+	);
 
 	it('disables Follow and prevents duplicate submissions while pending', async () => {
 		let release!: (result: {

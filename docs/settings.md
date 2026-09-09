@@ -170,8 +170,12 @@ The three product choices retain distinct persisted semantics:
 
 `from-now` resolves to the current instant when the follow or tracking-start
 change is successfully committed. `available-recent` stores no invented
-timestamp. `from-date` stores the selected instant in canonical UTC ISO-8601
-form and rejects future times for the MVP.
+timestamp. `from-date` requires a calendar date and accepts an optional local
+time. When the time is omitted, it resolves to `00:00` at the start of the
+selected date in the user's local timezone. The resulting local date/time is
+converted to a canonical UTC ISO-8601 timestamp and stored in `from-date.at`;
+future instants remain invalid for the MVP. The UI uses native `date` and
+`time` controls, not free-form or locale-dependent parsing.
 
 For `from-now` and `from-date`, an activity is eligible when its canonical
 provider activity timestamp is equal to or later than the configured start

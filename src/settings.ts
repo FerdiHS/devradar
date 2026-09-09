@@ -25,6 +25,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private notePath = '';
 	private trackingStartMode: TrackingStartMode = 'now';
 	private fromDate = '';
+	private fromTime = '';
 	private followPending = false;
 	private followStatus?: string;
 
@@ -132,16 +133,31 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 		if (this.trackingStartMode === 'from-date') {
 			const fromDateLabel = containerEl.createEl('label', {
-				text: 'Date & time',
+				text: 'Start date',
 			});
 			const fromDate = containerEl.createEl('input');
 			fromDate.id = 'devradar-follow-from-date';
 			fromDateLabel.htmlFor = fromDate.id;
-			fromDate.type = 'datetime-local';
-			fromDate.step = '60';
+			fromDate.type = 'date';
 			fromDate.value = this.fromDate;
 			fromDate.addEventListener('input', () => {
 				this.fromDate = fromDate.value;
+			});
+
+			const fromTimeLabel = containerEl.createEl('label', {
+				text: 'Start time (optional)',
+			});
+			const fromTime = containerEl.createEl('input');
+			fromTime.id = 'devradar-follow-from-time';
+			fromTimeLabel.htmlFor = fromTime.id;
+			fromTime.type = 'time';
+			fromTime.step = '60';
+			fromTime.value = this.fromTime;
+			fromTime.addEventListener('input', () => {
+				this.fromTime = fromTime.value;
+			});
+			containerEl.createEl('p', {
+				text: 'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
 			});
 		}
 
@@ -150,10 +166,15 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		follow.disabled = pending;
 		follow.addEventListener('click', () => {
 			if (this.followPending || this.host.isFollowPending()) return;
+			const draft = this.draft();
+			if (!draft) {
+				this.display();
+				return;
+			}
 			this.followPending = true;
 			this.followStatus = undefined;
 			this.display();
-			void this.host.follow(this.draft()).then(
+			void this.host.follow(draft).then(
 				(result) => this.finishFollow(result),
 				() => this.finishFollow({ kind: 'failed', reason: 'internal' }),
 			);
@@ -175,16 +196,32 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private draft(): FollowDraft {
-		if (this.trackingStartMode === 'from-date')
+	private draft(): FollowDraft | undefined {
+		if (this.trackingStartMode === 'from-date') {
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(this.fromDate)) {
+				this.followStatus = this.fromDate
+					? 'Enter a valid start date.'
+					: 'Choose a start date to use date-based tracking.';
+				return undefined;
+			}
+			if (this.fromTime && !/^\d{2}:\d{2}$/.test(this.fromTime)) {
+				this.followStatus = 'Enter a valid start time in HH:MM format.';
+				return undefined;
+			}
+			const at = localDateTimeToUtc(this.fromDate, this.fromTime);
+			if (!at) {
+				this.followStatus = 'Enter a valid start date and time.';
+				return undefined;
+			}
 			return {
 				username: this.username,
 				notePath: this.notePath,
 				trackingStart: {
 					mode: 'from-date',
-					at: localDateTimeToUtc(this.fromDate) ?? '',
+					at,
 				},
 			};
+		}
 		return {
 			username: this.username,
 			notePath: this.notePath,
@@ -207,11 +244,14 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	}
 }
 
-function localDateTimeToUtc(value: string): string | undefined {
-	if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return undefined;
-	const [date, time] = value.split('T');
-	const [year, month, day] = date?.split('-').map(Number) ?? [];
-	const [hour, minute] = time?.split(':').map(Number) ?? [];
+function localDateTimeToUtc(
+	dateValue: string,
+	timeValue: string,
+): string | undefined {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return undefined;
+	if (timeValue && !/^\d{2}:\d{2}$/.test(timeValue)) return undefined;
+	const [year, month, day] = dateValue.split('-').map(Number);
+	const [hour, minute] = (timeValue || '00:00').split(':').map(Number);
 	if (![year, month, day, hour, minute].every(Number.isFinite))
 		return undefined;
 	const local = new Date(0);
