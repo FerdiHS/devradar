@@ -427,27 +427,34 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 	});
 
 	it('submits date-only input at local midnight', async () => {
-		const view = tabFor(readyEmpty);
-		const { date } = fromDateForm(view);
-		date.value = '2026-08-01';
-		date.emit('input');
-		allElements(view.root)
-			.find(
-				(element) =>
-					element.tag === 'button' && element.text === 'Follow',
-			)
-			?.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'America/Los_Angeles';
+		try {
+			const view = tabFor(readyEmpty);
+			const { date } = fromDateForm(view);
+			date.value = '2026-08-01';
+			date.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
 
-		const expected = new Date(0);
-		expected.setFullYear(2026, 7, 1);
-		expected.setHours(0, 0, 0, 0);
-		expect(view.follow).toHaveBeenCalledWith({
-			username: 'octocat',
-			notePath: 'People/octocat.md',
-			trackingStart: { mode: 'from-date', at: expected.toISOString() },
-		});
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T07:00:00.000Z',
+				},
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
 	});
 
 	it.each([
