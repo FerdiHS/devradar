@@ -256,7 +256,7 @@ Known schema-v1 data is rejected as a dataset when it contains:
 - malformed tracking-start variants or timestamps;
 - duplicate `seenEvents.id` values or malformed `seenEvents.createdAt`
   timestamps;
-- future selected dates;
+- future resolved tracking-start instants;
 - incorrect JSON value types;
 - unexpected fields in the strict schema;
 - structurally invalid followed-person or sync-state records.
