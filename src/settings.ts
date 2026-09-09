@@ -139,6 +139,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			fromDate.id = 'devradar-follow-from-date';
 			fromDateLabel.htmlFor = fromDate.id;
 			fromDate.type = 'date';
+			fromDate.required = true;
 			fromDate.value = this.fromDate;
 			fromDate.addEventListener('input', () => {
 				this.fromDate = fromDate.value;
@@ -198,13 +199,13 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 	private draft(): FollowDraft | undefined {
 		if (this.trackingStartMode === 'from-date') {
-			if (!/^\d{4}-\d{2}-\d{2}$/.test(this.fromDate)) {
+			if (!isValidCalendarDate(this.fromDate)) {
 				this.followStatus = this.fromDate
 					? 'Enter a valid start date.'
 					: 'Choose a start date to use date-based tracking.';
 				return undefined;
 			}
-			if (this.fromTime && !/^\d{2}:\d{2}$/.test(this.fromTime)) {
+			if (this.fromTime && !isValidLocalTime(this.fromTime)) {
 				this.followStatus = 'Enter a valid start time in HH:MM format.';
 				return undefined;
 			}
@@ -242,6 +243,25 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			() => this.display(),
 		);
 	}
+}
+
+function isValidCalendarDate(value: string): boolean {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+	const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
+	const calendar = new Date(0);
+	calendar.setUTCFullYear(year, month - 1, day);
+	calendar.setUTCHours(0, 0, 0, 0);
+	return (
+		calendar.getUTCFullYear() === year &&
+		calendar.getUTCMonth() === month - 1 &&
+		calendar.getUTCDate() === day
+	);
+}
+
+function isValidLocalTime(value: string): boolean {
+	if (!/^\d{2}:\d{2}$/.test(value)) return false;
+	const [hour = 0, minute = 0] = value.split(':').map(Number);
+	return hour < 24 && minute < 60;
 }
 
 function localDateTimeToUtc(

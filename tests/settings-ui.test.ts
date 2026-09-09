@@ -29,6 +29,7 @@ class FakeElement {
 	value = '';
 	placeholder = '';
 	step = '';
+	required = false;
 	private listeners = new Map<string, () => void>();
 
 	empty(): void {
@@ -385,6 +386,8 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		const time = inputs.find((element) => element.type === 'time');
 		if (!time) throw new Error('expected time input');
 		expect(time.id).toBe('devradar-follow-from-time');
+		expect(date.required).toBe(true);
+		expect(time.required).toBe(false);
 		time.value = '12:34';
 		time.emit('input');
 		date.value = '0001-08-01';
@@ -472,6 +475,18 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			'2026-08-01',
 			'12:',
 			'Enter a valid start time in HH:MM format.',
+		],
+		[
+			'out-of-range time',
+			'2026-08-01',
+			'25:00',
+			'Enter a valid start time in HH:MM format.',
+		],
+		[
+			'invalid calendar date',
+			'2026-02-31',
+			'',
+			'Enter a valid start date.',
 		],
 	] as const)(
 		'reports %s before submitting Follow',
