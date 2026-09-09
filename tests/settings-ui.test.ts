@@ -388,6 +388,9 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		expect(time.id).toBe('devradar-follow-from-time');
 		expect(date.required).toBe(true);
 		expect(time.required).toBe(false);
+		expect(allElements(view.root).map((element) => element.text)).toContain(
+			'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
+		);
 		time.value = '12:34';
 		time.emit('input');
 		date.value = '0001-08-01';
