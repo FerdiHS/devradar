@@ -87,6 +87,31 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 	return { host, tab, root, resetSettings, retrySettingsLoad, follow };
 }
 
+function fromDateForm(view: ReturnType<typeof tabFor>) {
+	view.tab.display();
+	const inputs = allElements(view.root).filter(
+		(element) => element.tag === 'input',
+	);
+	inputs[0]!.value = 'octocat';
+	inputs[0]!.emit('input');
+	inputs[1]!.value = 'People/octocat.md';
+	inputs[1]!.emit('input');
+	const trackingStart = allElements(view.root).find(
+		(element) => element.tag === 'select',
+	);
+	if (!trackingStart) throw new Error('expected tracking-start select');
+	trackingStart.value = 'from-date';
+	trackingStart.emit('change');
+	const date = allElements(view.root).find(
+		(element) => element.type === 'date',
+	);
+	const time = allElements(view.root).find(
+		(element) => element.type === 'time',
+	);
+	if (!date || !time) throw new Error('expected date and time inputs');
+	return { date, time };
+}
+
 const ordinaryMalformed = {
 	kind: 'recovery' as const,
 	diagnostic: {
@@ -354,28 +379,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			kind: 'skipped',
 			reason: 'provider-policy',
 		});
-		view.tab.display();
-
-		let inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		inputs[0]!.value = 'octocat';
-		inputs[0]!.emit('input');
-		inputs[1]!.value = 'People/octocat.md';
-		inputs[1]!.emit('input');
-
-		const trackingStart = allElements(view.root).find(
-			(element) => element.tag === 'select',
-		);
-		if (!trackingStart) throw new Error('expected tracking-start select');
-		trackingStart.value = 'from-date';
-		trackingStart.emit('change');
-
-		inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		const date = inputs.find((element) => element.type === 'date');
-		if (!date) throw new Error('expected date input');
+		const { date, time } = fromDateForm(view);
 		expect(
 			allElements(view.root).find(
 				(element) =>
@@ -383,8 +387,6 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			)?.htmlFor,
 		).toBe('devradar-follow-from-date');
 		expect(date.id).toBe('devradar-follow-from-date');
-		const time = inputs.find((element) => element.type === 'time');
-		if (!time) throw new Error('expected time input');
 		expect(time.id).toBe('devradar-follow-from-time');
 		expect(date.required).toBe(true);
 		expect(time.required).toBe(false);
@@ -426,25 +428,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 
 	it('submits date-only input at local midnight', async () => {
 		const view = tabFor(readyEmpty);
-		view.tab.display();
-		let inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		inputs[0]!.value = 'octocat';
-		inputs[0]!.emit('input');
-		inputs[1]!.value = 'People/octocat.md';
-		inputs[1]!.emit('input');
-		const trackingStart = allElements(view.root).find(
-			(element) => element.tag === 'select',
-		);
-		if (!trackingStart) throw new Error('expected tracking-start select');
-		trackingStart.value = 'from-date';
-		trackingStart.emit('change');
-		inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		const date = inputs.find((element) => element.type === 'date');
-		if (!date) throw new Error('expected date input');
+		const { date } = fromDateForm(view);
 		date.value = '2026-08-01';
 		date.emit('input');
 		allElements(view.root)
@@ -496,28 +480,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		'reports %s before submitting Follow',
 		async (_name, dateValue, timeValue, message) => {
 			const view = tabFor(readyEmpty);
-			view.tab.display();
-			let inputs = allElements(view.root).filter(
-				(element) => element.tag === 'input',
-			);
-			inputs[0]!.value = 'octocat';
-			inputs[0]!.emit('input');
-			inputs[1]!.value = 'People/octocat.md';
-			inputs[1]!.emit('input');
-			const trackingStart = allElements(view.root).find(
-				(element) => element.tag === 'select',
-			);
-			if (!trackingStart)
-				throw new Error('expected tracking-start select');
-			trackingStart.value = 'from-date';
-			trackingStart.emit('change');
-			inputs = allElements(view.root).filter(
-				(element) => element.tag === 'input',
-			);
-			const date = inputs.find((element) => element.type === 'date');
-			const time = inputs.find((element) => element.type === 'time');
-			if (!date || !time)
-				throw new Error('expected date and time inputs');
+			const { date, time } = fromDateForm(view);
 			date.value = dateValue;
 			time.value = timeValue;
 			date.emit('input');
