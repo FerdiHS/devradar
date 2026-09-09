@@ -491,6 +491,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			'',
 			'Enter a valid start date.',
 		],
+		['year zero date', '0000-01-01', '', 'Enter a valid start date.'],
 	] as const)(
 		'reports %s before submitting Follow',
 		async (_name, dateValue, timeValue, message) => {
