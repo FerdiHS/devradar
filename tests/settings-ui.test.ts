@@ -545,27 +545,52 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		},
 	);
 
-	it('reports native incomplete time input before submitting Follow', () => {
-		const view = tabFor(readyEmpty);
-		const { date, time } = fromDateForm(view);
-		date.value = '2026-08-01';
-		time.value = '';
-		time.validity.badInput = true;
-		date.emit('input');
-		time.emit('input');
-		allElements(view.root)
-			.find(
-				(element) =>
-					element.tag === 'button' && element.text === 'Follow',
-			)
-			?.click();
-
-		expect(view.follow).not.toHaveBeenCalled();
-		expect(
+	it('recovers from native incomplete time input after rerender', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'America/Los_Angeles';
+		try {
+			const view = tabFor(readyEmpty);
+			const { date, time } = fromDateForm(view);
+			date.value = '2026-08-01';
+			time.value = '';
+			time.validity.badInput = true;
+			date.emit('input');
+			time.emit('input');
 			allElements(view.root)
-				.map((element) => element.text)
-				.join('\n'),
-		).toContain('Enter a valid start time in HH:MM format.');
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+
+			expect(view.follow).not.toHaveBeenCalled();
+			expect(
+				allElements(view.root)
+					.map((element) => element.text)
+					.join('\n'),
+			).toContain('Enter a valid start time in HH:MM format.');
+
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T07:00:00.000Z',
+				},
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
 	});
 
 	it('disables Follow and prevents duplicate submissions while pending', async () => {

@@ -129,8 +129,6 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		trackingStart.value = this.trackingStartMode;
 		trackingStart.addEventListener('change', () => {
 			this.trackingStartMode = trackingStart.value as TrackingStartMode;
-			if (this.trackingStartMode !== 'from-date')
-				this.fromTimeBadInput = false;
 			this.display();
 		});
 
@@ -156,6 +154,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			fromTimeLabel.htmlFor = fromTime.id;
 			fromTime.type = 'time';
 			fromTime.step = '60';
+			this.fromTimeBadInput = false;
 			fromTime.value = this.fromTime;
 			fromTime.addEventListener('input', () => {
 				this.fromTime = fromTime.value;
