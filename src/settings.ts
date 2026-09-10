@@ -119,7 +119,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Date & time'],
+			['from-date', 'Specific date'],
 		] as const) {
 			const element = trackingStart.createEl('option', {
 				text: option[1],

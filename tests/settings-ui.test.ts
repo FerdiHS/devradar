@@ -312,6 +312,11 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			elements.filter((element) => element.tag === 'option'),
 		).toHaveLength(3);
 		expect(
+			elements
+				.filter((element) => element.tag === 'option')
+				.map((element) => element.text),
+		).toEqual(['Now', 'Available recent activity', 'Specific date']);
+		expect(
 			elements.filter((element) => element.tag === 'input'),
 		).toHaveLength(2);
 		expect(
