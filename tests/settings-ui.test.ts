@@ -29,6 +29,8 @@ class FakeElement {
 	value = '';
 	placeholder = '';
 	step = '';
+	required = false;
+	validity = { badInput: false };
 	private listeners = new Map<string, () => void>();
 
 	empty(): void {
@@ -84,6 +86,31 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 	const root = new FakeElement();
 	(tab as unknown as { containerEl: FakeElement }).containerEl = root;
 	return { host, tab, root, resetSettings, retrySettingsLoad, follow };
+}
+
+function fromDateForm(view: ReturnType<typeof tabFor>) {
+	view.tab.display();
+	const inputs = allElements(view.root).filter(
+		(element) => element.tag === 'input',
+	);
+	inputs[0]!.value = 'octocat';
+	inputs[0]!.emit('input');
+	inputs[1]!.value = 'People/octocat.md';
+	inputs[1]!.emit('input');
+	const trackingStart = allElements(view.root).find(
+		(element) => element.tag === 'select',
+	);
+	if (!trackingStart) throw new Error('expected tracking-start select');
+	trackingStart.value = 'from-date';
+	trackingStart.emit('change');
+	const date = allElements(view.root).find(
+		(element) => element.type === 'date',
+	);
+	const time = allElements(view.root).find(
+		(element) => element.type === 'time',
+	);
+	if (!date || !time) throw new Error('expected date and time inputs');
+	return { date, time };
 }
 
 const ordinaryMalformed = {
@@ -285,6 +312,11 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			elements.filter((element) => element.tag === 'option'),
 		).toHaveLength(3);
 		expect(
+			elements
+				.filter((element) => element.tag === 'option')
+				.map((element) => element.text),
+		).toEqual(['Now', 'Available recent activity', 'Specific date']);
+		expect(
 			elements.filter((element) => element.tag === 'input'),
 		).toHaveLength(2);
 		expect(
@@ -353,38 +385,23 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			kind: 'skipped',
 			reason: 'provider-policy',
 		});
-		view.tab.display();
-
-		let inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		inputs[0]!.value = 'octocat';
-		inputs[0]!.emit('input');
-		inputs[1]!.value = 'People/octocat.md';
-		inputs[1]!.emit('input');
-
-		const trackingStart = allElements(view.root).find(
-			(element) => element.tag === 'select',
-		);
-		if (!trackingStart) throw new Error('expected tracking-start select');
-		trackingStart.value = 'from-date';
-		trackingStart.emit('change');
-
-		inputs = allElements(view.root).filter(
-			(element) => element.tag === 'input',
-		);
-		const date = inputs.find(
-			(element) => element.type === 'datetime-local',
-		);
-		if (!date) throw new Error('expected date input');
+		const { date, time } = fromDateForm(view);
 		expect(
 			allElements(view.root).find(
 				(element) =>
-					element.tag === 'label' && element.text === 'Date & time',
+					element.tag === 'label' && element.text === 'Start date',
 			)?.htmlFor,
 		).toBe('devradar-follow-from-date');
 		expect(date.id).toBe('devradar-follow-from-date');
-		date.value = '0001-08-01T12:34';
+		expect(time.id).toBe('devradar-follow-from-time');
+		expect(date.required).toBe(true);
+		expect(time.required).toBe(false);
+		expect(allElements(view.root).map((element) => element.text)).toContain(
+			'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
+		);
+		time.value = '12:34';
+		time.emit('input');
+		date.value = '0001-08-01';
 		date.emit('input');
 
 		const button = allElements(view.root).find(
@@ -413,6 +430,167 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		).toContain(
 			'Follow skipped because GitHub requests are temporarily unavailable.',
 		);
+	});
+
+	it('submits date-only input at local midnight', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'America/Los_Angeles';
+		try {
+			const view = tabFor(readyEmpty);
+			const { date } = fromDateForm(view);
+			date.value = '2026-08-01';
+			date.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T07:00:00.000Z',
+				},
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
+	it('passes future date conversion to application validation', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'America/Los_Angeles';
+		try {
+			const view = tabFor(readyEmpty);
+			const { date } = fromDateForm(view);
+			date.value = '2026-08-29';
+			date.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-29T07:00:00.000Z',
+				},
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
+	it.each([
+		[
+			'missing date',
+			'',
+			'',
+			'Choose a start date to use date-based tracking.',
+		],
+		[
+			'invalid time',
+			'2026-08-01',
+			'12:',
+			'Enter a valid start time in HH:MM format.',
+		],
+		[
+			'out-of-range time',
+			'2026-08-01',
+			'25:00',
+			'Enter a valid start time in HH:MM format.',
+		],
+		[
+			'invalid calendar date',
+			'2026-02-31',
+			'',
+			'Enter a valid start date.',
+		],
+		['year zero date', '0000-01-01', '', 'Enter a valid start date.'],
+	] as const)(
+		'reports %s before submitting Follow',
+		async (_name, dateValue, timeValue, message) => {
+			const view = tabFor(readyEmpty);
+			const { date, time } = fromDateForm(view);
+			date.value = dateValue;
+			time.value = timeValue;
+			date.emit('input');
+			time.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+
+			expect(view.follow).not.toHaveBeenCalled();
+			expect(
+				allElements(view.root)
+					.map((element) => element.text)
+					.join('\n'),
+			).toContain(message);
+		},
+	);
+
+	it('recovers from native incomplete time input after rerender', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'America/Los_Angeles';
+		try {
+			const view = tabFor(readyEmpty);
+			const { date, time } = fromDateForm(view);
+			date.value = '2026-08-01';
+			time.value = '';
+			time.validity.badInput = true;
+			date.emit('input');
+			time.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+
+			expect(view.follow).not.toHaveBeenCalled();
+			expect(
+				allElements(view.root)
+					.map((element) => element.text)
+					.join('\n'),
+			).toContain('Enter a valid start time in HH:MM format.');
+
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' && element.text === 'Follow',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T07:00:00.000Z',
+				},
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
 	});
 
 	it('disables Follow and prevents duplicate submissions while pending', async () => {
