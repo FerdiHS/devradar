@@ -30,6 +30,7 @@ class FakeElement {
 	placeholder = '';
 	step = '';
 	required = false;
+	validity = { badInput: false };
 	private listeners = new Map<string, () => void>();
 
 	empty(): void {
@@ -507,6 +508,29 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			).toContain(message);
 		},
 	);
+
+	it('reports native incomplete time input before submitting Follow', () => {
+		const view = tabFor(readyEmpty);
+		const { date, time } = fromDateForm(view);
+		date.value = '2026-08-01';
+		time.value = '';
+		time.validity.badInput = true;
+		date.emit('input');
+		time.emit('input');
+		allElements(view.root)
+			.find(
+				(element) =>
+					element.tag === 'button' && element.text === 'Follow',
+			)
+			?.click();
+
+		expect(view.follow).not.toHaveBeenCalled();
+		expect(
+			allElements(view.root)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('Enter a valid start time in HH:MM format.');
+	});
 
 	it('disables Follow and prevents duplicate submissions while pending', async () => {
 		let release!: (result: {

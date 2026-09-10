@@ -26,6 +26,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private trackingStartMode: TrackingStartMode = 'now';
 	private fromDate = '';
 	private fromTime = '';
+	private fromTimeBadInput = false;
 	private followPending = false;
 	private followStatus?: string;
 
@@ -128,6 +129,8 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		trackingStart.value = this.trackingStartMode;
 		trackingStart.addEventListener('change', () => {
 			this.trackingStartMode = trackingStart.value as TrackingStartMode;
+			if (this.trackingStartMode !== 'from-date')
+				this.fromTimeBadInput = false;
 			this.display();
 		});
 
@@ -156,6 +159,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			fromTime.value = this.fromTime;
 			fromTime.addEventListener('input', () => {
 				this.fromTime = fromTime.value;
+				this.fromTimeBadInput = fromTime.validity.badInput;
 			});
 			containerEl.createEl('p', {
 				text: 'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
@@ -205,7 +209,10 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					: 'Choose a start date to use date-based tracking.';
 				return undefined;
 			}
-			if (this.fromTime && !isValidLocalTime(this.fromTime)) {
+			if (
+				this.fromTimeBadInput ||
+				(this.fromTime && !isValidLocalTime(this.fromTime))
+			) {
 				this.followStatus = 'Enter a valid start time in HH:MM format.';
 				return undefined;
 			}
