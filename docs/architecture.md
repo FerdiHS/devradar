@@ -305,8 +305,9 @@ scraping, webhooks, and hidden background collection. Network processing stays
 sequential in this MVP, and cross-device or distributed locking is out of
 scope; the synchronization guard is process-local only.
 
-The `v0.2.0` release requires Obsidian `1.4.4` or later because person-note
-association uses `FileManager.processFrontMatter()`, introduced in 1.4.4.
+The `v0.2.0` release requires Obsidian `1.4.4` or later, reflecting the
+compatibility floor established for the production person-note association
+contract, which uses `FileManager.processFrontMatter()`.
 It also uses `Vault.createFolder()` from 1.4.0 and `Vault.process()` from
 1.1.0; neither establishes a later release floor. The historical `0.1.0`
 compatibility mapping remains at `1.0.0`, while the `v0.2.0` release metadata
