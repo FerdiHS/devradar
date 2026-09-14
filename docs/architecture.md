@@ -305,11 +305,12 @@ scraping, webhooks, and hidden background collection. Network processing stays
 sequential in this MVP, and cross-device or distributed locking is out of
 scope; the synchronization guard is process-local only.
 
-The `v0.2.0` implementation requires Obsidian `1.4.4` or later because safe
-existing-note mutation relies on `Vault.process()` or an equivalent API with
-the same current-content guarantee. The current `0.1.0` manifest may remain
-at `1.0.0` until functional note-writing implementation ships; that release
-must raise `minAppVersion` accordingly.
+The `v0.2.0` release requires Obsidian `1.4.4` or later because person-note
+association uses `FileManager.processFrontMatter()`, introduced in 1.4.4.
+It also uses `Vault.createFolder()` from 1.4.0 and `Vault.process()` from
+1.1.0; neither establishes a later release floor. The historical `0.1.0`
+compatibility mapping remains at `1.0.0`, while the `v0.2.0` release metadata
+uses `1.4.4`.
 
 Every runtime Obsidian API introduced for `v0.2.0` must be verified as
 available at the declared `minAppVersion`; compiling against the current
@@ -317,11 +318,10 @@ Obsidian type package is not evidence of backward compatibility. If a required
 API was introduced later, raise the minimum deliberately and update the
 release metadata with that compatibility decision.
 
-A future `v0.2.0` release that raises `minAppVersion` must advance the release
-version before applying the new minimum: preserve the historical
-`versions.json` mapping from `0.1.0` to `1.0.0`, and add the new minimum under
-the v0.2.0 release version. Version synchronization must not rewrite the
-historical entry.
+The `v0.2.0` release raises `minAppVersion` to `1.4.4`: preserve the
+historical `versions.json` mapping from `0.1.0` to `1.0.0`, and keep the new
+minimum under the `v0.2.0` release version. Version synchronization must not
+rewrite the historical entry.
 
 Production dependencies remain minimal. Any future capability that genuinely
 requires desktop-only support requires a separate product and architecture
