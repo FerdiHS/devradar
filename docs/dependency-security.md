@@ -177,7 +177,7 @@ matrix validation for pull requests:
 The supported development release lines are Node.js 22 from `22.13.0` onward
 and Node.js `24.x`. The minimum of Node.js `22.13.0` is intentional: the locked
 development dependency `eslint-visitor-keys@5.0.1` supports Node.js 22 from
-`22.13.0`, while `rolldown@1.1.5` requires at least `22.12.0`. Vitest 5
+`22.13.0`, while `rolldown@1.2.8` requires at least `22.12.0`. Vitest 5
 supports `^22.12.0 || ^24.0.0 || >=26.0.0`; this repository deliberately
 declares and validates only the Node.js 22.13.0 and 24.x lines, so Node.js 23.x
 and 25.x are not supported by the repository policy.
