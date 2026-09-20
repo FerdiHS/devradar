@@ -26,6 +26,7 @@ import { createObsidianGitHubTransport } from './adapters/github-transport';
 import { createObsidianNotePersistence } from './adapters/obsidian-notes';
 import { ObsidianSettingsPersistence } from './adapters/obsidian-settings';
 import { DevRadarSettingTab } from './settings';
+import type { ActivityFamily } from './domain/activity';
 
 type SyncOnePickerItem = Readonly<{
 	username: string;
@@ -142,6 +143,12 @@ export default class DevRadarPlugin extends Plugin {
 
 	async resetSettings(): Promise<void> {
 		await this.settingsApplication.resetSettings();
+	}
+
+	async saveActivityFamilies(
+		families: readonly ActivityFamily[],
+	): Promise<import('./application/settings').SettingsSaveResult> {
+		return this.settingsApplication.saveActivityFamilies(families);
 	}
 
 	isFollowPending(): boolean {

@@ -1023,16 +1023,22 @@ function isEmptyPlainRecord(input: unknown): boolean {
 function readSchemaVersion(input: unknown): SchemaV1ValidationResult<number> {
 	try {
 		if (input === null || typeof input !== 'object' || Array.isArray(input))
-			return invalidType('', 'object');
+			return { ok: false, error: invalidType('', 'object') };
 		const prototype = Reflect.getPrototypeOf(input);
 		if (prototype !== Object.prototype && prototype !== null)
-			return invalidType('', 'object');
+			return { ok: false, error: invalidType('', 'object') };
 		for (const symbol of Reflect.ownKeys(input).filter(
 			(key): key is symbol => typeof key === 'symbol',
 		)) {
 			const descriptor = Object.getOwnPropertyDescriptor(input, symbol);
 			if (descriptor?.enumerable)
-				return invalidType('', 'object with enumerable symbol keys');
+				return {
+					ok: false,
+					error: invalidType(
+						'',
+						'object with enumerable symbol keys',
+					),
+				};
 		}
 		const descriptor = Object.getOwnPropertyDescriptor(
 			input,
@@ -1059,6 +1065,6 @@ function readSchemaVersion(input: unknown): SchemaV1ValidationResult<number> {
 					'schema version is invalid',
 				);
 	} catch {
-		return invalidType('', 'object');
+		return { ok: false, error: invalidType('', 'object') };
 	}
 }

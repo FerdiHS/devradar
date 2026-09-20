@@ -1,8 +1,9 @@
 import {
-	createEmptySettingsV1,
-	type DevRadarSettingsV1,
+	createEmptySettingsV2,
+	type DevRadarSettingsV2,
 	type SchemaV1ValidationError,
 } from '../domain/settings';
+import type { ActivityFamily } from '../domain/activity';
 import type { ApplicationMutationGuard } from './mutation-guard';
 
 export type SettingsRecoveryClassification =
@@ -20,14 +21,18 @@ export type SettingsRecoveryDiagnostic =
 	  };
 
 export type SettingsLoadResult =
-	| { readonly kind: 'loaded'; readonly settings: DevRadarSettingsV1 }
+	| {
+			readonly kind: 'loaded';
+			readonly settings: DevRadarSettingsV2;
+			readonly needsMigration: boolean;
+	  }
 	| {
 			readonly kind: 'recovery';
 			readonly diagnostic: SettingsRecoveryDiagnostic;
 	  };
 
 export type SettingsSaveResult =
-	| { readonly kind: 'saved'; readonly settings: DevRadarSettingsV1 }
+	| { readonly kind: 'saved'; readonly settings: DevRadarSettingsV2 }
 	| {
 			readonly kind: 'candidate-validation-failure';
 			readonly error: SchemaV1ValidationError;
@@ -41,7 +46,7 @@ export type SettingsPersistence = {
 };
 
 export type SettingsRuntimeState =
-	| { readonly kind: 'ready'; readonly settings: DevRadarSettingsV1 }
+	| { readonly kind: 'ready'; readonly settings: DevRadarSettingsV2 }
 	| {
 			readonly kind: 'recovery';
 			readonly diagnostic: SettingsRecoveryDiagnostic;
@@ -55,9 +60,12 @@ export type SettingsApplicationHost = {
 };
 
 export type SettingsAuthority = SettingsApplicationHost & {
-	saveCandidate(candidate: DevRadarSettingsV1): Promise<SettingsSaveResult>;
+	saveCandidate(candidate: DevRadarSettingsV2): Promise<SettingsSaveResult>;
 	saveCandidateWithinMutation(
-		candidate: DevRadarSettingsV1,
+		candidate: DevRadarSettingsV2,
+	): Promise<SettingsSaveResult>;
+	saveActivityFamilies(
+		families: readonly ActivityFamily[],
 	): Promise<SettingsSaveResult>;
 };
 
@@ -86,7 +94,9 @@ export class SettingsApplication implements SettingsAuthority {
 	async load(): Promise<void> {
 		const persistence = this.persistence;
 		if (!persistence) return;
-		this.settingsState = toRuntimeState(await persistence.load());
+		await this.mutationGuard.run(() =>
+			this.loadWithinMutation(persistence),
+		);
 	}
 
 	getSettingsState(): SettingsRuntimeState {
@@ -94,7 +104,7 @@ export class SettingsApplication implements SettingsAuthority {
 	}
 
 	async saveCandidate(
-		candidate: DevRadarSettingsV1,
+		candidate: DevRadarSettingsV2,
 	): Promise<SettingsSaveResult> {
 		return this.mutationGuard.run(() =>
 			this.saveCandidateWithinMutation(candidate),
@@ -102,7 +112,7 @@ export class SettingsApplication implements SettingsAuthority {
 	}
 
 	async saveCandidateWithinMutation(
-		candidate: DevRadarSettingsV1,
+		candidate: DevRadarSettingsV2,
 	): Promise<SettingsSaveResult> {
 		if (!this.persistence) return { kind: 'internal-failure' };
 		try {
@@ -116,6 +126,20 @@ export class SettingsApplication implements SettingsAuthority {
 		}
 	}
 
+	async saveActivityFamilies(
+		families: readonly ActivityFamily[],
+	): Promise<SettingsSaveResult> {
+		return this.mutationGuard.run(() => {
+			if (this.settingsState.kind !== 'ready')
+				return Promise.resolve({ kind: 'internal-failure' as const });
+			const candidate: DevRadarSettingsV2 = {
+				...this.settingsState.settings,
+				enabledActivityFamilies: [...families],
+			};
+			return this.saveCandidateWithinMutation(candidate);
+		});
+	}
+
 	isRecoveryActionPending(): boolean {
 		return this.recoveryAction !== undefined;
 	}
@@ -124,9 +148,7 @@ export class SettingsApplication implements SettingsAuthority {
 		const persistence = this.persistence;
 		if (!persistence) return;
 		await this.runRecoveryAction(() =>
-			this.mutationGuard.run(async () => {
-				this.settingsState = toRuntimeState(await persistence.load());
-			}),
+			this.mutationGuard.run(() => this.loadWithinMutation(persistence)),
 		);
 	}
 
@@ -142,7 +164,7 @@ export class SettingsApplication implements SettingsAuthority {
 
 		await this.runRecoveryAction(() =>
 			this.mutationGuard.run(async () => {
-				const result = await persistence.save(createEmptySettingsV1());
+				const result = await persistence.save(createEmptySettingsV2());
 				this.settingsState = toRuntimeStateFromSave(result);
 			}),
 		);
@@ -156,6 +178,29 @@ export class SettingsApplication implements SettingsAuthority {
 		});
 		this.recoveryAction = actionPromise;
 		return actionPromise;
+	}
+
+	private async loadWithinMutation(
+		persistence: SettingsPersistence,
+	): Promise<void> {
+		try {
+			const result = await persistence.load();
+			if (result.kind !== 'loaded') {
+				this.settingsState = toRuntimeState(result);
+				return;
+			}
+			if (!result.needsMigration) {
+				this.settingsState = toRuntimeState(result);
+				return;
+			}
+			const migrated = await persistence.save(result.settings);
+			this.settingsState = toRuntimeStateFromSave(migrated);
+		} catch {
+			this.settingsState = {
+				kind: 'recovery',
+				diagnostic: { kind: 'internal-failure' },
+			};
+		}
 	}
 }
 

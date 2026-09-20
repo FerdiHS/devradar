@@ -1,4 +1,7 @@
-import { validatePersistedSettingsV1 } from '../domain/settings';
+import {
+	parsePersistedSettings,
+	validatePersistedSettingsV2,
+} from '../domain/settings';
 import type {
 	SettingsLoadResult,
 	SettingsPersistence,
@@ -34,8 +37,13 @@ export class ObsidianSettingsPersistence implements SettingsPersistence {
 		try {
 			// Obsidian Desktop 1.13.7 returns null for absent, literal-null, and
 			// malformed data.json; hasData() preserves the storage boundary.
-			const result = validatePersistedSettingsV1(raw, this.now());
-			if (result.ok) return { kind: 'loaded', settings: result.value };
+			const result = parsePersistedSettings(raw, this.now());
+			if (result.ok)
+				return {
+					kind: 'loaded',
+					settings: result.value.settings,
+					needsMigration: result.value.needsMigration,
+				};
 
 			return {
 				kind: 'recovery',
@@ -54,9 +62,9 @@ export class ObsidianSettingsPersistence implements SettingsPersistence {
 	}
 
 	async save(candidate: unknown): Promise<SettingsSaveResult> {
-		let result: ReturnType<typeof validatePersistedSettingsV1>;
+		let result: ReturnType<typeof validatePersistedSettingsV2>;
 		try {
-			result = validatePersistedSettingsV1(candidate, this.now());
+			result = validatePersistedSettingsV2(candidate, this.now());
 		} catch {
 			return { kind: 'internal-failure' };
 		}
@@ -93,7 +101,7 @@ function classifyValidationFailure(
 		if (
 			typeof descriptor.value === 'number' &&
 			Number.isInteger(descriptor.value) &&
-			descriptor.value > 1
+			descriptor.value > 2
 		)
 			return 'future-schema';
 		if (hasUnsafeReflection(raw)) return 'unclassifiable';

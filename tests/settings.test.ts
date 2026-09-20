@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	SettingsApplication,
 	type SettingsPersistence,
+	type SettingsRuntimeState,
 } from '../src/application/settings';
 import { createApplicationMutationGuard } from '../src/application/mutation-guard';
 import { ACTIVITY_FAMILIES } from '../src/domain/activity';
@@ -12,7 +13,7 @@ import {
 	createEmptySettingsV2,
 	migrateSettingsV1ToV2,
 	parsePersistedSettings,
-	type DevRadarSettingsV1,
+	type DevRadarSettingsV2,
 	validateCanonicalPluginTimestamp,
 	validatePersistedSettingsV1,
 	validatePersistedSettingsV2,
@@ -1495,10 +1496,11 @@ describe('draft note-path canonicalization', () => {
 });
 
 describe('SettingsApplication candidate saves', () => {
-	function candidate(): DevRadarSettingsV1 {
+	function candidate(): DevRadarSettingsV2 {
 		return {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			followedPeople: [],
+			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 			githubRequestPolicy: {
 				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
 			},
@@ -1516,13 +1518,13 @@ describe('SettingsApplication candidate saves', () => {
 	}
 
 	it('makes a saved complete candidate authoritative after persistence', async () => {
-		const initial = createEmptySettingsV1();
+		const initial = createEmptySettingsV2();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
 			load: async () => ({ kind: 'loaded', settings: initial }),
 			save: async (value) => ({
 				kind: 'saved',
-				settings: value as DevRadarSettingsV1,
+				settings: value as DevRadarSettingsV2,
 			}),
 		};
 		const settings = application(persistence);
@@ -1538,7 +1540,7 @@ describe('SettingsApplication candidate saves', () => {
 	});
 
 	it('enters recovery without exposing a failed candidate', async () => {
-		const initial = createEmptySettingsV1();
+		const initial = createEmptySettingsV2();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
 			load: async () => ({ kind: 'loaded', settings: initial }),
@@ -1560,7 +1562,7 @@ describe('SettingsApplication candidate saves', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
-				settings: createEmptySettingsV1(),
+				settings: createEmptySettingsV2(),
 			}),
 			save: async () => {
 				throw new Error('private persistence detail');
@@ -1588,13 +1590,13 @@ describe('SettingsApplication candidate saves', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
-				settings: createEmptySettingsV1(),
+				settings: createEmptySettingsV2(),
 			}),
 			save: async (value) => {
 				events.push('save-start');
 				await blocked;
 				events.push('save-end');
-				return { kind: 'saved', settings: value as DevRadarSettingsV1 };
+				return { kind: 'saved', settings: value as DevRadarSettingsV2 };
 			},
 		};
 		const settings = new SettingsApplication(
@@ -1615,5 +1617,83 @@ describe('SettingsApplication candidate saves', () => {
 		await Promise.all([save, otherMutation]);
 
 		expect(events).toEqual(['save-start', 'save-end', 'other']);
+	});
+
+	it('persists a legacy load before exposing ready runtime state', async () => {
+		const migrated = createEmptySettingsV2();
+		const saved: DevRadarSettingsV2[] = [];
+		let stateDuringMigration: SettingsRuntimeState | undefined;
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: migrated,
+				needsMigration: true,
+			}),
+			save: async (value) => {
+				saved.push(value as DevRadarSettingsV2);
+				stateDuringMigration = settings.getSettingsState();
+				return { kind: 'saved', settings: value as DevRadarSettingsV2 };
+			},
+		};
+		const settings = application(persistence);
+
+		await settings.load();
+
+		expect(saved).toEqual([migrated]);
+		expect(stateDuringMigration?.kind).toBe('recovery');
+		expect(settings.getSettingsState()).toEqual({
+			kind: 'ready',
+			settings: migrated,
+		});
+	});
+
+	it('blocks readiness when legacy migration cannot be persisted', async () => {
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: createEmptySettingsV2(),
+				needsMigration: true,
+			}),
+			save: async () => ({ kind: 'write-failure' }),
+		};
+		const settings = application(persistence);
+
+		await settings.load();
+
+		expect(settings.getSettingsState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'write-failure' },
+		});
+	});
+
+	it('updates only activity families from the current authoritative settings', async () => {
+		const initial: DevRadarSettingsV2 = {
+			...createEmptySettingsV2(),
+			githubRequestPolicy: {
+				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
+			},
+		};
+		let saved!: DevRadarSettingsV2;
+		const persistence: SettingsPersistence = {
+			load: async () => ({
+				kind: 'loaded',
+				settings: initial,
+				needsMigration: false,
+			}),
+			save: async (value) => {
+				saved = value as DevRadarSettingsV2;
+				return { kind: 'saved', settings: saved };
+			},
+		};
+		const settings = application(persistence);
+		await settings.load();
+
+		const result = await settings.saveActivityFamilies(['push']);
+
+		expect(result).toEqual({ kind: 'saved', settings: saved });
+		expect(saved).toEqual({
+			...initial,
+			enabledActivityFamilies: ['push'],
+		});
 	});
 });
