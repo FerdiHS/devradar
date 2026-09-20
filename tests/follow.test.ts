@@ -244,7 +244,11 @@ describe('FollowApplication', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => {
 				loadCount += 1;
-				return { kind: 'loaded', settings: initial };
+				return {
+					kind: 'loaded',
+					settings: initial,
+					needsMigration: false,
+				};
 			},
 			save: async (value) => ({
 				kind: 'saved',
@@ -449,7 +453,11 @@ describe('FollowApplication', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => {
 				loadCount += 1;
-				return { kind: 'loaded', settings: initial };
+				return {
+					kind: 'loaded',
+					settings: initial,
+					needsMigration: false,
+				};
 			},
 			save: async (candidate) => {
 				saveCount += 1;

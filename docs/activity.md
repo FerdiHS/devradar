@@ -42,10 +42,11 @@ The complete people-first MVP catalogue contains:
 8. Repository forks
 9. Branches and tags
 
-The `v0.2.0` implementation slice enables only Pushes, Pull requests, and
-Issues. The other families are documented here so later implementation can use
-the same stable semantic model. There are no per-family controls in
-`v0.2.0`.
+The `v0.3.0` implementation slice supports a single global configurable
+selection whose catalogue contains exactly Pushes, Pull requests, and Issues.
+Any subset, including the empty subset, is valid. The other six families are
+documentation-only future scope and are not selectable, persisted, or
+implemented by this release.
 
 ## Canonical mapping table
 

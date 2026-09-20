@@ -7,6 +7,7 @@ import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 import {
 	createEmptySettingsV2,
 	migrateSettingsV1ToV2,
+	type DevRadarSettingsV1,
 } from '../src/domain/settings';
 
 const NOW = '2026-08-23T00:00:00.000Z';
@@ -26,7 +27,9 @@ function store(
 	};
 }
 
-function validSettings(fromDate = '2026-08-23T00:00:00.000Z') {
+function validSettings(
+	fromDate = '2026-08-23T00:00:00.000Z',
+): DevRadarSettingsV1 {
 	return {
 		schemaVersion: 1,
 		followedPeople: [

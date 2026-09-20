@@ -1521,7 +1521,11 @@ describe('SettingsApplication candidate saves', () => {
 		const initial = createEmptySettingsV2();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
-			load: async () => ({ kind: 'loaded', settings: initial }),
+			load: async () => ({
+				kind: 'loaded',
+				settings: initial,
+				needsMigration: false,
+			}),
 			save: async (value) => ({
 				kind: 'saved',
 				settings: value as DevRadarSettingsV2,
@@ -1543,7 +1547,11 @@ describe('SettingsApplication candidate saves', () => {
 		const initial = createEmptySettingsV2();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
-			load: async () => ({ kind: 'loaded', settings: initial }),
+			load: async () => ({
+				kind: 'loaded',
+				settings: initial,
+				needsMigration: false,
+			}),
 			save: async () => ({ kind: 'write-failure' }),
 		};
 		const settings = application(persistence);
@@ -1563,6 +1571,7 @@ describe('SettingsApplication candidate saves', () => {
 			load: async () => ({
 				kind: 'loaded',
 				settings: createEmptySettingsV2(),
+				needsMigration: false,
 			}),
 			save: async () => {
 				throw new Error('private persistence detail');
@@ -1591,6 +1600,7 @@ describe('SettingsApplication candidate saves', () => {
 			load: async () => ({
 				kind: 'loaded',
 				settings: createEmptySettingsV2(),
+				needsMigration: false,
 			}),
 			save: async (value) => {
 				events.push('save-start');

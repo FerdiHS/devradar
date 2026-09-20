@@ -63,20 +63,22 @@ An event becomes `seenEvents` only after either:
    already present.
 
 Retrieval alone does not make an event seen. Events filtered by tracking start,
-future activity eligibility, or a valid unsupported event/action remain
-unrecorded. A supported mapping with invalid required data fails the person's
-sync under [`github.md`](github.md) and does not advance successful state.
+the global activity-family selection, future activity eligibility, or a valid
+unsupported event/action remain unrecorded. A supported mapping with invalid
+required data fails the person's sync under [`github.md`](github.md) and does
+not advance successful state.
 
 For eligible events absent from `seenEvents`:
 
-1. normalize each event using [`activity.md`](activity.md);
-2. construct each canonical activity representation;
-3. inspect the valid managed section from [`person-note.md`](person-note.md)
+1. complete provider retrieval and normalization using [`activity.md`](activity.md);
+2. apply the person's tracking-start eligibility;
+3. apply the global `enabledActivityFamilies` selection;
+4. inspect the valid managed section from [`person-note.md`](person-note.md)
    as a multiset of exact entry occurrences;
-4. process the unseen events in the final rendering order: provider activity
+5. process the unseen events in the final rendering order: provider activity
    timestamp descending, then provider event ID ascending in lexicographic
    string order;
-5. for each event, consume at most one unused matching canonical entry
+6. for each event, consume at most one unused matching canonical entry
    occurrence. If one is available, do not append another line and record its
    event ID only after state persistence succeeds. If none is available,
    include the event as new activity.
@@ -157,8 +159,9 @@ acquire global application mutation ownership
 → validate and snapshot settings
 → honor global and per-person provider-policy boundaries
 → retrieve all required provider pages
-→ normalize supported activity
-→ apply tracking-start and activity eligibility
+→ normalize all retrieved supported activity
+→ apply tracking-start eligibility
+→ apply global activity-family eligibility
 → deduplicate by canonical provider event ID
 → validate the associated note and managed range
 → reconcile canonical entries against the validated managed section
@@ -217,9 +220,12 @@ Changing a tracking start preserves notes, `seenEvents`, and successful-sync
 metadata. The next sync can reconsider still-visible events under the new
 boundary. This applies in both directions.
 
-Changing a future global activity eligibility configuration preserves notes,
-`seenEvents`, and successful-sync metadata for every followed person. Schema v1
-has no such user-facing activity configuration.
+Changing the global activity-family selection preserves notes, `seenEvents`,
+successful-sync metadata, polling metadata, and provider policy for every
+followed person. A disabled family is not written and its retrieved events are
+not added to `seenEvents`; if that family is later re-enabled, a still-
+retrievable event may be reconsidered. An empty selection is valid and records
+no activity while still permitting normal completed-sync accounting.
 
 Changing a note path preserves all sync, deduplication, successful-sync, and
 polling continuity and does not migrate or rewrite the old note. Only future
@@ -230,7 +236,7 @@ unseen activity is written to the new destination.
 The application mutation boundary also prevents a configuration mutation from
 overlapping Sync One or Sync All. While any sync is running, another sync or a
 followed-person/configuration mutation cannot start. This is a deliberately
-coarse process-local boundary for the v0.2.0 implementation; finer-grained
+coarse process-local boundary for the current implementation; finer-grained
 ownership can be introduced only with an equivalent stale-commit guarantee.
 
 Sync All processes people sequentially. Each person is an independent commit
@@ -243,7 +249,7 @@ boundary:
 - unattempted people are `skipped`, not `failed`;
 - aggregate results preserve `updated`, `unchanged`, `failed`, and `skipped`.
 
-The `v0.2.0` implementation slice ships Sync One only. This Sync All contract
+The `v0.3.0` implementation slice ships Sync One only. This Sync All contract
 is documented for later implementation compatibility and does not add a
 Sync-All command to the release slice.
 

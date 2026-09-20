@@ -3,7 +3,7 @@
 ## Purpose and authority
 
 This document is the normative architecture for DevRadar's people-first MVP
-and its `v0.2.0` implementation slice. It assigns architectural ownership and
+and its `v0.3.0` implementation slice. It assigns architectural ownership and
 integration boundaries; it does not require empty source directories or
 prescribe concrete application port shapes, classes, or implementation
 interfaces.
@@ -85,7 +85,8 @@ Obsidian version before release.
 ## Responsibilities and testability
 
 - The **domain** owns the canonical activity representation, followed-person
-  state, tracking-start comparisons, activity filtering, deterministic
+  state, schema-v2 validation/migration, canonical global activity-family
+  selection, tracking-start comparisons, activity filtering, deterministic
   ordering, deduplication decisions, sync-state transition rules, and
   managed-section parsing/rendering, as defined by the detailed contracts.
 - The **application** owns follow lifecycle orchestration, Sync One ordering,
@@ -134,8 +135,9 @@ core layers otherwise exchange canonical values and structured results.
 
 One coarse, process-local application mutation boundary serializes all
 state-changing operations: Sync One; follow and re-follow; note-path and
-tracking-start changes; unfollow; plugin-owned settings saves; and global
-provider-policy updates. A future Sync All operation uses this same boundary.
+tracking-start changes; unfollow; plugin-owned settings saves; global
+activity-family selection saves; and global provider-policy updates. A future
+Sync All operation uses this same boundary.
 The implementation mechanism is deliberately unspecified, but it must prevent
 stale configuration commits and overlapping sync/configuration mutations.
 
@@ -153,7 +155,9 @@ acquire guard
 -> validate and snapshot state
 -> honor global and per-person provider-policy boundaries
 -> retrieve all required pages
--> normalize, filter, sort, and deduplicate provider events
+-> normalize all retrieved provider events
+-> apply tracking-start and global activity-family eligibility
+-> sort and deduplicate provider events
 -> obtain and validate the associated note and managed range
 -> reconcile unseen canonical activities against the validated managed section
 -> compute the preflight intended managed-section replacement
@@ -332,19 +336,20 @@ The local-first MVP introduces no DevRadar backend, hosted database,
 telemetry or analytics, vault-data transmission, automated publication, or
 additional service beyond the documented GitHub API and Obsidian runtime.
 
-The exact `v0.2.0` Sync One slice is people-first and supports multiple
+The exact `v0.3.0` settings and Sync One slice is people-first and supports multiple
 followed people, case-insensitively unique effective note paths with each note
 associated to at most one followed person, tracking starts, follow-time identity
-resolution, and only Pushes, Pull requests, and Issues.
+resolution, and a global configurable selection of only Pushes, Pull requests,
+and Issues. It permits an empty selection and does not implement the other six
+catalogue families.
 It includes complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
-## Deferred after `v0.2.0`
+## Deferred after `v0.3.0`
 
-Sync All and the eventual global activity-family configuration are approved
-post-`v0.2.0` work; their implementation is deferred. The following are also
-outside this implementation slice:
+Sync All remains approved follow-up work; its implementation is deferred. The
+following are also outside this implementation slice:
 
 - additional activity families beyond Pushes, Pull requests, and Issues;
 - richer followed-person management UI;
