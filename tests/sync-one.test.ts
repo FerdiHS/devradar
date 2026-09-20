@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	createIssueActivity,
+	createPushActivity,
 	createPullRequestActivity,
+	ACTIVITY_FAMILIES,
 	type Activity,
 } from '../src/domain/activity';
 import { renderActivityEntry } from '../src/domain/person-note';
@@ -14,7 +16,7 @@ import {
 import type { GitHubPolicyObservation } from '../src/application/github-identity';
 import {
 	createEmptyPersonSyncState,
-	type DevRadarSettingsV1,
+	type DevRadarSettingsV2,
 } from '../src/domain/settings';
 import {
 	SettingsApplication,
@@ -60,10 +62,34 @@ const detailPullRequestActivity = (providerEventId: string, title: string) => {
 	return { ...result.value, titleSource: 'detail' as const };
 };
 
+const pushActivity = (providerEventId: string): Activity => {
+	const result = createPushActivity({
+		providerEventId,
+		timestamp: '2026-08-18T03:00:00Z',
+		repository: 'octocat/hello-world',
+		ref: 'refs/heads/main',
+	});
+	if (!result.ok) throw new Error(result.error.message);
+	return result.value;
+};
+
+const pullRequestActivity = (providerEventId: string): Activity => {
+	const result = createPullRequestActivity({
+		providerEventId,
+		timestamp: '2026-08-18T03:00:00Z',
+		repository: 'octocat/hello-world',
+		number: '6',
+		title: providerEventId,
+		action: 'opened',
+	});
+	if (!result.ok) throw new Error(result.error.message);
+	return result.value;
+};
+
 const settings = (
-	overrides: Partial<DevRadarSettingsV1> = {},
-): DevRadarSettingsV1 => ({
-	schemaVersion: 1,
+	overrides: Partial<DevRadarSettingsV2> = {},
+): DevRadarSettingsV2 => ({
+	schemaVersion: 2,
 	followedPeople: [
 		{
 			username: 'octocat',
@@ -73,6 +99,7 @@ const settings = (
 			syncState: createEmptyPersonSyncState(),
 		},
 	],
+	enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 	...overrides,
 });
 
@@ -97,7 +124,7 @@ const dependencies = (
 ) => {
 	let current = value;
 	const saveCandidateWithinMutation = vi.fn(
-		async (candidate: DevRadarSettingsV1) => {
+		async (candidate: DevRadarSettingsV2) => {
 			current = candidate;
 			return { kind: 'saved' as const, settings: candidate };
 		},
@@ -253,6 +280,100 @@ describe('Sync One application', () => {
 			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
 				.followedPeople[0]?.syncState.seenEvents,
 		).toEqual([{ id: '11', createdAt: atStart.timestamp }]);
+	});
+
+	it('filters globally after provider retrieval and before note accounting', async () => {
+		const push = pushActivity('20');
+		const pullRequest = pullRequestActivity('21');
+		const issue = activity('22');
+		const fakes = dependencies(
+			settings({ enabledActivityFamilies: ['issue'] }),
+			successfulProvider([push, pullRequest, issue]),
+		);
+		fakes.notes.process.mockImplementation(async (_path, transform) => {
+			const result = (transform as CurrentContentTransform<unknown>)(
+				note(),
+			);
+			if (result.kind !== 'replace')
+				throw new Error('unexpected current-content rejection');
+			expect(result.markdown).toContain(renderActivityEntry(issue));
+			expect(result.markdown).not.toContain(renderActivityEntry(push));
+			expect(result.markdown).not.toContain(
+				renderActivityEntry(pullRequest),
+			);
+			return { kind: 'changed' };
+		});
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'updated' });
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toEqual([{ id: '22', createdAt: issue.timestamp }]);
+	});
+
+	it('does not account for disabled activity and can reconsider it after re-enable', async () => {
+		const push = pushActivity('30');
+		const issue = activity('31');
+		const fakes = dependencies(
+			settings({ enabledActivityFamilies: ['issue'] }),
+			successfulProvider([push, issue]),
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'updated' });
+		const afterIssueOnly =
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0];
+		expect(afterIssueOnly?.followedPeople[0]?.syncState.seenEvents).toEqual(
+			[{ id: '31', createdAt: issue.timestamp }],
+		);
+
+		fakes.deps.settings.getSettingsState = vi.fn(() =>
+			ready({
+				...afterIssueOnly!,
+				enabledActivityFamilies: ['push'],
+			}),
+		);
+		fakes.github.retrieveEvents.mockResolvedValue(
+			successfulProvider([push]),
+		);
+
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'updated' });
+		const afterReenable =
+			fakes.saveCandidateWithinMutation.mock.calls[1]?.[0];
+		expect(afterReenable?.followedPeople[0]?.syncState.seenEvents).toEqual(
+			expect.arrayContaining([
+				{ id: '30', createdAt: push.timestamp },
+				{ id: '31', createdAt: issue.timestamp },
+			]),
+		);
+		expect(
+			afterReenable?.followedPeople[0]?.syncState.seenEvents,
+		).toHaveLength(2);
+	});
+
+	it('accepts an empty global selection without writing disabled activities', async () => {
+		const push = pushActivity('40');
+		const fakes = dependencies(
+			settings({ enabledActivityFamilies: [] }),
+			successfulProvider([push]),
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'unchanged' });
+		expect(fakes.notes.process).not.toHaveBeenCalled();
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toEqual([]);
 	});
 
 	it('fails closed on unsupported platforms before provider or note work', async () => {
@@ -659,8 +780,9 @@ describe('Sync One application', () => {
 			load: vi.fn(async () => ({
 				kind: 'loaded' as const,
 				settings: initialSettings,
+				needsMigration: false,
 			})),
-			save: vi.fn(async (candidate: DevRadarSettingsV1) => {
+			save: vi.fn(async (candidate: DevRadarSettingsV2) => {
 				saveCalls += 1;
 				if (saveCalls === 1) return { kind: 'write-failure' as const };
 				return { kind: 'saved' as const, settings: candidate };

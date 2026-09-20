@@ -13,9 +13,9 @@ import {
 } from '../domain/person-note';
 import {
 	validateCanonicalPluginTimestamp,
-	validatePersistedSettingsV1,
+	validatePersistedSettingsV2,
 	type CanonicalPluginTimestamp,
-	type DevRadarSettingsV1,
+	type DevRadarSettingsV2,
 	type FollowedPersonV1,
 } from '../domain/settings';
 import { isCanonicalPositiveDecimalString } from '../domain/primitives';
@@ -76,7 +76,7 @@ type SyncOneEvents = {
 	readonly retrieveEvents: (input: {
 		readonly username: string;
 		readonly githubAccountId: string;
-		readonly globalPolicy?: DevRadarSettingsV1['githubRequestPolicy'];
+		readonly globalPolicy?: DevRadarSettingsV2['githubRequestPolicy'];
 		readonly pollNotBefore?: string;
 	}) => Promise<SyncOneProviderResult>;
 };
@@ -98,7 +98,7 @@ type ValidPolicy = {
 	readonly pollNotBefore?: CanonicalPluginTimestamp;
 };
 type AttemptContext = {
-	readonly settings: DevRadarSettingsV1;
+	readonly settings: DevRadarSettingsV2;
 	readonly person: FollowedPersonV1;
 	readonly attemptAt: CanonicalPluginTimestamp;
 	readonly policy: ValidPolicy;
@@ -134,7 +134,7 @@ export class SyncOneApplication {
 		const selectionState = resolveSelection(runtime.settings, selection);
 		if (selectionState === 'invalid-selection')
 			return failed('invalid-selection');
-		const settings = validatePersistedSettingsV1(
+		const settings = validatePersistedSettingsV2(
 			runtime.settings,
 			attemptAt,
 		);
@@ -199,6 +199,7 @@ export class SyncOneApplication {
 
 		const eligible = filterEligibleActivities(
 			provider.data.activities,
+			settings.value,
 			person,
 		);
 		if (!eligible.ok)
@@ -429,7 +430,7 @@ export class SyncOneApplication {
 	}
 
 	private async saveSuccessfulCandidate(
-		candidate: DevRadarSettingsV1,
+		candidate: DevRadarSettingsV2,
 		result: 'updated' | 'unchanged' | 'failed',
 		reason?: SyncOneFailureReason,
 	): Promise<SyncOneResult> {
@@ -456,7 +457,7 @@ export class SyncOneApplication {
 }
 
 function resolvePerson(
-	settings: DevRadarSettingsV1,
+	settings: DevRadarSettingsV2,
 	selection: SyncOneSelection,
 ): FollowedPersonV1 | undefined {
 	if (
@@ -473,7 +474,7 @@ function resolvePerson(
 }
 
 function resolveSelection(
-	settings: DevRadarSettingsV1,
+	settings: DevRadarSettingsV2,
 	selection: SyncOneSelection,
 ): 'invalid-selection' | 'defer' {
 	if (
@@ -500,7 +501,7 @@ function resolveSelection(
 }
 
 function isBlockedByPolicy(
-	settings: DevRadarSettingsV1,
+	settings: DevRadarSettingsV2,
 	person: FollowedPersonV1,
 	now: string,
 ): boolean {
@@ -516,7 +517,7 @@ function isBlockedByPolicy(
 
 function isApprovedPolicySkip(
 	provider: Extract<SyncOneProviderResult, { readonly kind: 'no-request' }>,
-	settings: DevRadarSettingsV1,
+	settings: DevRadarSettingsV2,
 	person: FollowedPersonV1,
 ): boolean {
 	const returned = provider.notBefore;
@@ -536,12 +537,15 @@ function isApprovedPolicySkip(
 
 function filterEligibleActivities(
 	activities: readonly Activity[],
+	settings: DevRadarSettingsV2,
 	person: FollowedPersonV1,
 ):
 	| { readonly ok: true; readonly value: readonly Activity[] }
 	| { readonly ok: false } {
 	const eligible: Activity[] = [];
 	for (const activity of activities) {
+		if (!settings.enabledActivityFamilies.includes(activity.family))
+			continue;
 		const result = isActivityEligible(
 			activity.timestamp,
 			person.trackingStart,
@@ -604,12 +608,12 @@ function validatePolicy(
 }
 
 function updateSettings(
-	settings: DevRadarSettingsV1,
+	settings: DevRadarSettingsV2,
 	githubAccountId: string,
 	syncState: FollowedPersonV1['syncState'],
 	policy: ValidPolicy,
-): DevRadarSettingsV1 {
-	const updated: DevRadarSettingsV1 = {
+): DevRadarSettingsV2 {
+	const updated: DevRadarSettingsV2 = {
 		...settings,
 		followedPeople: settings.followedPeople.map((person) =>
 			person.githubAccountId === githubAccountId
