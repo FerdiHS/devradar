@@ -10,10 +10,12 @@ Version `0.1.0` is a foundation/pre-MVP release. It establishes the plugin, repo
 
 ## Development
 
-DevRadar supports Node.js 24 LTS for ordinary development, with Node.js
-22.13.0 as the minimum supported version. Dependency and lockfile authoring
-uses the reviewed Node.js 22.13.0 + npm 10.9.2 baseline; see the contributor
-guide.
+DevRadar supports the Node.js 22 release line from 22.13.0 onward and the
+Node.js 24 release line for repository development. Node.js 24 LTS is preferred
+for ordinary development, while Node.js 22.13.0 remains the minimum supported
+version. Node.js 23 and 25 are outside the supported toolchain policy.
+Dependency and lockfile authoring uses the reviewed Node.js 22.13.0 + npm
+10.9.2 baseline; see the contributor guide.
 
 ## Common commands
 
