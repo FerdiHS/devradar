@@ -4,13 +4,18 @@ import {
 	type SettingsPersistence,
 } from '../src/application/settings';
 import { createApplicationMutationGuard } from '../src/application/mutation-guard';
+import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	createEmptySettingsV1,
+	createEmptySettingsV2,
+	migrateSettingsV1ToV2,
+	parsePersistedSettings,
 	type DevRadarSettingsV1,
 	validateCanonicalPluginTimestamp,
 	validatePersistedSettingsV1,
+	validatePersistedSettingsV2,
 } from '../src/domain/settings';
 
 const NOW = '2026-08-20T12:00:00.000Z';
@@ -70,6 +75,176 @@ function expectFailure(
 		expect(result.error.message).toBe(expectedMessage);
 	return result.error;
 }
+
+function validSettingsV2(overrides: Record<string, unknown> = {}) {
+	return {
+		schemaVersion: 2,
+		followedPeople: [validPerson()],
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		...overrides,
+	};
+}
+
+function expectV2Failure(
+	input: unknown,
+	code: string,
+	path: string,
+	currentInstant = NOW,
+) {
+	const result = validatePersistedSettingsV2(input, currentInstant);
+	expect(result).toMatchObject({
+		ok: false,
+		error: { code, path },
+	});
+	if (result.ok) throw new Error('expected validation failure');
+	expect(result.error.message).toBeTruthy();
+	return result.error;
+}
+
+describe('schema-v2 settings construction and migration', () => {
+	it('constructs fresh V2 settings with all implemented families enabled', () => {
+		const settings = createEmptySettingsV2();
+		const secondSettings = createEmptySettingsV2();
+
+		expect(settings).toEqual({
+			schemaVersion: 2,
+			followedPeople: [],
+			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		});
+		expect(settings).not.toBe(secondSettings);
+		expect(settings.followedPeople).not.toBe(secondSettings.followedPeople);
+		expect(settings.enabledActivityFamilies).not.toBe(
+			secondSettings.enabledActivityFamilies,
+		);
+	});
+
+	it('migrates V1 losslessly and adds the canonical default selection', () => {
+		const input = validSettings({
+			githubRequestPolicy: {
+				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
+			},
+		});
+		const parsed = parsePersistedSettings(input, NOW);
+
+		expect(parsed).toEqual({
+			ok: true,
+			value: {
+				settings: {
+					...input,
+					schemaVersion: 2,
+					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				},
+				needsMigration: true,
+			},
+		});
+		if (!parsed.ok) throw new Error('expected successful migration');
+		expect(parsed.value.settings).not.toBe(input);
+		expect(parsed.value.settings.followedPeople).not.toBe(
+			input.followedPeople,
+		);
+	});
+
+	it('migrates the known empty object but does not treat absent data as a migration', () => {
+		expect(parsePersistedSettings({}, NOW)).toEqual({
+			ok: true,
+			value: {
+				settings: createEmptySettingsV2(),
+				needsMigration: true,
+			},
+		});
+		expect(parsePersistedSettings(undefined, NOW)).toEqual({
+			ok: true,
+			value: {
+				settings: createEmptySettingsV2(),
+				needsMigration: false,
+			},
+		});
+	});
+
+	it('keeps migration helper output independent from the V1 input', () => {
+		const input = validatePersistedSettingsV1(validSettings(), NOW);
+		if (!input.ok) throw new Error('expected valid V1 settings');
+
+		const migrated = migrateSettingsV1ToV2(input.value);
+		migrated.followedPeople[0]?.syncState.seenEvents.push({
+			id: '456',
+			createdAt: PROVIDER_TIME,
+		});
+
+		expect(
+			input.value.followedPeople[0]?.syncState.seenEvents,
+		).toHaveLength(1);
+	});
+});
+
+describe('schema-v2 persisted validation', () => {
+	it('accepts canonical V2 values and allows an empty family selection', () => {
+		expect(
+			validatePersistedSettingsV2(validSettingsV2(), NOW),
+		).toMatchObject({
+			ok: true,
+		});
+		expect(
+			validatePersistedSettingsV2(
+				validSettingsV2({ enabledActivityFamilies: [] }),
+				NOW,
+			),
+		).toMatchObject({ ok: true });
+	});
+
+	it('rejects V2-only fields in V1 and requires the V2 filter field', () => {
+		expectFailure(
+			validSettings({ enabledActivityFamilies: [...ACTIVITY_FAMILIES] }),
+			'unexpected-field',
+			'/enabledActivityFamilies',
+		);
+		expectV2Failure(
+			withoutField(validSettingsV2(), 'enabledActivityFamilies'),
+			'missing-field',
+			'/enabledActivityFamilies',
+		);
+	});
+
+	it('rejects unknown, duplicate, and non-canonical family selections', () => {
+		expectV2Failure(
+			validSettingsV2({ enabledActivityFamilies: ['release'] }),
+			'invalid-activity-family',
+			'/enabledActivityFamilies/0',
+		);
+		expectV2Failure(
+			validSettingsV2({ enabledActivityFamilies: ['push', 'push'] }),
+			'duplicate-activity-family',
+			'/enabledActivityFamilies/1',
+		);
+		expectV2Failure(
+			validSettingsV2({ enabledActivityFamilies: ['issue', 'push'] }),
+			'noncanonical-activity-family-order',
+			'/enabledActivityFamilies',
+		);
+	});
+
+	it('dispatches schema versions without treating V2 as future schema', () => {
+		expect(parsePersistedSettings(validSettingsV2(), NOW)).toMatchObject({
+			ok: true,
+			value: { needsMigration: false },
+		});
+		expect(parsePersistedSettings({ schemaVersion: 3 }, NOW)).toMatchObject(
+			{
+				ok: false,
+				error: {
+					code: 'unsupported-schema-version',
+					path: '/schemaVersion',
+				},
+			},
+		);
+		expect(parsePersistedSettings({ schemaVersion: 2 }, NOW)).toMatchObject(
+			{
+				ok: false,
+				error: { code: 'missing-field', path: '/followedPeople' },
+			},
+		);
+	});
+});
 
 describe('schema-v1 settings construction', () => {
 	it('constructs fresh canonical empty values', () => {

@@ -7,6 +7,12 @@ export type ActivityFamily = 'push' | 'pull-request' | 'issue';
 export type PullRequestAction = 'opened' | 'reopened' | 'closed' | 'merged';
 export type IssueAction = 'opened' | 'reopened' | 'closed';
 
+export const ACTIVITY_FAMILIES = [
+	'push',
+	'pull-request',
+	'issue',
+] as const satisfies readonly ActivityFamily[];
+
 type Brand<Name extends string> = string & { readonly __brand: Name };
 export type CanonicalEventId = Brand<'event-id'>;
 export type CanonicalRepository = Brand<'repository'>;
