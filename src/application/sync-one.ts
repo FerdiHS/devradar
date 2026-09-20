@@ -544,14 +544,16 @@ function filterEligibleActivities(
 	| { readonly ok: false } {
 	const eligible: Activity[] = [];
 	for (const activity of activities) {
-		if (!settings.enabledActivityFamilies.includes(activity.family))
-			continue;
 		const result = isActivityEligible(
 			activity.timestamp,
 			person.trackingStart,
 		);
 		if (!result.ok) return { ok: false };
-		if (result.value) eligible.push(activity);
+		if (
+			result.value &&
+			settings.enabledActivityFamilies.includes(activity.family)
+		)
+			eligible.push(activity);
 	}
 	return { ok: true, value: eligible };
 }

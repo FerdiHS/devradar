@@ -229,8 +229,10 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			checkbox.id = `devradar-activity-family-${family}`;
 			checkbox.type = 'checkbox';
 			checkbox.checked = selected.has(family);
+			checkbox.disabled = this.activitySavePending;
 			label.htmlFor = checkbox.id;
 			checkbox.addEventListener('change', () => {
+				if (this.activitySavePending) return;
 				if (checkbox.checked) selected.add(family);
 				else selected.delete(family);
 				this.activityFamiliesDraft = ACTIVITY_FAMILIES.filter((item) =>

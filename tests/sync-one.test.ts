@@ -314,6 +314,23 @@ describe('Sync One application', () => {
 		).toEqual([{ id: '22', createdAt: issue.timestamp }]);
 	});
 
+	it('validates tracking eligibility before filtering a disabled family', async () => {
+		const malformed = {
+			...pushActivity('23'),
+			timestamp: 'not-a-canonical-timestamp',
+		} as Activity;
+		const fakes = dependencies(
+			settings({ enabledActivityFamilies: ['issue'] }),
+			successfulProvider([malformed]),
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		const result = await application.syncOne({ githubAccountId: '583231' });
+
+		expect(result).toEqual({ kind: 'failed', reason: 'provider' });
+		expect(fakes.notes.read).not.toHaveBeenCalled();
+	});
+
 	it('does not account for disabled activity and can reconsider it after re-enable', async () => {
 		const push = pushActivity('30');
 		const issue = activity('31');

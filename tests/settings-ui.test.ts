@@ -408,6 +408,46 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		);
 	});
 
+	it('locks activity-family controls while a save is pending', async () => {
+		let release!: (
+			result: Awaited<
+				ReturnType<SettingsTabHost['saveActivityFamilies']>
+			>,
+		) => void;
+		const pending = new Promise<
+			Awaited<ReturnType<SettingsTabHost['saveActivityFamilies']>>
+		>((resolve) => {
+			release = resolve;
+		});
+		const view = tabFor(readyEmpty);
+		view.saveActivityFamilies.mockImplementationOnce(() => pending);
+		view.tab.display();
+		const issue = allElements(view.root).find(
+			(element) => element.id === 'devradar-activity-family-issue',
+		);
+		if (!issue) throw new Error('expected issue activity checkbox');
+		issue.checked = false;
+		issue.emit('change');
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save activity filters',
+		);
+		if (!save) throw new Error('expected activity filter save button');
+		save.click();
+
+		const pendingIssue = allElements(view.root).find(
+			(element) => element.id === 'devradar-activity-family-issue',
+		);
+		expect(pendingIssue?.disabled).toBe(true);
+		pendingIssue!.checked = true;
+		pendingIssue!.emit('change');
+		expect(pendingIssue!.disabled).toBe(true);
+
+		release({ kind: 'saved', settings: createEmptySettingsV2() });
+		await pending;
+	});
+
 	it('renders canonical followed-person details in persisted order', () => {
 		const view = tabFor({
 			kind: 'ready',

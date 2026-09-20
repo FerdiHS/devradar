@@ -163,19 +163,13 @@ function inspectRecord(
 			return invalidType(path, 'object');
 
 		const ownKeys = Reflect.ownKeys(objectInput);
-		for (const symbol of ownKeys.filter(
-			(key): key is symbol => typeof key === 'symbol',
-		)) {
-			const descriptor = Object.getOwnPropertyDescriptor(
-				objectInput,
-				symbol,
-			);
-			if (descriptor?.enumerable)
-				return invalidType(path, 'object with enumerable symbol keys');
-		}
+		if (ownKeys.some((key) => typeof key === 'symbol'))
+			return invalidType(path, 'object with symbol keys');
 
-		const keys = Object.keys(objectInput).sort();
-		const unknown = keys.find((key) => !allowed.includes(key));
+		const allStringKeys = ownKeys
+			.filter((key): key is string => typeof key === 'string')
+			.sort();
+		const unknown = allStringKeys.find((key) => !allowed.includes(key));
 		if (unknown)
 			return error(
 				'unexpected-field',
@@ -183,6 +177,7 @@ function inspectRecord(
 				'unexpected field',
 			);
 
+		const keys = Object.keys(objectInput).sort();
 		const missing = required.find((key) => !keys.includes(key));
 		if (missing)
 			return error(
@@ -239,12 +234,12 @@ function inspectArray(
 		if (Object.getPrototypeOf(array) !== Array.prototype)
 			return invalidType(path, 'array');
 		const length = array.length;
-		for (const symbol of Object.getOwnPropertySymbols(array)) {
-			const descriptor = Object.getOwnPropertyDescriptor(array, symbol);
-			if (descriptor?.enumerable)
-				return invalidType(path, 'array with enumerable symbol keys');
-		}
-		const keys = Object.keys(array).sort();
+		const ownKeys = Reflect.ownKeys(array);
+		if (ownKeys.some((key) => typeof key === 'symbol'))
+			return invalidType(path, 'array with symbol keys');
+		const keys = ownKeys.filter(
+			(key): key is string => key !== 'length' && typeof key === 'string',
+		);
 		const unexpected = keys.find((key) => {
 			if (!/^\d+$/.test(key)) return true;
 			const index = Number(key);

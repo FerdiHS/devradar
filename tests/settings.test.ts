@@ -427,6 +427,15 @@ describe('schema-v1 persisted validation', () => {
 			'unexpected-field',
 			'/z',
 		);
+		const withHiddenUnknownField = validSettings() as Record<
+			string,
+			unknown
+		>;
+		Object.defineProperty(withHiddenUnknownField, 'hidden', {
+			value: true,
+			enumerable: false,
+		});
+		expectFailure(withHiddenUnknownField, 'unexpected-field', '/hidden');
 	});
 
 	it('rejects unsafe values and present undefined fields', () => {
