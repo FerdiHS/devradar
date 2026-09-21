@@ -408,6 +408,34 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		);
 	});
 
+	it('allows saving an empty global activity-family selection', async () => {
+		const view = tabFor(readyEmpty);
+		view.tab.display();
+
+		for (const family of ACTIVITY_FAMILIES) {
+			const checkbox = allElements(view.root).find(
+				(element) =>
+					element.id === `devradar-activity-family-${family}`,
+			);
+			if (!checkbox) throw new Error(`expected ${family} checkbox`);
+			checkbox.checked = false;
+			checkbox.emit('change');
+		}
+
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save activity filters',
+		);
+		if (!save) throw new Error('expected activity filter save button');
+		expect(save.disabled).toBe(false);
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.saveActivityFamilies).toHaveBeenCalledWith([]);
+	});
+
 	it('locks activity-family controls while a save is pending', async () => {
 		let release!: (
 			result: Awaited<
