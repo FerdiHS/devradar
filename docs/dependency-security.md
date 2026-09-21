@@ -174,11 +174,13 @@ with the exact Node.js `22.13.0` and npm `10.9.2` baseline, and local
 validation also covered Node.js `24.x`; hosted CI remains the repository's
 matrix validation for pull requests:
 
-The repository minimum of Node.js `22.13.0` is intentional: the locked
+The supported development release lines are Node.js 22 from `22.13.0` onward
+and Node.js `24.x`. The minimum of Node.js `22.13.0` is intentional: the locked
 development dependency `eslint-visitor-keys@5.0.1` supports Node.js 22 from
-`22.13.0`, while `rolldown@1.1.5` requires at least `22.12.0`. The former is
-the highest Node.js 22 floor imposed by the current toolchain, so CI tests
-that exact minimum as well as Node.js `24.x`.
+`22.13.0`, while `rolldown@1.2.8` requires at least `22.12.0`. Vitest 5
+supports `^22.12.0 || ^24.0.0 || >=26.0.0`; this repository deliberately
+declares and validates only the Node.js 22.13.0 and 24.x lines, so Node.js 23.x
+and 25.x are not supported by the repository policy.
 
 - `npm ci` completed successfully.
 - `npm audit --json` reported zero vulnerabilities, and `npm audit` reported

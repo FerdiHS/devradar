@@ -6,10 +6,12 @@
 - Do not commit the test vault, `.obsidian` configuration, workspace state, personal notes, or third-party plugin settings.
 - Use Conventional Commit-style PR titles when opening pull requests.
 
-Prefer Node.js 24 LTS for ordinary local development. Node.js 22.13.0 is the
-minimum supported version. Ordinary development commands do not require a
-specific npm version, provided the active npm version is compatible with the
-supported repository and toolchain.
+The supported development Node.js release lines are Node.js 22 from 22.13.0
+onward and Node.js 24.x. Prefer Node.js 24 LTS for ordinary local development;
+Node.js 22.13.0 is the minimum supported version. Node.js 23.x and 25.x are
+outside the supported toolchain policy. Ordinary development commands do not
+require a specific npm version, provided the active npm version is compatible
+with the supported repository and toolchain.
 
 When authoring or repairing `package-lock.json`, use the reviewed Node.js
 22.13.0 + npm 10.9.2 baseline. Select that pair through an existing version
