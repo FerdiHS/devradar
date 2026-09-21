@@ -1688,6 +1688,27 @@ describe('SettingsApplication candidate saves', () => {
 	it('updates only activity families from the current authoritative settings', async () => {
 		const initial: DevRadarSettingsV2 = {
 			...createEmptySettingsV2(),
+			followedPeople: [
+				{
+					username: 'octocat',
+					githubAccountId: '583231',
+					notePath: 'People/octocat.md',
+					trackingStart: {
+						mode: 'from-date',
+						at: '2026-08-01T00:00:00.000Z',
+					},
+					syncState: {
+						lastAttemptAt: '2026-08-20T10:00:00.000Z',
+						lastSuccessfulSyncAt: '2026-08-20T10:01:00.000Z',
+						seenEvents: [
+							{ id: '123', createdAt: '2026-08-19T12:00:00Z' },
+						],
+						github: {
+							pollNotBefore: '2026-08-20T11:00:00.000Z',
+						},
+					},
+				},
+			],
 			githubRequestPolicy: {
 				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
 			},
