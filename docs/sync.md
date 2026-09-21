@@ -249,9 +249,12 @@ boundary:
 - unattempted people are `skipped`, not `failed`;
 - aggregate results preserve `updated`, `unchanged`, `failed`, and `skipped`.
 
-The `v0.3.0` implementation slice ships Sync One only. This Sync All contract
-is documented for later implementation compatibility and does not add a
-Sync-All command to the release slice.
+Issue [#121](https://github.com/FerdiHS/devradar/issues/121) ships the Sync One
+implementation slice with the global activity selection. The approved Sync All
+follow-up in [Issue #122](https://github.com/FerdiHS/devradar/issues/122)
+consumes the same selection and mutation boundary; this document's Sync All
+contract is retained for that follow-up and does not add a Sync-All command to
+Issue #121.
 
 ## Retry and provider boundary
 

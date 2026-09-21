@@ -36,8 +36,11 @@ The MVP workflow is:
     - a selected date and time.
 4. Configure one global selection from the implemented activity subset of
    Pushes, Pull requests, and Issues; any subset, including none, is valid.
-5. Manually run **Sync one person**. Sync All remains a later follow-up and is
-   not implemented in this slice.
+5. Manually run either **Sync all followed people** or **Sync one person**.
+   Issue [#121](https://github.com/FerdiHS/devradar/issues/121) applies the
+   global activity selection to Sync One; follow-up Issue
+   [#122](https://github.com/FerdiHS/devradar/issues/122) adds the sequential
+   Sync All implementation using the same selection.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
@@ -173,13 +176,15 @@ Obsidian Desktop and Mobile are both MVP and product-support requirements. For t
 
 The complete people-first MVP is successful when it reliably satisfies the
 following criteria. The `v0.3.0` implementation slice is narrower: it uses the
-configurable Pushes, Pull requests, and Issues subset and implements Sync One
-only.
+configurable Pushes, Pull requests, and Issues subset and implements the Sync
+One part of this contract; follow-up Issue
+[#122](https://github.com/FerdiHS/devradar/issues/122) adds Sync All.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
 - uses one global activity filter;
-- supports **Sync one person** with one global activity-family filter;
+- supports **Sync all followed people** and **Sync one person** with one global
+  activity-family filter;
 - retrieves supported recent public activity;
 - creates missing person notes safely;
 - updates existing notes only inside managed regions;

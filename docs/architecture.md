@@ -346,10 +346,14 @@ It includes complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
-## Deferred after `v0.3.0`
+The approved Sync All follow-up is tracked in
+[Issue #122](https://github.com/FerdiHS/devradar/issues/122). It consumes the
+same global activity selection and mutation boundary; this issue implements
+the settings and Sync One side only.
 
-Sync All remains approved follow-up work; its implementation is deferred. The
-following are also outside this implementation slice:
+## Deferred beyond this implementation slice
+
+The following are also outside this implementation slice:
 
 - additional activity families beyond Pushes, Pull requests, and Issues;
 - richer followed-person management UI;
