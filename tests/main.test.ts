@@ -816,6 +816,55 @@ describe('Sync All command wiring', () => {
 		);
 	});
 
+	it('reports zero unattempted people for terminal stop reasons', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		vi.spyOn(application, 'syncAll')
+			.mockResolvedValueOnce({
+				kind: 'completed',
+				outcomes: [
+					{
+						username: 'octocat',
+						result: { kind: 'failed', reason: 'persistence' },
+					},
+				],
+				stop: { kind: 'settings-recovery', unattempted: 0 },
+			})
+			.mockResolvedValueOnce({
+				kind: 'completed',
+				outcomes: [
+					{
+						username: 'octocat',
+						result: { kind: 'failed', reason: 'internal' },
+					},
+				],
+				stop: {
+					kind: 'run-failure',
+					reason: 'internal',
+					unattempted: 0,
+				},
+			});
+
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenNthCalledWith(
+			1,
+			'Sync all finished: 0 updated, 0 unchanged, 0 skipped, 1 failed. Failures: @octocat (sync state could not be saved). 0 people were not attempted because settings need recovery.',
+		);
+		expect(obsidianNotice).toHaveBeenNthCalledWith(
+			2,
+			'Sync all finished: 0 updated, 0 unchanged, 0 skipped, 1 failed. Failures: @octocat (unexpected error). 0 people were not attempted because sync stopped: Sync all failed unexpectedly.',
+		);
+	});
+
 	it('reports one aggregate notice with counts, failed usernames, reasons, and recovery remainder', async () => {
 		const plugin = fakePlugin(async () => FOLLOWED);
 		await plugin.onload();

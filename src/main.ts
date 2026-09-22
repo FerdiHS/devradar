@@ -348,14 +348,11 @@ function showSyncAllResult(result: SyncAllResult): void {
 		parts.push(
 			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because a GitHub provider policy is active.`,
 		);
-	if (
-		result.stop?.kind === 'settings-recovery' &&
-		result.stop.unattempted > 0
-	)
+	if (result.stop?.kind === 'settings-recovery')
 		parts.push(
 			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because settings need recovery.`,
 		);
-	if (result.stop?.kind === 'run-failure' && result.stop.unattempted > 0)
+	if (result.stop?.kind === 'run-failure')
 		parts.push(
 			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because sync stopped: ${syncAllRunFailureMessage(result.stop.reason)}`,
 		);
