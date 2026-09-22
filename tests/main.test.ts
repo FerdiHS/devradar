@@ -745,6 +745,35 @@ describe('Sync All command wiring', () => {
 		await Promise.resolve();
 	});
 
+	it('does not start a second Sync All while the first is running', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		let release!: (result: SyncAllResult) => void;
+		const pending = new Promise<SyncAllResult>((resolve) => {
+			release = resolve;
+		});
+		const syncAll = vi
+			.spyOn(application, 'syncAll')
+			.mockReturnValue(pending);
+
+		await syncAllCommand(plugin).callback?.();
+		await syncAllCommand(plugin).callback?.();
+
+		expect(syncAll).toHaveBeenCalledTimes(1);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'A sync is already in progress.',
+		);
+
+		release({ kind: 'empty' });
+		await pending;
+		await Promise.resolve();
+	});
+
 	it('does not start Sync All while the Sync One picker is open', async () => {
 		const plugin = fakePlugin(async () => FOLLOWED);
 		await plugin.onload();
