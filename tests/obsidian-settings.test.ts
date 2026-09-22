@@ -3,7 +3,12 @@ import {
 	ObsidianSettingsPersistence,
 	type PluginDataStore,
 } from '../src/adapters/obsidian-settings';
-import { createEmptySettingsV1 } from '../src/domain/settings';
+import { ACTIVITY_FAMILIES } from '../src/domain/activity';
+import {
+	createEmptySettingsV2,
+	migrateSettingsV1ToV2,
+	type DevRadarSettingsV1,
+} from '../src/domain/settings';
 
 const NOW = '2026-08-23T00:00:00.000Z';
 
@@ -22,7 +27,9 @@ function store(
 	};
 }
 
-function validSettings(fromDate = '2026-08-23T00:00:00.000Z') {
+function validSettings(
+	fromDate = '2026-08-23T00:00:00.000Z',
+): DevRadarSettingsV1 {
 	return {
 		schemaVersion: 1,
 		followedPeople: [
@@ -42,6 +49,14 @@ function validSettings(fromDate = '2026-08-23T00:00:00.000Z') {
 	};
 }
 
+function validSettingsV2() {
+	return {
+		schemaVersion: 2,
+		followedPeople: [],
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	};
+}
+
 describe('ObsidianSettingsPersistence', () => {
 	it('maps Obsidian null absence to fresh empty settings without writing', async () => {
 		const dataStore = store(async () => null);
@@ -52,7 +67,8 @@ describe('ObsidianSettingsPersistence', () => {
 
 		expect(await persistence.load()).toEqual({
 			kind: 'loaded',
-			settings: createEmptySettingsV1(),
+			settings: createEmptySettingsV2(),
+			needsMigration: false,
 		});
 		expect(dataStore.saved).toEqual([]);
 	});
@@ -87,7 +103,8 @@ describe('ObsidianSettingsPersistence', () => {
 
 		expect(await persistence.load()).toEqual({
 			kind: 'loaded',
-			settings: createEmptySettingsV1(),
+			settings: createEmptySettingsV2(),
+			needsMigration: true,
 		});
 		expect(dataStore.saved).toEqual([]);
 	});
@@ -101,8 +118,28 @@ describe('ObsidianSettingsPersistence', () => {
 
 		const result = await persistence.load();
 
-		expect(result).toEqual({ kind: 'loaded', settings: input });
+		expect(result).toEqual({
+			kind: 'loaded',
+			settings: migrateSettingsV1ToV2(input),
+			needsMigration: true,
+		});
 		if (result.kind === 'loaded') expect(result.settings).not.toBe(input);
+	});
+
+	it('loads V2 settings without scheduling another migration write', async () => {
+		const input = validSettingsV2();
+		const dataStore = store(async () => input);
+		const persistence = new ObsidianSettingsPersistence(
+			dataStore,
+			() => NOW,
+		);
+
+		expect(await persistence.load()).toEqual({
+			kind: 'loaded',
+			settings: input,
+			needsMigration: false,
+		});
+		expect(dataStore.saved).toEqual([]);
 	});
 
 	it('uses a fresh current instant for each load', async () => {
@@ -119,7 +156,8 @@ describe('ObsidianSettingsPersistence', () => {
 		expect((await persistence.load()).kind).toBe('recovery');
 		expect(await persistence.load()).toEqual({
 			kind: 'loaded',
-			settings: input,
+			settings: migrateSettingsV1ToV2(input),
+			needsMigration: true,
 		});
 		expect(currentInstant).toHaveBeenCalledTimes(2);
 	});
@@ -140,7 +178,7 @@ describe('ObsidianSettingsPersistence', () => {
 
 	it('classifies a future schema before validator error ordering can hide it', async () => {
 		const persistence = new ObsidianSettingsPersistence(
-			store(async () => ({ schemaVersion: 2, unknownField: true })),
+			store(async () => ({ schemaVersion: 3, unknownField: true })),
 			() => NOW,
 		);
 
@@ -149,14 +187,17 @@ describe('ObsidianSettingsPersistence', () => {
 			diagnostic: {
 				kind: 'validation',
 				classification: 'future-schema',
-				error: { code: 'unexpected-field', path: '/unknownField' },
+				error: {
+					code: 'unsupported-schema-version',
+					path: '/schemaVersion',
+				},
 			},
 		});
 	});
 
 	it('keeps future-schema classification when schemaVersion is the first error', async () => {
 		const persistence = new ObsidianSettingsPersistence(
-			store(async () => ({ schemaVersion: 2 })),
+			store(async () => ({ schemaVersion: 3 })),
 			() => NOW,
 		);
 
@@ -173,7 +214,7 @@ describe('ObsidianSettingsPersistence', () => {
 			get: () => 'octocat',
 		});
 		const persistence = new ObsidianSettingsPersistence(
-			store(async () => ({ schemaVersion: 2, followedPeople: [person] })),
+			store(async () => ({ schemaVersion: 3, followedPeople: [person] })),
 			() => NOW,
 		);
 
@@ -305,7 +346,7 @@ describe('ObsidianSettingsPersistence', () => {
 			() => NOW,
 		);
 
-		const result = await persistence.save({ schemaVersion: 1 });
+		const result = await persistence.save({ schemaVersion: 2 });
 
 		expect(result).toMatchObject({
 			kind: 'candidate-validation-failure',
@@ -320,15 +361,15 @@ describe('ObsidianSettingsPersistence', () => {
 			dataStore,
 			() => NOW,
 		);
-		const candidate = { schemaVersion: 1, followedPeople: [] };
+		const candidate = validSettingsV2();
 
 		const result = await persistence.save(candidate);
 
 		expect(result).toEqual({
 			kind: 'saved',
-			settings: createEmptySettingsV1(),
+			settings: validSettingsV2(),
 		});
-		expect(dataStore.saved).toEqual([createEmptySettingsV1()]);
+		expect(dataStore.saved).toEqual([validSettingsV2()]);
 		expect(dataStore.saved[0]).not.toBe(candidate);
 	});
 
@@ -342,7 +383,7 @@ describe('ObsidianSettingsPersistence', () => {
 			() => NOW,
 		);
 
-		expect(await persistence.save(createEmptySettingsV1())).toEqual({
+		expect(await persistence.save(validSettingsV2())).toEqual({
 			kind: 'write-failure',
 		});
 	});

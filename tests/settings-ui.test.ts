@@ -17,6 +17,8 @@ import {
 	type SettingsTabHost,
 } from '../src/settings';
 import type { GitHubIdentity } from '../src/application/github-identity';
+import { ACTIVITY_FAMILIES } from '../src/domain/activity';
+import { createEmptySettingsV2 } from '../src/domain/settings';
 
 class FakeElement {
 	children: FakeElement[] = [];
@@ -30,6 +32,7 @@ class FakeElement {
 	placeholder = '';
 	step = '';
 	required = false;
+	checked = false;
 	validity = { badInput: false };
 	private listeners = new Map<string, () => void>();
 
@@ -64,7 +67,11 @@ function allElements(root: FakeElement): FakeElement[] {
 
 const readyEmpty: SettingsRuntimeState = {
 	kind: 'ready',
-	settings: { schemaVersion: 1, followedPeople: [] },
+	settings: {
+		schemaVersion: 2,
+		followedPeople: [],
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	},
 };
 
 function tabFor(state: SettingsRuntimeState, pending = false) {
@@ -74,6 +81,12 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		kind: 'failed' as const,
 		reason: 'internal' as const,
 	}));
+	const saveActivityFamilies = vi.fn<SettingsTabHost['saveActivityFamilies']>(
+		async () => ({
+			kind: 'saved' as const,
+			settings: createEmptySettingsV2(),
+		}),
+	);
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
 		isRecoveryActionPending: () => pending,
@@ -81,22 +94,35 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		resetSettings,
 		isFollowPending: () => false,
 		follow,
+		saveActivityFamilies,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
 	const root = new FakeElement();
 	(tab as unknown as { containerEl: FakeElement }).containerEl = root;
-	return { host, tab, root, resetSettings, retrySettingsLoad, follow };
+	return {
+		host,
+		tab,
+		root,
+		resetSettings,
+		retrySettingsLoad,
+		follow,
+		saveActivityFamilies,
+	};
 }
 
 function fromDateForm(view: ReturnType<typeof tabFor>) {
 	view.tab.display();
-	const inputs = allElements(view.root).filter(
-		(element) => element.tag === 'input',
+	const username = allElements(view.root).find(
+		(element) => element.id === 'devradar-follow-username',
 	);
-	inputs[0]!.value = 'octocat';
-	inputs[0]!.emit('input');
-	inputs[1]!.value = 'People/octocat.md';
-	inputs[1]!.emit('input');
+	const notePath = allElements(view.root).find(
+		(element) => element.id === 'devradar-follow-note-path',
+	);
+	if (!username || !notePath) throw new Error('expected follow inputs');
+	username.value = 'octocat';
+	username.emit('input');
+	notePath.value = 'People/octocat.md';
+	notePath.emit('input');
 	const trackingStart = allElements(view.root).find(
 		(element) => element.tag === 'select',
 	);
@@ -233,6 +259,10 @@ describe('DevRadarSettingTab recovery UI', () => {
 				kind: 'failed' as const,
 				reason: 'internal' as const,
 			})),
+			saveActivityFamilies: vi.fn(async () => ({
+				kind: 'saved' as const,
+				settings: readyEmpty.settings,
+			})),
 		};
 		const tab = new DevRadarSettingTab({} as never, {} as never, host);
 		const root = new FakeElement();
@@ -318,12 +348,15 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		).toEqual(['Now', 'Available recent activity', 'Specific date']);
 		expect(
 			elements.filter((element) => element.tag === 'input'),
-		).toHaveLength(2);
+		).toHaveLength(5);
 		expect(
 			elements
 				.filter((element) => element.tag === 'label')
 				.map((element) => element.htmlFor),
 		).toEqual([
+			'devradar-activity-family-push',
+			'devradar-activity-family-pull-request',
+			'devradar-activity-family-issue',
 			'devradar-follow-username',
 			'devradar-follow-note-path',
 			'devradar-follow-tracking-start',
@@ -336,17 +369,119 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 				)
 				.map((element) => element.id),
 		).toEqual([
+			'devradar-activity-family-push',
+			'devradar-activity-family-pull-request',
+			'devradar-activity-family-issue',
 			'devradar-follow-username',
 			'devradar-follow-note-path',
 			'devradar-follow-tracking-start',
 		]);
 	});
 
+	it('allows any global activity-family subset and saves it explicitly', async () => {
+		const view = tabFor(readyEmpty);
+		view.tab.display();
+		const issue = allElements(view.root).find(
+			(element) => element.id === 'devradar-activity-family-issue',
+		);
+		if (!issue) throw new Error('expected issue activity checkbox');
+		issue.checked = false;
+		issue.emit('change');
+
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save activity filters',
+		);
+		if (!save) throw new Error('expected activity filter save button');
+		expect(save.disabled).toBe(false);
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.saveActivityFamilies).toHaveBeenCalledWith([
+			'push',
+			'pull-request',
+		]);
+		expect(allElements(view.root).map((element) => element.text)).toContain(
+			'Activity filters saved.',
+		);
+	});
+
+	it('allows saving an empty global activity-family selection', async () => {
+		const view = tabFor(readyEmpty);
+		view.tab.display();
+
+		for (const family of ACTIVITY_FAMILIES) {
+			const checkbox = allElements(view.root).find(
+				(element) =>
+					element.id === `devradar-activity-family-${family}`,
+			);
+			if (!checkbox) throw new Error(`expected ${family} checkbox`);
+			checkbox.checked = false;
+			checkbox.emit('change');
+		}
+
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save activity filters',
+		);
+		if (!save) throw new Error('expected activity filter save button');
+		expect(save.disabled).toBe(false);
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.saveActivityFamilies).toHaveBeenCalledWith([]);
+	});
+
+	it('locks activity-family controls while a save is pending', async () => {
+		let release!: (
+			result: Awaited<
+				ReturnType<SettingsTabHost['saveActivityFamilies']>
+			>,
+		) => void;
+		const pending = new Promise<
+			Awaited<ReturnType<SettingsTabHost['saveActivityFamilies']>>
+		>((resolve) => {
+			release = resolve;
+		});
+		const view = tabFor(readyEmpty);
+		view.saveActivityFamilies.mockImplementationOnce(() => pending);
+		view.tab.display();
+		const issue = allElements(view.root).find(
+			(element) => element.id === 'devradar-activity-family-issue',
+		);
+		if (!issue) throw new Error('expected issue activity checkbox');
+		issue.checked = false;
+		issue.emit('change');
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save activity filters',
+		);
+		if (!save) throw new Error('expected activity filter save button');
+		save.click();
+
+		const pendingIssue = allElements(view.root).find(
+			(element) => element.id === 'devradar-activity-family-issue',
+		);
+		expect(pendingIssue?.disabled).toBe(true);
+		pendingIssue!.checked = true;
+		pendingIssue!.emit('change');
+		expect(pendingIssue!.disabled).toBe(true);
+
+		release({ kind: 'saved', settings: createEmptySettingsV2() });
+		await pending;
+	});
+
 	it('renders canonical followed-person details in persisted order', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 1,
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
 						username: 'first',
@@ -614,6 +749,10 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			resetSettings: vi.fn(async () => undefined),
 			isFollowPending: () => false,
 			follow,
+			saveActivityFamilies: vi.fn(async () => ({
+				kind: 'saved' as const,
+				settings: readyEmpty.settings,
+			})),
 		};
 		const tab = new DevRadarSettingTab({} as never, {} as never, host);
 		const root = new FakeElement();

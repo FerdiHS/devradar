@@ -34,13 +34,13 @@ The MVP workflow is:
     - from now;
     - import available recent activity; or
     - a selected date and time.
-4. Use the fixed `v0.2.0` activity subset of Pushes, Pull requests, and
-   Issues. The complete people-first MVP may later configure one global set of
-   enabled activity types.
-5. In the complete people-first MVP, manually run either:
-    - **Sync all followed people**; or
-    - **Sync one person**.
-      The `v0.2.0` implementation slice starts with Sync One.
+4. Configure one global selection from the implemented activity subset of
+   Pushes, Pull requests, and Issues; any subset, including none, is valid.
+5. Manually run either **Sync all followed people** or **Sync one person**.
+   Issue [#121](https://github.com/FerdiHS/devradar/issues/121) applies the
+   global activity selection to Sync One; follow-up Issue
+   [#122](https://github.com/FerdiHS/devradar/issues/122) adds the sequential
+   Sync All implementation using the same selection.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
@@ -113,11 +113,11 @@ The exact managed-marker syntax and complete note template are defined in the
 ## Activity and retention boundaries
 
 For the complete people-first MVP, “meaningful activity” means a supported
-activity type enabled in the single global activity configuration. The exact
-supported activity catalogue is defined in the [activity specification](activity.md);
-the eventual global activity-family configuration remains post-`v0.2.0` work.
-The `v0.2.0` implementation slice has no activity-category setting and uses its
-fixed Pushes, Pull requests, and Issues subset.
+activity type enabled in the single global activity configuration. The
+`v0.3.0` implementation supports exactly three selectable families—Pushes,
+Pull requests, and Issues—and permits any global subset, including none. The
+other six catalogue families described in the [activity specification](activity.md)
+remain future scope and are not implemented or selectable.
 
 DevRadar must not use:
 
@@ -170,18 +170,21 @@ The MVP is local-first. It has no requirement for:
 
 Notes remain private unless the user independently publishes or synchronises their vault.
 
-Obsidian Desktop and Mobile are both MVP and product-support requirements. For the `v0.2.0` implementation slice, Desktop is the designated and required runtime-validation target, while Mobile remains an intended compatibility target rather than a runtime-validation closure gate. DevRadar should avoid unnecessary Node.js, Electron, and desktop-only APIs so that the supported workflow remains practical on mobile.
+Obsidian Desktop and Mobile are both MVP and product-support requirements. For the `v0.3.0` implementation slice, Desktop is the designated and required runtime-validation target, while Mobile remains an intended compatibility target rather than a runtime-validation closure gate. DevRadar should avoid unnecessary Node.js, Electron, and desktop-only APIs so that the supported workflow remains practical on mobile.
 
 ## MVP success criteria
 
 The complete people-first MVP is successful when it reliably satisfies the
-following criteria. The `v0.2.0` implementation slice is narrower: it uses the
-fixed Pushes, Pull requests, and Issues subset and implements Sync One only.
+following criteria. The `v0.3.0` implementation slice is narrower: it uses the
+configurable Pushes, Pull requests, and Issues subset and implements the Sync
+One part of this contract; follow-up Issue
+[#122](https://github.com/FerdiHS/devradar/issues/122) adds Sync All.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
 - uses one global activity filter;
-- supports **Sync all followed people** and **Sync one person**;
+- supports **Sync all followed people** and **Sync one person** with one global
+  activity-family filter;
 - retrieves supported recent public activity;
 - creates missing person notes safely;
 - updates existing notes only inside managed regions;

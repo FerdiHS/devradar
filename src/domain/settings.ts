@@ -1,6 +1,8 @@
 import {
+	ACTIVITY_FAMILIES,
 	canonicalizeEventId,
 	canonicalizeTimestamp,
+	type ActivityFamily,
 	type TrackingStart,
 } from './activity';
 import {
@@ -12,6 +14,13 @@ export type DevRadarSettingsV1 = {
 	readonly schemaVersion: 1;
 	readonly followedPeople: FollowedPersonV1[];
 	readonly githubRequestPolicy?: GitHubRequestPolicyV1;
+};
+
+export type DevRadarSettingsV2 = {
+	readonly schemaVersion: 2;
+	readonly followedPeople: FollowedPersonV1[];
+	readonly githubRequestPolicy?: GitHubRequestPolicyV1;
+	readonly enabledActivityFamilies: ActivityFamily[];
 };
 
 export type FollowedPersonV1 = {
@@ -66,7 +75,10 @@ export type SchemaV1ValidationCode =
 	| 'duplicate-username'
 	| 'duplicate-github-account-id'
 	| 'duplicate-note-path'
-	| 'duplicate-seen-event-id';
+	| 'duplicate-seen-event-id'
+	| 'invalid-activity-family'
+	| 'duplicate-activity-family'
+	| 'noncanonical-activity-family-order';
 
 export type SchemaV1ValidationError = {
 	readonly code: SchemaV1ValidationCode;
@@ -151,19 +163,13 @@ function inspectRecord(
 			return invalidType(path, 'object');
 
 		const ownKeys = Reflect.ownKeys(objectInput);
-		for (const symbol of ownKeys.filter(
-			(key): key is symbol => typeof key === 'symbol',
-		)) {
-			const descriptor = Object.getOwnPropertyDescriptor(
-				objectInput,
-				symbol,
-			);
-			if (descriptor?.enumerable)
-				return invalidType(path, 'object with enumerable symbol keys');
-		}
+		if (ownKeys.some((key) => typeof key === 'symbol'))
+			return invalidType(path, 'object with symbol keys');
 
-		const keys = Object.keys(objectInput).sort();
-		const unknown = keys.find((key) => !allowed.includes(key));
+		const allStringKeys = ownKeys
+			.filter((key): key is string => typeof key === 'string')
+			.sort();
+		const unknown = allStringKeys.find((key) => !allowed.includes(key));
 		if (unknown)
 			return error(
 				'unexpected-field',
@@ -171,6 +177,7 @@ function inspectRecord(
 				'unexpected field',
 			);
 
+		const keys = Object.keys(objectInput).sort();
 		const missing = required.find((key) => !keys.includes(key));
 		if (missing)
 			return error(
@@ -227,12 +234,12 @@ function inspectArray(
 		if (Object.getPrototypeOf(array) !== Array.prototype)
 			return invalidType(path, 'array');
 		const length = array.length;
-		for (const symbol of Object.getOwnPropertySymbols(array)) {
-			const descriptor = Object.getOwnPropertyDescriptor(array, symbol);
-			if (descriptor?.enumerable)
-				return invalidType(path, 'array with enumerable symbol keys');
-		}
-		const keys = Object.keys(array).sort();
+		const ownKeys = Reflect.ownKeys(array);
+		if (ownKeys.some((key) => typeof key === 'symbol'))
+			return invalidType(path, 'array with symbol keys');
+		const keys = ownKeys.filter(
+			(key): key is string => key !== 'length' && typeof key === 'string',
+		);
 		const unexpected = keys.find((key) => {
 			if (!/^\d+$/.test(key)) return true;
 			const index = Number(key);
@@ -714,6 +721,14 @@ export function createEmptySettingsV1(): DevRadarSettingsV1 {
 	return { schemaVersion: 1, followedPeople: [] };
 }
 
+export function createEmptySettingsV2(): DevRadarSettingsV2 {
+	return {
+		schemaVersion: 2,
+		followedPeople: [],
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	};
+}
+
 export function createEmptyPersonSyncState(): PersonSyncState {
 	return { seenEvents: [], github: {} };
 }
@@ -722,22 +737,160 @@ export function validatePersistedSettingsV1(
 	input: unknown,
 	currentInstant: string,
 ): SchemaV1ValidationResult<DevRadarSettingsV1> {
+	const result = validatePersistedSettingsVersion(input, currentInstant, 1);
+	return result as SchemaV1ValidationResult<DevRadarSettingsV1>;
+}
+
+export function validatePersistedSettingsV2(
+	input: unknown,
+	currentInstant: string,
+): SchemaV1ValidationResult<DevRadarSettingsV2> {
+	const result = validatePersistedSettingsVersion(input, currentInstant, 2);
+	return result as SchemaV1ValidationResult<DevRadarSettingsV2>;
+}
+
+export function canonicalizeEnabledActivityFamilies(
+	input: readonly unknown[],
+): SchemaV1ValidationResult<ActivityFamily[]> {
+	const selected = new Set<ActivityFamily>();
+	for (let index = 0; index < input.length; index += 1) {
+		const family = input[index];
+		if (
+			typeof family !== 'string' ||
+			!(ACTIVITY_FAMILIES as readonly string[]).includes(family)
+		)
+			return failure(
+				'invalid-activity-family',
+				`/enabledActivityFamilies/${index}`,
+				'activity family is invalid',
+			);
+		if (selected.has(family as ActivityFamily))
+			return failure(
+				'duplicate-activity-family',
+				`/enabledActivityFamilies/${index}`,
+				'activity family is duplicated',
+			);
+		selected.add(family as ActivityFamily);
+	}
+	return success(ACTIVITY_FAMILIES.filter((family) => selected.has(family)));
+}
+
+export function migrateSettingsV1ToV2(
+	input: DevRadarSettingsV1,
+): DevRadarSettingsV2 {
+	return {
+		schemaVersion: 2,
+		followedPeople: input.followedPeople.map((person) => ({
+			...person,
+			trackingStart:
+				person.trackingStart.mode === 'available-recent'
+					? { mode: 'available-recent' as const }
+					: { ...person.trackingStart },
+			syncState: {
+				...person.syncState,
+				seenEvents: person.syncState.seenEvents.map((event) => ({
+					...event,
+				})),
+				github: { ...person.syncState.github },
+			},
+		})),
+		...(input.githubRequestPolicy === undefined
+			? {}
+			: { githubRequestPolicy: { ...input.githubRequestPolicy } }),
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	};
+}
+
+export type PersistedSettingsParseResult =
+	| {
+			readonly ok: true;
+			readonly value: {
+				readonly settings: DevRadarSettingsV2;
+				readonly needsMigration: boolean;
+			};
+	  }
+	| { readonly ok: false; readonly error: SchemaV1ValidationError };
+
+export function parsePersistedSettings(
+	input: unknown,
+	currentInstant: string,
+): PersistedSettingsParseResult {
+	if (input === undefined)
+		return {
+			ok: true,
+			value: { settings: createEmptySettingsV2(), needsMigration: false },
+		};
+	if (isEmptyPlainRecord(input))
+		return {
+			ok: true,
+			value: { settings: createEmptySettingsV2(), needsMigration: true },
+		};
+
+	const schemaVersion = readSchemaVersion(input);
+	if (!schemaVersion.ok) return schemaVersion;
+	if (schemaVersion.value === 1) {
+		const result = validatePersistedSettingsV1(input, currentInstant);
+		return result.ok
+			? {
+					ok: true,
+					value: {
+						settings: migrateSettingsV1ToV2(result.value),
+						needsMigration: true,
+					},
+				}
+			: result;
+	}
+	if (schemaVersion.value === 2) {
+		const result = validatePersistedSettingsV2(input, currentInstant);
+		return result.ok
+			? {
+					ok: true,
+					value: { settings: result.value, needsMigration: false },
+				}
+			: result;
+	}
+	return failure(
+		schemaVersion.value > 2
+			? 'unsupported-schema-version'
+			: 'invalid-schema-version',
+		'/schemaVersion',
+		schemaVersion.value > 2
+			? 'schema version is unsupported'
+			: 'schema version is invalid',
+	);
+}
+
+function validatePersistedSettingsVersion(
+	input: unknown,
+	currentInstant: string,
+	version: 1 | 2,
+): SchemaV1ValidationResult<DevRadarSettingsV1 | DevRadarSettingsV2> {
 	const current = validatePluginTimestamp(currentInstant, '');
 	if (!current.ok) return current;
-	if (input === undefined) return success(createEmptySettingsV1());
+	if (version === 1 && input === undefined)
+		return success(createEmptySettingsV1());
 
 	const view = inspectRecord(
 		input,
 		'',
-		['schemaVersion', 'followedPeople', 'githubRequestPolicy'],
+		version === 1
+			? ['schemaVersion', 'followedPeople', 'githubRequestPolicy']
+			: [
+					'schemaVersion',
+					'followedPeople',
+					'githubRequestPolicy',
+					'enabledActivityFamilies',
+				],
 		[],
 	);
 	if (!('input' in view)) return { ok: false, error: view };
-	if (view.keys.length === 0 && !view.hasOwnKeys)
+	if (version === 1 && view.keys.length === 0 && !view.hasOwnKeys)
 		return success(createEmptySettingsV1());
-	const missing = ['schemaVersion', 'followedPeople'].find(
-		(field) => !hasField(view, field),
-	);
+	const missing = (
+		version === 1
+			? ['schemaVersion', 'followedPeople']
+			: ['schemaVersion', 'followedPeople', 'enabledActivityFamilies']
+	).find((field) => !hasField(view, field));
 	if (missing)
 		return failure(
 			'missing-field',
@@ -754,13 +907,13 @@ export function validatePersistedSettingsV1(
 			'/schemaVersion',
 			'schema version is invalid',
 		);
-	if (schemaVersion !== 1)
+	if (schemaVersion !== version)
 		return failure(
-			schemaVersion > 1
+			schemaVersion > version
 				? 'unsupported-schema-version'
 				: 'invalid-schema-version',
 			'/schemaVersion',
-			schemaVersion > 1
+			schemaVersion > version
 				? 'schema version is unsupported'
 				: 'schema version is invalid',
 		);
@@ -799,9 +952,114 @@ export function validatePersistedSettingsV1(
 
 	const uniqueness = validateUniqueness(people);
 	if (uniqueness) return { ok: false, error: uniqueness };
+	if (version === 1)
+		return success({
+			schemaVersion: 1,
+			followedPeople: people,
+			...(githubRequestPolicy === undefined
+				? {}
+				: { githubRequestPolicy }),
+		});
+
+	const enabledActivityFamiliesValue = readField(
+		view,
+		'enabledActivityFamilies',
+		'',
+	);
+	if (!enabledActivityFamiliesValue.ok) return enabledActivityFamiliesValue;
+	const familyArray = inspectArray(
+		enabledActivityFamiliesValue.value,
+		'/enabledActivityFamilies',
+	);
+	if (!('input' in familyArray)) return { ok: false, error: familyArray };
+	const familyValues: unknown[] = [];
+	for (let index = 0; index < familyArray.length; index += 1) {
+		const item = readArrayItem(
+			familyArray,
+			index,
+			'/enabledActivityFamilies',
+		);
+		if (!item.ok) return item;
+		familyValues.push(item.value);
+	}
+	const families = canonicalizeEnabledActivityFamilies(familyValues);
+	if (!families.ok) return families;
+	if (
+		families.value.length !== familyValues.length ||
+		families.value.some((family, index) => family !== familyValues[index])
+	)
+		return failure(
+			'noncanonical-activity-family-order',
+			'/enabledActivityFamilies',
+			'activity families are not in canonical order',
+		);
 	return success({
-		schemaVersion: 1,
+		schemaVersion: 2,
 		followedPeople: people,
 		...(githubRequestPolicy === undefined ? {} : { githubRequestPolicy }),
+		enabledActivityFamilies: families.value,
 	});
+}
+
+function isEmptyPlainRecord(input: unknown): boolean {
+	if (input === null || typeof input !== 'object' || Array.isArray(input))
+		return false;
+	try {
+		const prototype = Reflect.getPrototypeOf(input);
+		return (
+			(prototype === Object.prototype || prototype === null) &&
+			Reflect.ownKeys(input).length === 0
+		);
+	} catch {
+		return false;
+	}
+}
+
+function readSchemaVersion(input: unknown): SchemaV1ValidationResult<number> {
+	try {
+		if (input === null || typeof input !== 'object' || Array.isArray(input))
+			return { ok: false, error: invalidType('', 'object') };
+		const prototype = Reflect.getPrototypeOf(input);
+		if (prototype !== Object.prototype && prototype !== null)
+			return { ok: false, error: invalidType('', 'object') };
+		for (const symbol of Reflect.ownKeys(input).filter(
+			(key): key is symbol => typeof key === 'symbol',
+		)) {
+			const descriptor = Object.getOwnPropertyDescriptor(input, symbol);
+			if (descriptor?.enumerable)
+				return {
+					ok: false,
+					error: invalidType(
+						'',
+						'object with enumerable symbol keys',
+					),
+				};
+		}
+		const descriptor = Object.getOwnPropertyDescriptor(
+			input,
+			'schemaVersion',
+		);
+		if (!descriptor)
+			return failure(
+				'missing-field',
+				'/schemaVersion',
+				'required field schemaVersion is missing',
+			);
+		if (!('value' in descriptor))
+			return failure(
+				'invalid-type',
+				'/schemaVersion',
+				'property has an invalid type',
+			);
+		return typeof descriptor.value === 'number' &&
+			Number.isInteger(descriptor.value)
+			? success(descriptor.value)
+			: failure(
+					'invalid-schema-version',
+					'/schemaVersion',
+					'schema version is invalid',
+				);
+	} catch {
+		return { ok: false, error: invalidType('', 'object') };
+	}
 }

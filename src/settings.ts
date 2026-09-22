@@ -1,4 +1,5 @@
 import { App, PluginSettingTab, type Plugin } from 'obsidian';
+import { ACTIVITY_FAMILIES, type ActivityFamily } from './domain/activity';
 import {
 	isResettableSettingsDiagnostic,
 	type SettingsApplicationHost,
@@ -16,6 +17,9 @@ export type { SettingsRuntimeState } from './application/settings';
 export type SettingsTabHost = SettingsApplicationHost & {
 	isFollowPending(): boolean;
 	follow(draft: FollowDraft): Promise<FollowResult>;
+	saveActivityFamilies(
+		families: readonly ActivityFamily[],
+	): Promise<import('./application/settings').SettingsSaveResult>;
 };
 
 type TrackingStartMode = FollowTrackingStartDraft['mode'];
@@ -29,6 +33,9 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private fromTimeBadInput = false;
 	private followPending = false;
 	private followStatus?: string;
+	private activityFamiliesDraft?: ActivityFamily[];
+	private activitySavePending = false;
+	private activitySaveStatus?: string;
 
 	constructor(
 		app: App,
@@ -43,7 +50,11 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		const state = this.host.getSettingsState();
 		if (state.kind === 'ready') {
-			this.displayReady(containerEl, state.settings.followedPeople);
+			this.displayReady(
+				containerEl,
+				state.settings.followedPeople,
+				state.settings.enabledActivityFamilies,
+			);
 			return;
 		}
 
@@ -83,7 +94,9 @@ export class DevRadarSettingTab extends PluginSettingTab {
 				at?: string;
 			};
 		}[],
+		enabledActivityFamilies: readonly ActivityFamily[],
 	): void {
+		this.displayActivityFilters(containerEl, enabledActivityFamilies);
 		containerEl.createEl('p', { text: 'Follow a GitHub user' });
 		const usernameLabel = containerEl.createEl('label', {
 			text: 'GitHub username',
@@ -200,6 +213,76 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}
 	}
 
+	private displayActivityFilters(
+		containerEl: HTMLElement,
+		enabledActivityFamilies: readonly ActivityFamily[],
+	): void {
+		containerEl.createEl('p', { text: 'Activity families' });
+		const selected = new Set(
+			this.activityFamiliesDraft ?? enabledActivityFamilies,
+		);
+		for (const family of ACTIVITY_FAMILIES) {
+			const label = containerEl.createEl('label', {
+				text: activityFamilyLabel(family),
+			});
+			const checkbox = containerEl.createEl('input');
+			checkbox.id = `devradar-activity-family-${family}`;
+			checkbox.type = 'checkbox';
+			checkbox.checked = selected.has(family);
+			checkbox.disabled = this.activitySavePending;
+			label.htmlFor = checkbox.id;
+			checkbox.addEventListener('change', () => {
+				if (this.activitySavePending) return;
+				if (checkbox.checked) selected.add(family);
+				else selected.delete(family);
+				this.activityFamiliesDraft = ACTIVITY_FAMILIES.filter((item) =>
+					selected.has(item),
+				);
+				this.activitySaveStatus = undefined;
+				this.display();
+			});
+		}
+
+		const save = containerEl.createEl('button', {
+			text: 'Save activity filters',
+		});
+		save.disabled =
+			this.activitySavePending ||
+			this.activityFamiliesDraft === undefined;
+		save.addEventListener('click', () => {
+			if (
+				this.activitySavePending ||
+				this.activityFamiliesDraft === undefined
+			)
+				return;
+			this.activitySavePending = true;
+			this.activitySaveStatus = undefined;
+			const families = [...this.activityFamiliesDraft];
+			this.display();
+			void this.host.saveActivityFamilies(families).then(
+				(result) => {
+					this.activitySavePending = false;
+					if (result.kind === 'saved') {
+						this.activityFamiliesDraft = undefined;
+						this.activitySaveStatus = 'Activity filters saved.';
+					} else {
+						this.activitySaveStatus =
+							'Activity filters could not be saved.';
+					}
+					this.display();
+				},
+				() => {
+					this.activitySavePending = false;
+					this.activitySaveStatus =
+						'Activity filters could not be saved.';
+					this.display();
+				},
+			);
+		});
+		if (this.activitySaveStatus !== undefined)
+			containerEl.createEl('p', { text: this.activitySaveStatus });
+	}
+
 	private draft(): FollowDraft | undefined {
 		if (this.trackingStartMode === 'from-date') {
 			if (!isValidCalendarDate(this.fromDate)) {
@@ -303,6 +386,17 @@ function trackingStartSummary(start: {
 	if (start.mode === 'from-now') return 'Now';
 	if (start.mode === 'available-recent') return 'Available recent activity';
 	return `Date & time: ${start.at ?? 'invalid'}`;
+}
+
+function activityFamilyLabel(family: ActivityFamily): string {
+	switch (family) {
+		case 'push':
+			return 'Pushes';
+		case 'pull-request':
+			return 'Pull requests';
+		case 'issue':
+			return 'Issues';
+	}
 }
 
 function followStatus(result: FollowResult): string {

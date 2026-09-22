@@ -40,10 +40,15 @@ vi.mock('obsidian', () => ({
 
 import DevRadarPlugin from '../src/main';
 import type { SyncOneResult } from '../src/application/sync-one';
+import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 
-const EMPTY = { schemaVersion: 1, followedPeople: [] };
+const EMPTY = {
+	schemaVersion: 2,
+	followedPeople: [],
+	enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+};
 const FOLLOWED = {
-	schemaVersion: 1,
+	schemaVersion: 2,
 	followedPeople: [
 		{
 			username: 'octocat',
@@ -53,6 +58,7 @@ const FOLLOWED = {
 			syncState: { seenEvents: [], github: {} },
 		},
 	],
+	enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 };
 
 type RegisteredCommand = { callback?: () => unknown };
@@ -207,7 +213,7 @@ describe('DevRadarPlugin settings lifecycle', () => {
 			},
 			{
 				loadData: async () => ({
-					schemaVersion: 2,
+					schemaVersion: 3,
 					followedPeople: [],
 				}),
 				diagnostic: {

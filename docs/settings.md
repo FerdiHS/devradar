@@ -1,15 +1,17 @@
 # DevRadar settings and followed-person specification
 
-This document resolves the persisted followed-person configuration and
-lifecycle contract for
-[Issue #62](https://github.com/FerdiHS/devradar/issues/62). It defines data
-and behavior only; it does not implement settings UI, GitHub requests, note
-writing, or synchronization.
+This document resolves the persisted followed-person configuration, global
+activity-family selection, and lifecycle contract for
+[Issue #62](https://github.com/FerdiHS/devradar/issues/62) and the schema-v2
+and filter changes in [Issue #121](https://github.com/FerdiHS/devradar/issues/121).
+It defines data and behavior, including the global activity-family settings
+control; it does not define GitHub requests, note writing, or synchronization.
 
-## Schema version
+## Schema version and migration
 
 The persisted settings schema is independent from DevRadar plugin SemVer.
-Schema version `1` identifies the interpretation of the persisted data.
+Schema version `2` is the current interpretation of persisted data. Schema
+version `1` is the sole supported migration source.
 
 The canonical shape is:
 
@@ -18,6 +20,13 @@ type DevRadarSettingsV1 = {
 	schemaVersion: 1;
 	followedPeople: Array<FollowedPersonV1>;
 	githubRequestPolicy?: GitHubRequestPolicyV1;
+};
+
+type DevRadarSettingsV2 = {
+	schemaVersion: 2;
+	followedPeople: Array<FollowedPersonV1>;
+	githubRequestPolicy?: GitHubRequestPolicyV1;
+	enabledActivityFamilies: Array<'push' | 'pull-request' | 'issue'>;
 };
 
 type FollowedPersonV1 = {
@@ -36,6 +45,12 @@ type GitHubRequestPolicyV1 = {
 };
 ```
 
+`enabledActivityFamilies` is one global selection shared by every followed
+person. Its only catalogue members are `push`, `pull-request`, and `issue`;
+the persisted order is always that canonical catalogue order. Each member may
+appear at most once, and an empty array is valid. No other activity family is
+selectable in this release.
+
 `PersonSyncState` is the plugin-owned internal state defined by
 [`sync.md`](sync.md). User-controlled configuration and internal provider/sync
 metadata remain conceptually separate even though they are persisted in one
@@ -49,12 +64,25 @@ means no request may be started and the operation returns `skipped`. A reached
 value may be cleared before the next request. Updating or removing one followed
 person must not clear this global state.
 
-Absent saved data and the known legacy value `{}` are valid empty input and
-behave as an empty schema-v1 configuration. Arbitrary non-empty unversioned
-objects are not heuristically migrated. An understood schema version is
-validated strictly before normal operation. A future schema version fails
-closed: it is not partially interpreted, downgraded, discarded, or replaced
-with defaults.
+Absent saved data is a valid empty runtime value and is not eagerly written.
+The known legacy value `{}` is valid empty schema-v1 input and is migrated to
+schema v2 with all three implemented families enabled. A valid schema-v1
+dataset is migrated losslessly for followed people, note paths, tracking
+starts, sync/deduplication state, attempt/success metadata, polling metadata,
+and global provider policy, with the three families added as the default
+selection. Migration is persisted before the runtime becomes ready and is
+performed under the shared application mutation boundary; a migration write
+failure leaves settings in recovery and blocks GitHub and note work.
+
+Schema-v1 and schema-v2 values are validated strictly. Schema v1 rejects the
+v2-only `enabledActivityFamilies` field, while schema v2 requires it.
+Arbitrary non-empty unversioned objects and malformed values are not
+heuristically migrated. A schema version greater than `2` is a future-schema
+recovery state: it is not partially interpreted, downgraded, discarded, or
+replaced with defaults. Other malformed or unsafe values also fail closed.
+
+Every persisted settings write is validated as schema v2. Runtime settings are
+therefore always schema v2, even when the loaded data originated in schema v1.
 
 ### Obsidian plugin-data boundary evidence
 
@@ -270,9 +298,11 @@ This is distinct from a runtime GitHub or note failure for one person after the
 configuration has been validated; those failures remain person-scoped unless
 the provider contract says otherwise.
 
-Schema v1 contains no activity-category subscription field. The fixed activity
-scope is defined by [`activity.md`](activity.md); category controls belong to a
-future schema and milestone.
+The settings UI exposes the global activity-family selection as three
+checkboxes and an explicit save action. Saving rereads the current authoritative
+settings inside the shared mutation boundary and changes only
+`enabledActivityFamilies`; it preserves followed people, notes, sync/deduplication
+state, successful-sync metadata, polling metadata, and global provider policy.
 
 The implementation test matrix must cover a rate-limit boundary observed while
 following one person blocking Sync One for another person, identity lookup
