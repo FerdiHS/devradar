@@ -13,6 +13,7 @@ import {
 	type SyncOneDependencies,
 	type SyncOneProviderResult,
 } from '../src/application/sync-one';
+import { SyncPersonExecutor } from '../src/application/sync-person';
 import type { GitHubPolicyObservation } from '../src/application/github-identity';
 import {
 	createEmptyPersonSyncState,
@@ -170,6 +171,24 @@ const dependencies = (
 };
 
 describe('Sync One application', () => {
+	it('delegates once to the shared executor under one guard acquisition', async () => {
+		const fakes = dependencies();
+		let guardCalls = 0;
+		fakes.mutationGuard.run = async <T>(operation: () => Promise<T>) => {
+			guardCalls += 1;
+			return operation();
+		};
+		const executor = new SyncPersonExecutor(fakes.deps);
+		const execute = vi.spyOn(executor, 'execute');
+		const application = new SyncOneApplication(fakes.deps, executor);
+
+		await application.syncOne({ githubAccountId: '583231' });
+
+		expect(guardCalls).toBe(1);
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith({ githubAccountId: '583231' });
+	});
+
 	it('holds the shared mutation guard through retrieval, note work, and state save', async () => {
 		const newActivity = activity('4');
 		const fakes = dependencies(
