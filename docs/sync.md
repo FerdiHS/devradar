@@ -273,7 +273,7 @@ specification owns the consequences for note and sync state:
 
 ## Deterministic implementation test matrix
 
-Future implementation tests use sanitized local fixtures, never live GitHub
+Implementation tests use sanitized local fixtures, never live GitHub
 requests, and must cover:
 
 ### Deduplication and reconciliation
