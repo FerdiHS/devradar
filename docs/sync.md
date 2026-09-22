@@ -243,18 +243,21 @@ Sync All processes people sequentially. Each person is an independent commit
 boundary:
 
 - one person's failure does not roll back another person's successful update;
-- ordinary person-scoped failures do not prevent later people from being
-  attempted;
-- provider-wide blocks stop further requests;
-- unattempted people are `skipped`, not `failed`;
+- an ordinary person-scoped failure permits the next person only after its
+  failure and required provider-policy state have been persisted and settings
+  have been reread as ready;
+- a per-person polling boundary skips that person and permits the next person;
+- provider-wide policy blocks stop further requests and report the remaining
+  people as skipped;
+- a settings-save failure or loss of ready settings stops the run immediately;
+  the current persistence failure remains a failed outcome and only people
+  after it are reported as unattempted;
 - aggregate results preserve `updated`, `unchanged`, `failed`, and `skipped`.
 
-Issue [#121](https://github.com/FerdiHS/devradar/issues/121) ships the Sync One
-implementation slice with the global activity selection. The approved Sync All
-follow-up in [Issue #122](https://github.com/FerdiHS/devradar/issues/122)
-consumes the same selection and mutation boundary; this document's Sync All
-contract is retained for that follow-up and does not add a Sync-All command to
-Issue #121.
+Issue [#121](https://github.com/FerdiHS/devradar/issues/121) ships Sync One
+with the global activity selection. Issue
+[#122](https://github.com/FerdiHS/devradar/issues/122) adds the manual Sync All
+command over the same selection and mutation boundary.
 
 ## Retry and provider boundary
 

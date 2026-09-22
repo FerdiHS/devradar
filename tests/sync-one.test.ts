@@ -171,6 +171,37 @@ const dependencies = (
 };
 
 describe('Sync One application', () => {
+	it('exposes whether the per-person boundary completed for Sync All', async () => {
+		const executor = new SyncPersonExecutor(dependencies().deps);
+
+		expect(await executor.execute({ githubAccountId: '583231' })).toEqual({
+			result: { kind: 'unchanged' },
+			safeToContinue: true,
+			providerWideStop: false,
+		});
+	});
+
+	it('exposes provider-wide adapter failures to Sync All without changing Sync One results', async () => {
+		const fakes = dependencies(settings(), {
+			kind: 'provider-failure',
+			requestAttempted: false,
+			failure: { category: 'api-version' },
+			policy: {},
+		});
+		const executor = new SyncPersonExecutor(fakes.deps);
+
+		expect(await executor.execute({ githubAccountId: '583231' })).toEqual({
+			result: { kind: 'failed', reason: 'provider' },
+			safeToContinue: true,
+			providerWideStop: true,
+		});
+
+		const application = new SyncOneApplication(fakes.deps, executor);
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'failed', reason: 'provider' });
+	});
+
 	it('delegates once to the shared executor under one guard acquisition', async () => {
 		const fakes = dependencies();
 		let guardCalls = 0;

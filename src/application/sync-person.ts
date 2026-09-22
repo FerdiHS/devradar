@@ -51,6 +51,17 @@ export type SyncOneResult =
 	| { readonly kind: 'skipped'; readonly reason: 'provider-policy' }
 	| { readonly kind: 'failed'; readonly reason: SyncOneFailureReason };
 
+export type SyncPersonExecution = Readonly<{
+	result: SyncOneResult;
+	safeToContinue: boolean;
+	providerWideStop: boolean;
+}>;
+
+type ExecutionEvidence = {
+	persisted: boolean;
+	providerWideStop: boolean;
+};
+
 export type SyncOneProviderResult =
 	| {
 			readonly kind: 'success';
@@ -110,16 +121,30 @@ const failed = (reason: SyncOneFailureReason): SyncOneResult => ({
 export class SyncPersonExecutor {
 	constructor(private readonly dependencies: SyncPersonDependencies) {}
 
-	async execute(selection: SyncOneSelection): Promise<SyncOneResult> {
+	async execute(selection: SyncOneSelection): Promise<SyncPersonExecution> {
+		const evidence: ExecutionEvidence = {
+			persisted: false,
+			providerWideStop: false,
+		};
 		try {
-			return await this.executePerson(selection);
+			const result = await this.executePerson(selection, evidence);
+			return {
+				result,
+				safeToContinue: result.kind === 'skipped' || evidence.persisted,
+				providerWideStop: evidence.providerWideStop,
+			};
 		} catch {
-			return failed('internal');
+			return {
+				result: failed('internal'),
+				safeToContinue: evidence.persisted,
+				providerWideStop: evidence.providerWideStop,
+			};
 		}
 	}
 
 	private async executePerson(
 		selection: SyncOneSelection,
+		evidence: ExecutionEvidence,
 	): Promise<SyncOneResult> {
 		if (!this.dependencies.isSupportedPlatform())
 			return failed('unsupported-platform');
@@ -160,6 +185,7 @@ export class SyncPersonExecutor {
 					policy: {},
 				},
 				'internal',
+				evidence,
 			);
 		}
 
@@ -168,6 +194,7 @@ export class SyncPersonExecutor {
 			return this.finishFailure(
 				{ settings: settings.value, person, attemptAt, policy: {} },
 				'configuration',
+				evidence,
 			);
 
 		if (provider.kind === 'no-request') {
@@ -181,10 +208,14 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'provider',
+				evidence,
 			);
 		}
 
-		if (provider.kind !== 'success')
+		if (provider.kind !== 'success') {
+			const reason = failureReasonForProvider(provider);
+			if (provider.kind === 'provider-failure' && reason === 'provider')
+				evidence.providerWideStop = true;
 			return this.finishFailure(
 				{
 					settings: settings.value,
@@ -192,8 +223,10 @@ export class SyncPersonExecutor {
 					attemptAt,
 					policy: policy.value,
 				},
-				failureReasonForProvider(provider),
+				reason,
+				evidence,
 			);
+		}
 
 		const eligible = filterEligibleActivities(
 			provider.data.activities,
@@ -209,6 +242,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'provider',
+				evidence,
 			);
 
 		let noteMarkdown: string;
@@ -223,6 +257,7 @@ export class SyncPersonExecutor {
 						policy: policy.value,
 					},
 					'note',
+					evidence,
 				);
 			noteMarkdown = read.markdown;
 		} catch {
@@ -234,6 +269,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'note',
+				evidence,
 			);
 		}
 
@@ -251,6 +287,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'note',
+				evidence,
 			);
 
 		const preliminary = reconcileActivities({
@@ -267,6 +304,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				failureReason(preliminary.error),
+				evidence,
 			);
 
 		const preflight = replaceManagedEntries(
@@ -283,6 +321,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'note',
+				evidence,
 			);
 
 		let confirmation: ConfirmedAccounting = {
@@ -350,6 +389,7 @@ export class SyncPersonExecutor {
 						policy: policy.value,
 					},
 					'note',
+					evidence,
 				);
 			}
 			if (processed.kind === 'failed' || !currentConfirmation)
@@ -361,6 +401,7 @@ export class SyncPersonExecutor {
 						policy: policy.value,
 					},
 					'note',
+					evidence,
 				);
 			confirmation = currentConfirmation;
 			noteChanged = processed.kind === 'changed';
@@ -376,6 +417,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				'internal',
+				evidence,
 			);
 		const transition = applySuccessfulSyncTransition(
 			person.syncState,
@@ -395,6 +437,7 @@ export class SyncPersonExecutor {
 					policy: policy.value,
 				},
 				failureReason(transition.error),
+				evidence,
 			);
 
 		const candidate = updateSettings(
@@ -406,12 +449,14 @@ export class SyncPersonExecutor {
 		return this.saveSuccessfulCandidate(
 			candidate,
 			noteChanged ? 'updated' : 'unchanged',
+			evidence,
 		);
 	}
 
 	private async finishFailure(
 		context: AttemptContext,
 		reason: SyncOneFailureReason,
+		evidence: ExecutionEvidence,
 	): Promise<SyncOneResult> {
 		const transition = applyFailedSyncTransition(context.person.syncState, {
 			lastAttemptAt: context.attemptAt,
@@ -424,12 +469,18 @@ export class SyncPersonExecutor {
 			transition.value,
 			context.policy,
 		);
-		return this.saveSuccessfulCandidate(candidate, 'failed', reason);
+		return this.saveSuccessfulCandidate(
+			candidate,
+			'failed',
+			evidence,
+			reason,
+		);
 	}
 
 	private async saveSuccessfulCandidate(
 		candidate: DevRadarSettingsV2,
 		result: 'updated' | 'unchanged' | 'failed',
+		evidence: ExecutionEvidence,
 		reason?: SyncOneFailureReason,
 	): Promise<SyncOneResult> {
 		try {
@@ -438,6 +489,7 @@ export class SyncPersonExecutor {
 					candidate,
 				);
 			if (saved.kind !== 'saved') return failed('persistence');
+			evidence.persisted = true;
 		} catch {
 			return failed('persistence');
 		}

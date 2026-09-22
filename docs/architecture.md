@@ -144,9 +144,10 @@ stale configuration commits and overlapping sync/configuration mutations.
 Malformed persisted configuration and an already-active synchronization are
 run-scoped failures: where possible, they fail before any GitHub request or
 note mutation. They are distinct from a failure while synchronizing one
-validated person, which may permit a future Sync All run to continue, and from
-a provider-wide boundary, which stops further requests and skips people not
-yet attempted.
+validated person, which permits Sync All to continue only after the failure
+and required provider-policy state have been persisted and settings reread as
+ready. A provider-wide boundary stops further requests and skips people not yet
+attempted.
 
 For a permitted Sync One, the application preserves this order:
 
@@ -287,11 +288,13 @@ Provider, validation, retrieval, and pre-write note failures for one person
 preserve that person's existing note and prior successful state. If a note
 write succeeds but a later plugin-state save fails, the changed note remains,
 the operation reports failure, and successful-sync state does not advance;
-later canonical reconciliation can recover. In a future Sync All run,
-completed person updates remain committed, ordinary person failures do not
-roll back other people, and a provider-wide boundary stops further requests so
-unattempted people are `skipped`. No operation uses destructive rollback to
-simulate atomicity across the vault and persisted settings.
+later canonical reconciliation can recover. During Sync All, completed person
+updates remain committed, ordinary person failures permit continuation only
+after persistence succeeds and settings remain ready, and a provider-wide
+boundary stops further requests so remaining people are reported as skipped.
+Settings recovery stops immediately and reports remaining people as
+unattempted. No operation uses destructive rollback to simulate atomicity
+across the vault and persisted settings.
 
 ## Compatibility and MVP slice
 
@@ -336,20 +339,18 @@ The local-first MVP introduces no DevRadar backend, hosted database,
 telemetry or analytics, vault-data transmission, automated publication, or
 additional service beyond the documented GitHub API and Obsidian runtime.
 
-The exact `v0.3.0` settings and Sync One slice is people-first and supports multiple
-followed people, case-insensitively unique effective note paths with each note
+The `v0.3.0` people-first slice supports multiple followed people,
+case-insensitively unique effective note paths with each note
 associated to at most one followed person, tracking starts, follow-time identity
 resolution, and a global configurable selection of only Pushes, Pull requests,
 and Issues. It permits an empty selection and does not implement the other six
 catalogue families.
-It includes complete retrieval, safe managed-note mutation,
+It includes manual sequential Sync All and Sync One, complete retrieval, safe managed-note mutation,
 deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
-The approved Sync All follow-up is tracked in
-[Issue #122](https://github.com/FerdiHS/devradar/issues/122). It consumes the
-same global activity selection and mutation boundary; this issue implements
-the settings and Sync One side only.
+Issue [#122](https://github.com/FerdiHS/devradar/issues/122) implements Sync All
+over the same global activity selection and mutation boundary.
 
 ## Deferred beyond this implementation slice
 
