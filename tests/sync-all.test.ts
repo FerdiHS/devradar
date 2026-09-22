@@ -225,6 +225,50 @@ describe('Sync All application', () => {
 		});
 	});
 
+	it('stops on a global policy boundary that is already active', async () => {
+		const followed = [
+			person('zebra', '20'),
+			person('octocat', '10'),
+			person('owl', '30'),
+		];
+		const executor: Pick<SyncPersonExecutor, 'execute'> = {
+			execute: vi.fn<SyncPersonExecutor['execute']>().mockResolvedValue({
+				result: { kind: 'skipped', reason: 'provider-policy' },
+				safeToContinue: true,
+				providerWideStop: false,
+			}),
+		};
+		const application = new SyncAllApplication({
+			settings: {
+				getSettingsState: () =>
+					ready({
+						...settings(followed),
+						githubRequestPolicy: {
+							rateLimitNotBefore: '2026-09-23T12:30:00.000Z',
+						},
+					}),
+			},
+			executor,
+			mutationGuard: { run: async (operation) => operation() },
+			now: () => '2026-09-23T12:00:00.000Z',
+			isSupportedPlatform: () => true,
+		});
+
+		const result = await application.syncAll();
+
+		expect(executor.execute).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			kind: 'completed',
+			outcomes: [
+				{
+					username: 'zebra',
+					result: { kind: 'skipped', reason: 'provider-policy' },
+				},
+			],
+			stop: { kind: 'provider-policy', skipped: 2 },
+		});
+	});
+
 	it('stops remaining people after a provider-wide failure without a global timestamp', async () => {
 		const followed = [
 			person('zebra', '20'),
