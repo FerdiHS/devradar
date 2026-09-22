@@ -346,18 +346,18 @@ function showSyncAllResult(result: SyncAllResult): void {
 	if (failures.length > 0) parts.push(`Failures: ${failures.join('; ')}.`);
 	if (result.stop?.kind === 'provider-policy' && result.stop.skipped > 0)
 		parts.push(
-			`${result.stop.skipped} remaining people were skipped because a GitHub provider policy is active.`,
+			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because a GitHub provider policy is active.`,
 		);
 	if (
 		result.stop?.kind === 'settings-recovery' &&
 		result.stop.unattempted > 0
 	)
 		parts.push(
-			`${result.stop.unattempted} people were not attempted because settings need recovery.`,
+			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because settings need recovery.`,
 		);
 	if (result.stop?.kind === 'run-failure' && result.stop.unattempted > 0)
 		parts.push(
-			`${result.stop.unattempted} people were not attempted because sync stopped: ${syncAllRunFailureMessage(result.stop.reason)}`,
+			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because sync stopped: ${syncAllRunFailureMessage(result.stop.reason)}`,
 		);
 	new Notice(parts.join(' '));
 }

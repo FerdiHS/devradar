@@ -794,6 +794,28 @@ describe('Sync All command wiring', () => {
 		);
 	});
 
+	it('uses singular wording for one unattempted person', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		vi.spyOn(application, 'syncAll').mockResolvedValue({
+			kind: 'completed',
+			outcomes: [{ username: 'octocat', result: { kind: 'updated' } }],
+			stop: { kind: 'settings-recovery', unattempted: 1 },
+		});
+
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync all finished: 1 updated, 0 unchanged, 0 skipped, 0 failed. 1 person was not attempted because settings need recovery.',
+		);
+	});
+
 	it('reports one aggregate notice with counts, failed usernames, reasons, and recovery remainder', async () => {
 		const plugin = fakePlugin(async () => FOLLOWED);
 		await plugin.onload();
