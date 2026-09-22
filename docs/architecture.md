@@ -136,8 +136,7 @@ core layers otherwise exchange canonical values and structured results.
 One coarse, process-local application mutation boundary serializes all
 state-changing operations: Sync One; follow and re-follow; note-path and
 tracking-start changes; unfollow; plugin-owned settings saves; global
-activity-family selection saves; and global provider-policy updates. A future
-Sync All operation uses this same boundary.
+activity-family selection saves; global provider-policy updates; and Sync All.
 The implementation mechanism is deliberately unspecified, but it must prevent
 stale configuration commits and overlapping sync/configuration mutations.
 
