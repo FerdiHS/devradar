@@ -40,6 +40,7 @@ vi.mock('obsidian', () => ({
 
 import DevRadarPlugin from '../src/main';
 import type { SyncOneResult } from '../src/application/sync-one';
+import type { SyncAllResult } from '../src/application/sync-all';
 import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 
 const EMPTY = {
@@ -70,6 +71,18 @@ function syncOneCommand(plugin: FakePlugin): RegisteredCommand {
 	const command = calls[0]?.[0];
 	if (!command?.callback)
 		throw new Error('Sync One command was not registered');
+	return command;
+}
+
+function syncAllCommand(plugin: FakePlugin): RegisteredCommand {
+	const calls = plugin.addCommand.mock.calls as unknown as Array<
+		[{ id: string; callback?: () => unknown }]
+	>;
+	const command = calls
+		.map(([item]) => item)
+		.find((item) => item.id === 'sync-all-followed-people');
+	if (!command?.callback)
+		throw new Error('Sync All command was not registered');
 	return command;
 }
 
@@ -539,7 +552,7 @@ describe('Sync One command wiring', () => {
 		expect(modalState.instances).toHaveLength(1);
 		expect(syncOne).not.toHaveBeenCalled();
 		expect(obsidianNotice).toHaveBeenCalledWith(
-			'Sync one is already in progress.',
+			'A sync is already in progress.',
 		);
 
 		const picker = pickerInstance();
@@ -644,6 +657,244 @@ describe('Sync One command wiring', () => {
 
 		expect(obsidianNotice).toHaveBeenCalledWith(
 			'Sync one failed unexpectedly.',
+		);
+	});
+});
+
+describe('Sync All command wiring', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		obsidianPlatform.isMobile = false;
+		obsidianPlatform.isMobileApp = false;
+		obsidianNotice.mockReset();
+		modalState.instances.length = 0;
+		vi.stubGlobal('window', { confirm: vi.fn(() => true) });
+	});
+
+	it('registers Sync All while retaining the Sync One command', async () => {
+		const plugin = fakePlugin(async () => EMPTY);
+
+		await plugin.onload();
+
+		expect(syncAllCommand(plugin)).toMatchObject({
+			id: 'sync-all-followed-people',
+		});
+		expect(syncOneCommand(plugin)).toMatchObject({
+			id: 'sync-one-followed-person',
+		});
+	});
+
+	it('keeps the command registered and fails closed on Mobile', async () => {
+		obsidianPlatform.isMobileApp = true;
+		const plugin = fakePlugin(async () => FOLLOWED);
+
+		await plugin.onload();
+		await syncAllCommand(plugin).callback?.();
+
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync all is unavailable on mobile.',
+		);
+	});
+
+	it('reports empty and settings recovery before starting Sync All', async () => {
+		const emptyPlugin = fakePlugin(async () => EMPTY);
+		await emptyPlugin.onload();
+		await syncAllCommand(emptyPlugin).callback?.();
+		expect(obsidianNotice).toHaveBeenLastCalledWith(
+			'No followed people are available to sync.',
+		);
+
+		obsidianNotice.mockClear();
+		const recoveryPlugin = fakePlugin(async () => {
+			throw new Error('settings unavailable');
+		});
+		await recoveryPlugin.onload();
+		await syncAllCommand(recoveryPlugin).callback?.();
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync all is unavailable until settings are ready.',
+		);
+	});
+
+	it('shares pending protection with Sync One while Sync All is running', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		let release!: (result: SyncAllResult) => void;
+		const pending = new Promise<SyncAllResult>((resolve) => {
+			release = resolve;
+		});
+		const syncAll = vi
+			.spyOn(application, 'syncAll')
+			.mockReturnValue(pending);
+
+		await syncAllCommand(plugin).callback?.();
+		await syncOneCommand(plugin).callback?.();
+
+		expect(syncAll).toHaveBeenCalledTimes(1);
+		expect(modalState.instances).toHaveLength(0);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'A sync is already in progress.',
+		);
+
+		release({ kind: 'empty' });
+		await pending;
+		await Promise.resolve();
+	});
+
+	it('does not start a second Sync All while the first is running', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		let release!: (result: SyncAllResult) => void;
+		const pending = new Promise<SyncAllResult>((resolve) => {
+			release = resolve;
+		});
+		const syncAll = vi
+			.spyOn(application, 'syncAll')
+			.mockReturnValue(pending);
+
+		await syncAllCommand(plugin).callback?.();
+		await syncAllCommand(plugin).callback?.();
+
+		expect(syncAll).toHaveBeenCalledTimes(1);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'A sync is already in progress.',
+		);
+
+		release({ kind: 'empty' });
+		await pending;
+		await Promise.resolve();
+	});
+
+	it('does not start Sync All while the Sync One picker is open', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		const syncAll = vi.spyOn(application, 'syncAll');
+
+		await syncOneCommand(plugin).callback?.();
+		await syncAllCommand(plugin).callback?.();
+
+		expect(modalState.instances).toHaveLength(1);
+		expect(syncAll).not.toHaveBeenCalled();
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'A sync is already in progress.',
+		);
+	});
+
+	it('uses singular wording for one unattempted person', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		vi.spyOn(application, 'syncAll').mockResolvedValue({
+			kind: 'completed',
+			outcomes: [{ username: 'octocat', result: { kind: 'updated' } }],
+			stop: { kind: 'settings-recovery', unattempted: 1 },
+		});
+
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync all finished: 1 updated, 0 unchanged, 0 skipped, 0 failed. 1 person was not attempted because settings need recovery.',
+		);
+	});
+
+	it('reports zero unattempted people for terminal stop reasons', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		vi.spyOn(application, 'syncAll')
+			.mockResolvedValueOnce({
+				kind: 'completed',
+				outcomes: [
+					{
+						username: 'octocat',
+						result: { kind: 'failed', reason: 'persistence' },
+					},
+				],
+				stop: { kind: 'settings-recovery', unattempted: 0 },
+			})
+			.mockResolvedValueOnce({
+				kind: 'completed',
+				outcomes: [
+					{
+						username: 'octocat',
+						result: { kind: 'failed', reason: 'internal' },
+					},
+				],
+				stop: {
+					kind: 'run-failure',
+					reason: 'internal',
+					unattempted: 0,
+				},
+			});
+
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenNthCalledWith(
+			1,
+			'Sync all finished: 0 updated, 0 unchanged, 0 skipped, 1 failed. Failures: @octocat (sync state could not be saved). 0 people were not attempted because settings need recovery.',
+		);
+		expect(obsidianNotice).toHaveBeenNthCalledWith(
+			2,
+			'Sync all finished: 0 updated, 0 unchanged, 0 skipped, 1 failed. Failures: @octocat (unexpected error). 0 people were not attempted because sync stopped: Sync all failed unexpectedly.',
+		);
+	});
+
+	it('reports one aggregate notice with counts, failed usernames, reasons, and recovery remainder', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		vi.spyOn(application, 'syncAll').mockResolvedValue({
+			kind: 'completed',
+			outcomes: [
+				{ username: 'octocat', result: { kind: 'updated' } },
+				{
+					username: 'badger',
+					result: { kind: 'failed', reason: 'provider' },
+				},
+				{
+					username: 'owl',
+					result: { kind: 'skipped', reason: 'provider-policy' },
+				},
+			],
+			stop: { kind: 'settings-recovery', unattempted: 2 },
+		});
+
+		await syncAllCommand(plugin).callback?.();
+		await Promise.resolve();
+
+		expect(obsidianNotice).toHaveBeenCalledTimes(1);
+		expect(obsidianNotice).toHaveBeenCalledWith(
+			'Sync all finished: 1 updated, 0 unchanged, 1 skipped, 1 failed. Failures: @badger (GitHub retrieval failed). 2 people were not attempted because settings need recovery.',
 		);
 	});
 });

@@ -17,6 +17,12 @@ import {
 	type SyncOneResult,
 } from './application/sync-one';
 import {
+	SyncAllApplication,
+	type SyncAllFailureReason,
+	type SyncAllResult,
+} from './application/sync-all';
+import { SyncPersonExecutor } from './application/sync-person';
+import {
 	FollowApplication,
 	type FollowDraft,
 	type FollowResult,
@@ -73,7 +79,8 @@ export default class DevRadarPlugin extends Plugin {
 	private settingsApplication!: SettingsApplication;
 	private followApplication!: FollowApplication;
 	private syncOneApplication!: SyncOneApplication;
-	private syncOnePending = false;
+	private syncAllApplication!: SyncAllApplication;
+	private syncPending = false;
 
 	async onload(): Promise<void> {
 		this.persistence = new ObsidianSettingsPersistence(
@@ -113,10 +120,27 @@ export default class DevRadarPlugin extends Plugin {
 			mutationGuard,
 			now: () => new Date().toISOString(),
 		});
-		this.syncOneApplication = new SyncOneApplication({
+		const syncPersonExecutor = new SyncPersonExecutor({
 			settings: this.settingsApplication,
 			github,
 			notes,
+			now: () => new Date().toISOString(),
+			isSupportedPlatform: () => !isMobilePlatform(),
+		});
+		this.syncOneApplication = new SyncOneApplication(
+			{
+				settings: this.settingsApplication,
+				github,
+				notes,
+				mutationGuard,
+				now: () => new Date().toISOString(),
+				isSupportedPlatform: () => !isMobilePlatform(),
+			},
+			syncPersonExecutor,
+		);
+		this.syncAllApplication = new SyncAllApplication({
+			settings: this.settingsApplication,
+			executor: syncPersonExecutor,
 			mutationGuard,
 			now: () => new Date().toISOString(),
 			isSupportedPlatform: () => !isMobilePlatform(),
@@ -125,6 +149,11 @@ export default class DevRadarPlugin extends Plugin {
 			id: 'sync-one-followed-person',
 			name: 'Sync one followed person',
 			callback: () => this.startSyncOne(),
+		});
+		this.addCommand({
+			id: 'sync-all-followed-people',
+			name: 'Sync all followed people',
+			callback: () => this.startSyncAll(),
 		});
 		this.addSettingTab(new DevRadarSettingTab(this.app, this, this));
 	}
@@ -160,8 +189,8 @@ export default class DevRadarPlugin extends Plugin {
 	}
 
 	private startSyncOne(): void {
-		if (this.syncOnePending) {
-			new Notice('Sync one is already in progress.');
+		if (this.syncPending) {
+			new Notice('A sync is already in progress.');
 			return;
 		}
 		if (isMobilePlatform()) {
@@ -178,7 +207,7 @@ export default class DevRadarPlugin extends Plugin {
 			return;
 		}
 
-		this.syncOnePending = true;
+		this.syncPending = true;
 		const items = state.settings.followedPeople.map((person) => ({
 			username: person.username,
 			githubAccountId: person.githubAccountId,
@@ -193,11 +222,11 @@ export default class DevRadarPlugin extends Plugin {
 					});
 				},
 				() => {
-					this.syncOnePending = false;
+					this.syncPending = false;
 				},
 			).open();
 		} catch {
-			this.syncOnePending = false;
+			this.syncPending = false;
 			new Notice('Sync one failed unexpectedly.');
 		}
 	}
@@ -211,7 +240,40 @@ export default class DevRadarPlugin extends Plugin {
 		} catch {
 			new Notice('Sync one failed unexpectedly.');
 		} finally {
-			this.syncOnePending = false;
+			this.syncPending = false;
+		}
+	}
+
+	private startSyncAll(): void {
+		if (this.syncPending) {
+			new Notice('A sync is already in progress.');
+			return;
+		}
+		if (isMobilePlatform()) {
+			new Notice('Sync all is unavailable on mobile.');
+			return;
+		}
+		const state = this.settingsApplication.getSettingsState();
+		if (state.kind !== 'ready') {
+			new Notice('Sync all is unavailable until settings are ready.');
+			return;
+		}
+		if (state.settings.followedPeople.length === 0) {
+			new Notice('No followed people are available to sync.');
+			return;
+		}
+
+		this.syncPending = true;
+		void this.runSyncAll();
+	}
+
+	private async runSyncAll(): Promise<void> {
+		try {
+			showSyncAllResult(await this.syncAllApplication.syncAll());
+		} catch {
+			new Notice('Sync all failed unexpectedly.');
+		} finally {
+			this.syncPending = false;
 		}
 	}
 }
@@ -245,4 +307,79 @@ function showSyncOneResult(result: SyncOneResult): void {
 		internal: 'Sync one failed unexpectedly.',
 	};
 	new Notice(messages[result.reason]);
+}
+
+function showSyncAllResult(result: SyncAllResult): void {
+	if (result.kind === 'empty') {
+		new Notice('No followed people are available to sync.');
+		return;
+	}
+	if (result.kind === 'failed') {
+		new Notice(syncAllRunFailureMessage(result.reason));
+		return;
+	}
+
+	const counts = {
+		updated: 0,
+		unchanged: 0,
+		skipped:
+			result.stop?.kind === 'provider-policy' ? result.stop.skipped : 0,
+		failed: 0,
+	};
+	const failures: string[] = [];
+	for (const outcome of result.outcomes) {
+		if (outcome.result.kind === 'failed') {
+			counts.failed += 1;
+			failures.push(
+				`@${outcome.username} (${syncFailureDescription(outcome.result.reason)})`,
+			);
+		} else if (outcome.result.kind === 'skipped') {
+			counts.skipped += 1;
+		} else {
+			counts[outcome.result.kind] += 1;
+		}
+	}
+
+	const parts = [
+		`Sync all finished: ${counts.updated} updated, ${counts.unchanged} unchanged, ${counts.skipped} skipped, ${counts.failed} failed.`,
+	];
+	if (failures.length > 0) parts.push(`Failures: ${failures.join('; ')}.`);
+	if (result.stop?.kind === 'provider-policy' && result.stop.skipped > 0)
+		parts.push(
+			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because a GitHub provider policy is active.`,
+		);
+	if (result.stop?.kind === 'settings-recovery')
+		parts.push(
+			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because settings need recovery.`,
+		);
+	if (result.stop?.kind === 'run-failure')
+		parts.push(
+			`${result.stop.unattempted} ${result.stop.unattempted === 1 ? 'person was' : 'people were'} not attempted because sync stopped: ${syncAllRunFailureMessage(result.stop.reason)}`,
+		);
+	new Notice(parts.join(' '));
+}
+
+function syncAllRunFailureMessage(reason: SyncAllFailureReason): string {
+	const messages: Record<SyncAllFailureReason, string> = {
+		'unsupported-platform': 'Sync all is unavailable on mobile.',
+		'settings-not-ready':
+			'Sync all is unavailable until settings are ready.',
+		configuration: 'Sync all could not use the current configuration.',
+		internal: 'Sync all failed unexpectedly.',
+	};
+	return messages[reason];
+}
+
+function syncFailureDescription(reason: SyncOneFailureReason): string {
+	const descriptions: Record<SyncOneFailureReason, string> = {
+		'settings-not-ready': 'settings are not ready',
+		'unsupported-platform': 'unavailable on mobile',
+		'invalid-selection': 'person selection was invalid',
+		configuration: 'configuration was invalid',
+		provider: 'GitHub retrieval failed',
+		note: 'the associated note could not be updated',
+		persistence: 'sync state could not be saved',
+		internal: 'unexpected error',
+	};
+	return descriptions[reason];
 }

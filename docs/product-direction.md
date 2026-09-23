@@ -38,9 +38,12 @@ The MVP workflow is:
    Pushes, Pull requests, and Issues; any subset, including none, is valid.
 5. Manually run either **Sync all followed people** or **Sync one person**.
    Issue [#121](https://github.com/FerdiHS/devradar/issues/121) applies the
-   global activity selection to Sync One; follow-up Issue
-   [#122](https://github.com/FerdiHS/devradar/issues/122) adds the sequential
-   Sync All implementation using the same selection.
+   global activity selection to Sync One, and Issue
+   [#122](https://github.com/FerdiHS/devradar/issues/122) adds sequential
+   Sync All using the same selection. Sync All continues after an ordinary
+   person failure only when its state and required policy observations were
+   persisted and settings remain ready; provider-wide policy stops mark
+   remaining people skipped, while settings recovery marks them unattempted.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
@@ -175,10 +178,9 @@ Obsidian Desktop and Mobile are both MVP and product-support requirements. For t
 ## MVP success criteria
 
 The complete people-first MVP is successful when it reliably satisfies the
-following criteria. The `v0.3.0` implementation slice is narrower: it uses the
-configurable Pushes, Pull requests, and Issues subset and implements the Sync
-One part of this contract; follow-up Issue
-[#122](https://github.com/FerdiHS/devradar/issues/122) adds Sync All.
+following criteria. The `v0.3.0` implementation slice uses the configurable
+Pushes, Pull requests, and Issues subset and implements the Sync One and
+sequential Sync All parts of this contract.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
@@ -193,7 +195,9 @@ One part of this contract; follow-up Issue
   `unchanged`;
 - preserves user-authored content;
 - handles invalid users, unavailable accounts, API failures, malformed settings, and rate limits safely;
-- continues Sync All after individual failures and reports partial success;
+- continues after an ordinary Sync All person failure only when its required
+  state has been persisted and settings remain ready; stops on settings
+  recovery and reports provider-policy skips and partial results safely;
 - prevents overlapping synchronisation;
 - supports the intended Obsidian Desktop and Mobile product targets, subject to each capability's applicable runtime and compatibility contract;
 - passes repository quality checks;
