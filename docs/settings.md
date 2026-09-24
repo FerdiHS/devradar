@@ -344,12 +344,19 @@ its application operation rereads authoritative state inside the shared
 mutation boundary. Custom rows preserve these behaviors without introducing a
 second editable settings source or a direct persistence path.
 
-| Current interaction                                   | Declarative mapping for 1.13+                                                              | Required invariant                                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Recovery diagnostics, Retry, and conditional Reset    | Named informational/render rows and action rows, refreshed from application state.         | Keep recovery fail-closed; expose Reset only for ordinary malformed data and route actions through the host. |
-| Follow username, note path, and tracking-start drafts | Rendered inputs and a Follow action; show date/time controls only for date-based tracking. | Keep draft validation and asynchronous status local to the tab; submit only through `host.follow()`.         |
-| Pending/error state and followed-person display       | Rendered status and read-only rows refreshed after host operations.                        | Never treat draft or recovery state as authoritative settings.                                               |
-| Global activity-family selection                      | Rendered checkboxes plus an explicit Save action and pending/error feedback.               | Keep selection drafts local and call `host.saveActivityFamilies()` only on Save.                             |
+| Current interaction                                   | Declarative mapping for 1.13+                                                                   | Required invariant                                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Recovery diagnostics, Retry, and conditional Reset    | Rendered diagnostics and render-owned Retry/Reset controls, refreshed from application state.   | Keep recovery fail-closed; expose Reset only for ordinary malformed data and route actions through the host. |
+| Follow username, note path, and tracking-start drafts | Rendered inputs and a render-owned Follow control; show date/time only for date-based tracking. | Keep draft validation and asynchronous status local to the tab; submit only through `host.follow()`.         |
+| Pending/error state and followed-person display       | Rendered status and read-only rows refreshed after host operations.                             | Never treat draft or recovery state as authoritative settings.                                               |
+| Global activity-family selection                      | Rendered checkboxes and a render-owned Save control with pending/error feedback.                | Keep selection drafts local and call `host.saveActivityFamilies()` only on Save.                             |
+
+Obsidian's [1.13.6 changelog](https://obsidian.md/changelog/2026-08-10-desktop-v1.13.6/)
+records `SettingDefinitionBase#disabled` as added in 1.13.6. To preserve
+pending-state behavior across the full 1.13+ range, implement pending-sensitive
+controls as render rows and apply their disabled state imperatively rather than
+relying on that base-level predicate. Retain application-side pending guards.
+This does not change DevRadar's minimum supported Obsidian version.
 
 These mappings intentionally preserve DevRadar's current workflows despite
 Obsidian's guidance to save ordinary settings on change and use a modal for
