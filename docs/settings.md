@@ -365,6 +365,10 @@ The implementation should call `update()` when asynchronous results change the
 definitions or rendered content, and `refreshDomState()` when only
 `visible`/`disabled` predicates need reevaluation. The below-1.13 fallback
 continues to rebuild its imperative content through `display()`.
+Keep stable configuration and action labels searchable. Mark per-person
+definitions `searchable: false`; render transient status, error and recovery
+details, usernames, and note paths as row content rather than definition names
+or descriptions so runtime data does not enter the search index.
 
 This recommendation gains settings-search support only on Obsidian 1.13.0+;
 versions 1.4.4 through 1.12.x keep the current imperative UI and do not gain
