@@ -311,7 +311,7 @@ clearing the boundary.
 
 ## Settings UI API compatibility decision
 
-Evaluated 2026-09-24 against the [Obsidian Settings API documentation](https://docs.obsidian.md/plugins/user-interface/settings)
+Evaluated 2026-09-24 against the [Obsidian Settings API documentation](https://github.com/obsidianmd/obsidian-developer-docs/blob/main/en/Plugins/User%20interface/Settings.md)
 and its [migration guide](https://docs.obsidian.md/plugins/guides/migrate-declarative-settings).
 These official docs establish that `getSettingDefinitions()` and native
 settings-search indexing require Obsidian 1.13.0 or later. They document
