@@ -308,3 +308,68 @@ The implementation test matrix must cover a rate-limit boundary observed while
 following one person blocking Sync One for another person, identity lookup
 consulting the same boundary before an association exists, and unfollowing not
 clearing the boundary.
+
+## Settings UI API compatibility decision
+
+Evaluated 2026-09-24 against the [Obsidian Settings API documentation](https://docs.obsidian.md/plugins/user-interface/settings)
+and its [migration guide](https://docs.obsidian.md/plugins/guides/migrate-declarative-settings).
+These official docs establish that `getSettingDefinitions()` and native
+settings-search indexing require Obsidian 1.13.0 or later. They document
+`PluginSettingTab.display()` as a supported compatibility path for versions
+below 1.13.0 and as a supported fallback on 1.13+. The documented dual-support
+behavior calls `getSettingDefinitions()` and skips `display()` when the
+definitions are non-empty on 1.13+, while versions below 1.13 continue to call
+`display()`.
+
+| Strategy                                         | Compatibility and search                                                                                              | Fit for DevRadar                                                                                                                                          | Maintenance cost                                                                                                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keep imperative `display()`                      | Retains the 1.4.4 floor; settings do not appear in native settings search on 1.13+.                                   | Preserves every current interaction and the existing application boundary.                                                                                | Lowest; one UI implementation.                                                                                                                                                |
+| Add declarative definitions and keep `display()` | Retains the 1.4.4 floor; definitions are available to settings search on 1.13+, while older versions use `display()`. | Supported dual path. Declarative `render` and `action` rows can present custom interactions while dispatching only through the existing application host. | Highest of the two floor-preserving choices because both API surfaces must remain behaviorally aligned. Shared rendering helpers can reduce, but not remove, that obligation. |
+| Migrate fully to declarative definitions         | Requires raising the floor to at least 1.13.0; settings become searchable on supported versions.                      | Custom `render` and `action` rows can represent DevRadar's interactions, but a full migration still must preserve application-owned mutations.            | One UI implementation after migration, with a compatibility and release change for existing users.                                                                            |
+
+**Decision: adopt dual support in a separate implementation issue, while keeping
+`minAppVersion: 1.4.4`.** Obsidian explicitly documents the dual-support path,
+so the newer search capability can be offered without dropping older supported
+versions. The maintenance cost is real, but it is bounded to the settings UI;
+the existing floor is the default compatibility constraint and a separate
+implementation issue can require parity between the two presentations. The
+current issue does not implement that migration.
+
+For the declarative surface, use custom `render` and `action` definitions for
+DevRadar-managed interactions rather than default-bound `control` rows. The
+default control path writes to `plugin.settings` and calls `saveData()` on each
+change. Although Obsidian documents custom control getters and setters, the
+activity-family UI intentionally keeps local drafts and saves explicitly, and
+its application operation rereads authoritative state inside the shared
+mutation boundary. Custom rows preserve these behaviors without introducing a
+second editable settings source or a direct persistence path.
+
+| Current interaction                                   | Declarative mapping for 1.13+                                                              | Required invariant                                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Recovery diagnostics, Retry, and conditional Reset    | Named informational/render rows and action rows, refreshed from application state.         | Keep recovery fail-closed; expose Reset only for ordinary malformed data and route actions through the host. |
+| Follow username, note path, and tracking-start drafts | Rendered inputs and a Follow action; show date/time controls only for date-based tracking. | Keep draft validation and asynchronous status local to the tab; submit only through `host.follow()`.         |
+| Pending/error state and followed-person display       | Rendered status and read-only rows refreshed after host operations.                        | Never treat draft or recovery state as authoritative settings.                                               |
+| Global activity-family selection                      | Rendered checkboxes plus an explicit Save action and pending/error feedback.               | Keep selection drafts local and call `host.saveActivityFamilies()` only on Save.                             |
+
+In both surfaces, settings authority remains in the existing validated
+application and persistence layers. Writes continue through the serialized
+mutation boundary; strict persisted-settings validation still precedes a
+ready snapshot; persistence must succeed before a new snapshot becomes
+authoritative. Retry/Reset, Follow, and activity-filter semantics remain
+unchanged. The official docs also state that a non-empty declarative
+definition set bypasses `display()` on 1.13+, and that imperative controls
+inside an imperative settings page are not indexed. Therefore, every
+search-relevant setting on 1.13+ must have an appropriate declarative
+definition; a custom render row remains the escape hatch for its dynamic UI.
+
+This recommendation gains settings-search support only on Obsidian 1.13.0+;
+versions 1.4.4 through 1.12.x keep the current imperative UI and do not gain
+native settings search. The documented API and compatibility behavior answer
+the investigation's runtime-contract questions, so no separate runtime probe
+was needed. The minimum version and release metadata remain unchanged.
+
+**Follow-up:** create a separate implementation issue for dual support,
+including search coverage on 1.13+, imperative fallback coverage below 1.13,
+and preservation of the application mutation and recovery contracts. A
+compatibility-floor or release-metadata issue is not required by this decision;
+any later proposal to raise the floor needs explicit follow-up and approval.
