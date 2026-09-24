@@ -351,6 +351,12 @@ second editable settings source or a direct persistence path.
 | Pending/error state and followed-person display       | Rendered status and read-only rows refreshed after host operations.                        | Never treat draft or recovery state as authoritative settings.                                               |
 | Global activity-family selection                      | Rendered checkboxes plus an explicit Save action and pending/error feedback.               | Keep selection drafts local and call `host.saveActivityFamilies()` only on Save.                             |
 
+These mappings intentionally preserve DevRadar's current workflows despite
+Obsidian's guidance to save ordinary settings on change and use a modal for
+multi-field forms. Declarative adoption must retain the explicit activity-
+family Save action and the in-tab Follow draft/action; changing either is a
+separate product and UX decision.
+
 In both surfaces, settings authority remains in the existing validated
 application and persistence layers. Writes continue through the serialized
 mutation boundary; strict persisted-settings validation still precedes a
