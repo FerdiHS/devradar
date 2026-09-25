@@ -193,13 +193,29 @@ describe('Sync One application', () => {
 		expect(await executor.execute({ githubAccountId: '583231' })).toEqual({
 			result: { kind: 'failed', reason: 'provider' },
 			safeToContinue: true,
-			providerWideStop: true,
+			providerWideStop: 'incompatibility',
 		});
 
 		const application = new SyncOneApplication(fakes.deps, executor);
 		expect(
 			await application.syncOne({ githubAccountId: '583231' }),
 		).toEqual({ kind: 'failed', reason: 'provider' });
+	});
+
+	it('preserves the provider-wide rate-limit cause for Sync All', async () => {
+		const fakes = dependencies(settings(), {
+			kind: 'provider-failure',
+			requestAttempted: false,
+			failure: { category: 'rate-limit' },
+			policy: {},
+		});
+		const executor = new SyncPersonExecutor(fakes.deps);
+
+		expect(await executor.execute({ githubAccountId: '583231' })).toEqual({
+			result: { kind: 'failed', reason: 'provider' },
+			safeToContinue: true,
+			providerWideStop: 'rate-limit',
+		});
 	});
 
 	it('delegates once to the shared executor under one guard acquisition', async () => {

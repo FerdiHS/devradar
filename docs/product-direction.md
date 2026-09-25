@@ -42,8 +42,9 @@ The MVP workflow is:
    [#122](https://github.com/FerdiHS/devradar/issues/122) adds sequential
    Sync All using the same selection. Sync All continues after an ordinary
    person failure only when its state and required policy observations were
-   persisted and settings remain ready; provider-wide policy stops mark
-   remaining people skipped, while settings recovery marks them unattempted.
+   persisted and settings remain ready; provider-wide stops mark remaining
+   people skipped with the cause reported accurately, while settings recovery
+   marks them unattempted.
 6. Retrieve, normalise, filter, sort, and deduplicate supported activity.
 7. Write new activity into a DevRadar-managed section of the selected note.
 8. Report updates, unchanged people, rate-limit information where relevant, and partial failures.
