@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({
 	Plugin: class {},
+	requireApiVersion: () => true,
 	PluginSettingTab: class {
 		containerEl!: FakeElement;
 		constructor(
 			readonly app: unknown,
 			readonly plugin: unknown,
 		) {}
+		update(): void {}
+		refreshDomState(): void {}
 	},
 }));
 
@@ -34,6 +37,7 @@ class FakeElement {
 	required = false;
 	checked = false;
 	validity = { badInput: false };
+	attributes = new Map<string, string>();
 	private listeners = new Map<string, () => void>();
 
 	empty(): void {
@@ -52,6 +56,10 @@ class FakeElement {
 		this.listeners.set(event, listener);
 	}
 
+	setAttribute(name: string, value: string): void {
+		this.attributes.set(name, value);
+	}
+
 	click(): void {
 		this.listeners.get('click')?.();
 	}
@@ -63,6 +71,51 @@ class FakeElement {
 
 function allElements(root: FakeElement): FakeElement[] {
 	return root.children.flatMap((child) => [child, ...allElements(child)]);
+}
+
+type TestSettingDefinition = {
+	name?: string;
+	desc?: string;
+	description?: string;
+	aliases?: string[];
+	searchable?: boolean;
+	heading?: string;
+	items?: TestSettingDefinition[];
+	control?: unknown;
+	action?: unknown;
+	render?: (setting: { controlEl: FakeElement }) => void;
+	visible?: () => boolean;
+};
+
+function getSettingDefinitions(
+	tab: DevRadarSettingTab,
+): TestSettingDefinition[] {
+	return (
+		tab as unknown as {
+			getSettingDefinitions(): TestSettingDefinition[];
+		}
+	).getSettingDefinitions();
+}
+
+function flattenDefinitions(
+	definitions: TestSettingDefinition[],
+): TestSettingDefinition[] {
+	return definitions.flatMap((definition) =>
+		definition.items ? flattenDefinitions(definition.items) : [definition],
+	);
+}
+
+function renderedDefinition(
+	tab: DevRadarSettingTab,
+	name: string,
+	definitions = flattenDefinitions(getSettingDefinitions(tab)),
+): FakeElement {
+	const definition = definitions.find((item) => item.name === name);
+	if (!definition?.render)
+		throw new Error(`expected rendered setting definition: ${name}`);
+	const controlEl = new FakeElement();
+	definition.render({ controlEl });
+	return controlEl;
 }
 
 const readyEmpty: SettingsRuntimeState = {
@@ -151,6 +204,307 @@ const ordinaryMalformed = {
 		},
 	},
 };
+
+describe('DevRadarSettingTab declarative settings UI', () => {
+	it('exposes stable searchable labels without putting runtime values in definition metadata', () => {
+		const privateUsername = 'private-user-issue-133';
+		const privateNotePath = 'Private/issue-133-notes.md';
+		const privateStatus = 'Runtime status for issue-133';
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: privateUsername,
+						githubAccountId: '42',
+						notePath: privateNotePath,
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		Object.assign(view.tab, {
+			followStatus: privateStatus,
+			activitySaveStatus: privateStatus,
+		});
+
+		const definitions = getSettingDefinitions(view.tab);
+		const rows = flattenDefinitions(definitions);
+		const names = rows.map((definition) => definition.name);
+		const metadata = definitions
+			.flatMap((definition) => [
+				definition.name,
+				definition.heading,
+				definition.desc,
+				definition.description,
+				...(definition.aliases ?? []),
+			])
+			.concat(
+				rows.flatMap((definition) => [
+					definition.name,
+					definition.heading,
+					definition.desc,
+					definition.description,
+					...(definition.aliases ?? []),
+				]),
+			)
+			.filter((value): value is string => value !== undefined)
+			.join('\n');
+
+		expect(definitions.length).toBeGreaterThan(0);
+		expect(names).toEqual(
+			expect.arrayContaining([
+				'Pushes',
+				'Pull requests',
+				'Issues',
+				'Save activity filters',
+				'GitHub username',
+				'Note destination',
+				'Tracking start',
+				'Follow',
+				'Followed people',
+				'Follow status',
+				'Activity filter status',
+			]),
+		);
+		expect(
+			rows.find((definition) => definition.name === 'Followed people')
+				?.searchable,
+		).toBe(false);
+		expect(
+			rows.find((definition) => definition.name === 'Follow status')
+				?.searchable,
+		).toBe(false);
+		expect(
+			rows.find(
+				(definition) => definition.name === 'Activity filter status',
+			)?.searchable,
+		).toBe(false);
+		expect(metadata).not.toContain(privateUsername);
+		expect(metadata).not.toContain(privateNotePath);
+		expect(metadata).not.toContain(privateStatus);
+		expect(
+			rows.every((definition) => definition.control === undefined),
+		).toBe(true);
+	});
+
+	it('renders fail-closed recovery actions through the application host', () => {
+		const ordinary = tabFor(ordinaryMalformed);
+		const ordinaryRows = flattenDefinitions(
+			getSettingDefinitions(ordinary.tab),
+		);
+		const retry = renderedDefinition(ordinary.tab, 'Retry', ordinaryRows);
+		const reset = renderedDefinition(ordinary.tab, 'Reset', ordinaryRows);
+		retry.children.find((element) => element.tag === 'button')?.click();
+		reset.children.find((element) => element.tag === 'button')?.click();
+
+		expect(ordinary.retrySettingsLoad).toHaveBeenCalledTimes(1);
+		expect(ordinary.resetSettings).toHaveBeenCalledTimes(1);
+
+		const future = tabFor({
+			kind: 'recovery',
+			diagnostic: {
+				kind: 'validation',
+				classification: 'future-schema',
+				error: {
+					code: 'unexpected-field',
+					path: '/version',
+					message: 'future schema',
+				},
+			},
+		});
+		const futureRows = flattenDefinitions(
+			getSettingDefinitions(future.tab),
+		);
+		expect(futureRows.map((definition) => definition.name)).not.toContain(
+			'Reset',
+		);
+		const unsupported = tabFor({
+			kind: 'recovery',
+			diagnostic: { kind: 'unsupported-platform' },
+		});
+		expect(
+			flattenDefinitions(getSettingDefinitions(unsupported.tab)).map(
+				(definition) => definition.name,
+			),
+		).not.toContain('Retry');
+	});
+
+	it('keeps Follow inputs local and submits the same date-based draft', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'UTC';
+		try {
+			const view = tabFor(readyEmpty);
+			const update = vi.fn();
+			const refreshDomState = vi.fn();
+			Object.assign(view.tab, { update, refreshDomState });
+			const rows = flattenDefinitions(getSettingDefinitions(view.tab));
+			const username = allElements(
+				renderedDefinition(view.tab, 'GitHub username', rows),
+			).find((element) => element.tag === 'input');
+			const notePath = allElements(
+				renderedDefinition(view.tab, 'Note destination', rows),
+			).find((element) => element.tag === 'input');
+			const trackingStart = allElements(
+				renderedDefinition(view.tab, 'Tracking start', rows),
+			).find((element) => element.tag === 'select');
+			if (!username || !notePath || !trackingStart)
+				throw new Error('expected rendered Follow inputs');
+
+			username.value = 'octocat';
+			username.emit('input');
+			notePath.value = 'People/octocat.md';
+			notePath.emit('input');
+			trackingStart.value = 'from-date';
+			trackingStart.emit('change');
+
+			expect(view.follow).not.toHaveBeenCalled();
+			expect(refreshDomState).toHaveBeenCalledTimes(1);
+			expect(
+				rows
+					.find((definition) => definition.name === 'Start date')
+					?.visible?.(),
+			).toBe(true);
+			expect(
+				rows
+					.find((definition) => definition.name === 'Start time')
+					?.visible?.(),
+			).toBe(true);
+
+			const date = allElements(
+				renderedDefinition(view.tab, 'Start date', rows),
+			).find((element) => element.type === 'date');
+			const time = allElements(
+				renderedDefinition(view.tab, 'Start time', rows),
+			).find((element) => element.type === 'time');
+			if (!date || !time)
+				throw new Error('expected rendered date and time inputs');
+			date.value = '2026-08-01';
+			date.emit('input');
+			time.value = '12:34';
+			time.emit('input');
+
+			const follow = allElements(
+				renderedDefinition(view.tab, 'Follow', rows),
+			).find((element) => element.tag === 'button');
+			if (!follow) throw new Error('expected rendered Follow button');
+			follow.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.follow).toHaveBeenCalledWith({
+				username: 'octocat',
+				notePath: 'People/octocat.md',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T12:34:00.000Z',
+				},
+			});
+			expect(update).toHaveBeenCalled();
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
+	it('keeps activity-family edits local until explicit Save and accepts an empty selection', async () => {
+		const view = tabFor(readyEmpty);
+		const update = vi.fn();
+		Object.assign(view.tab, { update });
+		const rows = flattenDefinitions(getSettingDefinitions(view.tab));
+
+		for (const family of ['Pushes', 'Pull requests', 'Issues']) {
+			const checkbox = allElements(
+				renderedDefinition(view.tab, family, rows),
+			).find((element) => element.type === 'checkbox');
+			if (!checkbox) throw new Error(`expected ${family} checkbox`);
+			checkbox.checked = false;
+			checkbox.emit('change');
+		}
+		expect(view.saveActivityFamilies).not.toHaveBeenCalled();
+
+		const save = allElements(
+			renderedDefinition(view.tab, 'Save activity filters', rows),
+		).find((element) => element.tag === 'button');
+		if (!save) throw new Error('expected activity filter Save button');
+		save.click();
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.saveActivityFamilies).toHaveBeenCalledTimes(1);
+		expect(view.saveActivityFamilies).toHaveBeenCalledWith([]);
+		expect(update).toHaveBeenCalled();
+	});
+
+	it('disables and guards Follow and activity actions while pending', async () => {
+		let releaseSave!: (
+			result: Awaited<
+				ReturnType<SettingsTabHost['saveActivityFamilies']>
+			>,
+		) => void;
+		const pendingSave = new Promise<
+			Awaited<ReturnType<SettingsTabHost['saveActivityFamilies']>>
+		>((resolve) => {
+			releaseSave = resolve;
+		});
+		const view = tabFor(readyEmpty);
+		view.saveActivityFamilies.mockImplementation(() => pendingSave);
+		const update = vi.fn();
+		Object.assign(view.tab, { update });
+		const rows = flattenDefinitions(getSettingDefinitions(view.tab));
+		const username = allElements(
+			renderedDefinition(view.tab, 'GitHub username', rows),
+		).find((element) => element.tag === 'input');
+		const notePath = allElements(
+			renderedDefinition(view.tab, 'Note destination', rows),
+		).find((element) => element.tag === 'input');
+		if (!username || !notePath)
+			throw new Error('expected rendered Follow inputs');
+		username.value = 'octocat';
+		username.emit('input');
+		notePath.value = 'People/octocat.md';
+		notePath.emit('input');
+		const follow = allElements(
+			renderedDefinition(view.tab, 'Follow', rows),
+		).find((element) => element.tag === 'button');
+		if (!follow) throw new Error('expected rendered Follow button');
+		follow.click();
+		follow.click();
+		expect(view.follow).toHaveBeenCalledTimes(1);
+		expect(follow.disabled).toBe(true);
+
+		const save = allElements(
+			renderedDefinition(view.tab, 'Save activity filters', rows),
+		).find((element) => element.tag === 'button');
+		if (!save) throw new Error('expected activity filter Save button');
+		const checkbox = allElements(
+			renderedDefinition(view.tab, 'Pushes', rows),
+		).find((element) => element.type === 'checkbox');
+		if (!checkbox) throw new Error('expected activity checkbox');
+		checkbox.checked = false;
+		checkbox.emit('change');
+		save.click();
+		save.click();
+		expect(view.saveActivityFamilies).toHaveBeenCalledTimes(1);
+		expect(save.disabled).toBe(true);
+		expect(
+			allElements(
+				renderedDefinition(
+					view.tab,
+					'Pushes',
+					flattenDefinitions(getSettingDefinitions(view.tab)),
+				),
+			).find((element) => element.type === 'checkbox')?.disabled,
+		).toBe(true);
+
+		releaseSave({ kind: 'saved', settings: createEmptySettingsV2() });
+		await pendingSave;
+	});
+});
 
 describe('DevRadarSettingTab recovery UI', () => {
 	it('always shows Retry but only offers Reset for ordinary malformed data', () => {

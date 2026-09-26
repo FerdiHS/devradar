@@ -327,13 +327,13 @@ definitions are non-empty on 1.13+, while versions below 1.13 continue to call
 | Add declarative definitions and keep `display()` | Retains the 1.4.4 floor; definitions are available to settings search on 1.13+, while older versions use `display()`. | Supported dual path. Declarative `render` and `action` rows can present custom interactions while dispatching only through the existing application host. | Highest of the two floor-preserving choices because both API surfaces must remain behaviorally aligned. Shared rendering helpers can reduce, but not remove, that obligation. |
 | Migrate fully to declarative definitions         | Requires raising the floor to at least 1.13.0; settings become searchable on supported versions.                      | Custom `render` and `action` rows can represent DevRadar's interactions, but a full migration still must preserve application-owned mutations.            | One UI implementation after migration, with a compatibility and release change for existing users.                                                                            |
 
-**Decision: adopt dual support in a separate implementation issue, while keeping
+**Decision: adopt dual support through [Issue #133](https://github.com/FerdiHS/devradar/issues/133), while keeping
 `minAppVersion: 1.4.4`.** Obsidian explicitly documents the dual-support path,
 so the newer search capability can be offered without dropping older supported
 versions. The maintenance cost is real, but it is bounded to the settings UI;
-the existing floor is the default compatibility constraint and a separate
-implementation issue can require parity between the two presentations. The
-current issue does not implement that migration.
+both presentations must preserve the same application and recovery contracts.
+Issue #133 implements that migration without changing the compatibility floor
+or release metadata.
 
 For the declarative surface, use custom `render` and `action` definitions for
 DevRadar-managed interactions rather than default-bound `control` rows. The
@@ -383,14 +383,21 @@ definitions `searchable: false`; render transient status, error and recovery
 details, usernames, and note paths as row content rather than definition names
 or descriptions so runtime data does not enter the search index.
 
-This recommendation gains settings-search support only on Obsidian 1.13.0+;
-versions 1.4.4 through 1.12.x keep the current imperative UI and do not gain
-native settings search. The documented API and compatibility behavior answer
-the investigation's runtime-contract questions, so no separate runtime probe
-was needed. The minimum version and release metadata remain unchanged.
+This implementation gains settings-search support only on Obsidian 1.13.0+;
+versions 1.4.4 through 1.12.x keep the imperative UI and do not gain native
+settings search. The minimum version and release metadata remain unchanged.
 
-**Follow-up:** create a separate implementation issue for dual support,
-including search coverage on 1.13+, imperative fallback coverage below 1.13,
-and preservation of the application mutation and recovery contracts. A
-compatibility-floor or release-metadata issue is not required by this decision;
-any later proposal to raise the floor needs explicit follow-up and approval.
+### Issue #133 Desktop declarative-settings smoke evidence
+
+On 2026-09-26, the production build was enabled in a disposable macOS vault
+running Obsidian Desktop 1.13.7. Searching settings for `Pushes` returned the
+DevRadar settings section and its `Pushes` row in Obsidian's accessibility
+state, confirming that the declarative label is indexed. No GitHub request was
+made. The smoke did not exercise control interaction; focused UI tests cover
+the rendered callbacks and the legacy `display()` behavior.
+
+Issue #133 owns the dual-support implementation, including 1.13+ search
+coverage, the below-1.13 imperative fallback, and preservation of application
+mutation and recovery contracts. A compatibility-floor or release-metadata
+issue is not required by this decision; any later proposal to raise the floor
+needs explicit follow-up and approval.
