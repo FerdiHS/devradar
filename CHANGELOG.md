@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/FerdiHS/devradar/compare/0.2.0...0.3.0) (2026-09-26)
+
+
+### Features
+
+* add declarative settings with legacy fallback ([#135](https://github.com/FerdiHS/devradar/issues/135)) ([96617b6](https://github.com/FerdiHS/devradar/commit/96617b6307110b597571e0ec7ed9b3c1068c41ce))
+* **settings:** add global activity-family filters ([#123](https://github.com/FerdiHS/devradar/issues/123)) ([71de4bb](https://github.com/FerdiHS/devradar/commit/71de4bb7ce0b0366e23c02e64ee01e35f2aae957))
+* **sync:** add sequential Sync All and aggregate result feedback ([#126](https://github.com/FerdiHS/devradar/issues/126)) ([ef424b3](https://github.com/FerdiHS/devradar/commit/ef424b3cd6cb9f7ec7b2464667392b14bdc42d80))
+
+
+### Bug Fixes
+
+* **sync:** report provider-wide stops accurately ([#134](https://github.com/FerdiHS/devradar/issues/134)) ([96a1e3f](https://github.com/FerdiHS/devradar/commit/96a1e3f4beb7edbb796b20fa92e2f639f7ace1ea))
+
 ## [0.2.0](https://github.com/FerdiHS/devradar/compare/0.1.0...0.2.0) (2026-09-15)
 
 
