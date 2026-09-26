@@ -298,7 +298,7 @@ across the vault and persisted settings.
 ## Compatibility and MVP slice
 
 DevRadar remains an intended Obsidian Desktop and Mobile product target and
-declares `isDesktopOnly: false`. For the `v0.2.0` implementation slice, Desktop
+declares `isDesktopOnly: false`. For the `v0.3.0` implementation slice, Desktop
 is the designated and required runtime-validation target; Mobile is a
 compatibility target, not a runtime-validation closure gate. A capability-
 specific Desktop PASS makes only that capability eligible for later downstream

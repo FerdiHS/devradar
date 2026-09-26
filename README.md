@@ -4,9 +4,9 @@ DevRadar is a local-first Obsidian plugin for following selected GitHub users an
 
 ## Status
 
-Version `0.1.0` is a foundation/pre-MVP release. It establishes the plugin, repository, quality, and release foundations; the MVP workflow for following selected GitHub users and recording supported public developer activity is still under development. DevRadar does not promise exhaustive history or real-time collection.
+The `v0.3.0` implementation slice lets users follow selected GitHub users, choose a global subset of Pushes, Pull requests, and Issues, and manually sync one person or all followed people. GitHub activity history is recent, limited, delayed, and non-exhaustive; DevRadar does not provide real-time activity collection.
 
-**Platform support:** For the `v0.2.0` target, Obsidian Desktop is the required runtime-validation environment. DevRadar is designed to remain compatible with Obsidian Mobile through supported cross-platform APIs, but iOS and Android runtime behavior is not currently claimed as validated. Runtime-sensitive capabilities remain disabled where their applicable safety gates have not passed.
+**Platform support:** For the `v0.3.0` implementation slice, Obsidian Desktop is the designated and required runtime-validation target. Obsidian Mobile remains an intended compatibility target; iOS and Android runtime behavior is not claimed as validated.
 
 ## Development
 
