@@ -41,13 +41,13 @@ npm ci
 
 ## Desktop and mobile
 
-- Use Obsidian Desktop for the normal development loop and required v0.2.0
+- Use Obsidian Desktop for the normal development loop and required v0.3.0
   capability-validation environment.
 - Desktop testing validates only the exercised capability and does not prove
   Mobile runtime behavior.
 - Keep `isDesktopOnly` accurate and preserve supported cross-platform APIs.
 - For user-facing changes, do a quick Mobile smoke test when possible; it is
-  optional, not a v0.2.0 closure gate, and its absence is not Mobile validation.
+  optional, not a v0.3.0 closure gate, and its absence is not Mobile validation.
 
 ## Commands
 

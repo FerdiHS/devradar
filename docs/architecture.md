@@ -76,11 +76,11 @@ failure is therefore bounded and non-authoritative.
 
 The implementation gates `createFolder()` at Obsidian 1.4.0 and
 `processFrontMatter()` at 1.4.4 while retaining the existing 1.1.0
-`Vault.process()` gate. The current plugin metadata remains unchanged by these
-issues; Issue #94 owns the eventual v0.2.0 compatibility-floor and release-
-metadata decision. Automated tests provide sanitized API substitutes; runtime
-behavior requiring a real Desktop vault must be smoke-tested on the target
-Obsidian version before release.
+`Vault.process()` gate. These issues did not change plugin metadata. Issue #94
+subsequently established Obsidian `1.4.4` as the `v0.2.0` compatibility floor
+and updated the corresponding release metadata. Automated tests provide
+sanitized API substitutes; runtime behavior requiring a real Desktop vault
+must be smoke-tested on the target Obsidian version before release.
 
 ## Responsibilities and testability
 
@@ -298,7 +298,7 @@ across the vault and persisted settings.
 ## Compatibility and MVP slice
 
 DevRadar remains an intended Obsidian Desktop and Mobile product target and
-declares `isDesktopOnly: false`. For the `v0.2.0` implementation slice, Desktop
+declares `isDesktopOnly: false`. For the `v0.3.0` implementation slice, Desktop
 is the designated and required runtime-validation target; Mobile is a
 compatibility target, not a runtime-validation closure gate. A capability-
 specific Desktop PASS makes only that capability eligible for later downstream
