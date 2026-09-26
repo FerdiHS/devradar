@@ -323,7 +323,11 @@ function showSyncAllResult(result: SyncAllResult): void {
 		updated: 0,
 		unchanged: 0,
 		skipped:
-			result.stop?.kind === 'provider-policy' ? result.stop.skipped : 0,
+			result.stop?.kind === 'provider-policy' ||
+			result.stop?.kind === 'provider-rate-limit' ||
+			result.stop?.kind === 'provider-incompatibility'
+				? result.stop.skipped
+				: 0,
 		failed: 0,
 	};
 	const failures: string[] = [];
@@ -347,6 +351,17 @@ function showSyncAllResult(result: SyncAllResult): void {
 	if (result.stop?.kind === 'provider-policy' && result.stop.skipped > 0)
 		parts.push(
 			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because a GitHub provider policy is active.`,
+		);
+	if (result.stop?.kind === 'provider-rate-limit' && result.stop.skipped > 0)
+		parts.push(
+			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because GitHub reported a rate limit.`,
+		);
+	if (
+		result.stop?.kind === 'provider-incompatibility' &&
+		result.stop.skipped > 0
+	)
+		parts.push(
+			`${result.stop.skipped} remaining ${result.stop.skipped === 1 ? 'person was' : 'people were'} skipped because a GitHub provider-wide incompatibility prevents further requests.`,
 		);
 	if (result.stop?.kind === 'settings-recovery')
 		parts.push(

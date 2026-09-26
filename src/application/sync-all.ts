@@ -23,6 +23,8 @@ export type SyncAllPersonOutcome = Readonly<{
 
 export type SyncAllStop =
 	| Readonly<{ kind: 'provider-policy'; skipped: number }>
+	| Readonly<{ kind: 'provider-rate-limit'; skipped: number }>
+	| Readonly<{ kind: 'provider-incompatibility'; skipped: number }>
 	| Readonly<{ kind: 'settings-recovery'; unattempted: number }>
 	| Readonly<{
 			kind: 'run-failure';
@@ -192,18 +194,35 @@ export class SyncAllApplication {
 					accountIds.length - index - 1,
 				);
 
+			const skipped = accountIds.length - index - 1;
 			if (
-				accountIds.length - index - 1 > 0 &&
-				(execution.providerWideStop ||
-					isGlobalPolicyActive(after.settings, after.now))
+				skipped > 0 &&
+				execution.providerWideStop === 'incompatibility'
+			) {
+				return {
+					kind: 'completed',
+					outcomes,
+					stop: { kind: 'provider-incompatibility', skipped },
+				};
+			}
+			if (
+				skipped > 0 &&
+				isGlobalPolicyActive(after.settings, after.now)
 			) {
 				return {
 					kind: 'completed',
 					outcomes,
 					stop: {
 						kind: 'provider-policy',
-						skipped: accountIds.length - index - 1,
+						skipped,
 					},
+				};
+			}
+			if (skipped > 0 && execution.providerWideStop === 'rate-limit') {
+				return {
+					kind: 'completed',
+					outcomes,
+					stop: { kind: 'provider-rate-limit', skipped },
 				};
 			}
 		}

@@ -332,6 +332,12 @@ Provider-wide failures stop equivalent requests for the current Sync All run.
 Examples are recognized rate limits, an unsupported pinned API version, or a
 request-policy incompatibility that would affect every remaining person. The
 current person fails; people not yet attempted are skipped rather than failed.
+Sync All preserves the stop cause in its aggregate feedback: an active global
+request-policy boundary is reported as an active provider policy, a rate-limit
+failure whose boundary has expired before the settings reread remains a
+rate-limit stop, and other provider-wide contract failures are reported as
+provider-wide incompatibilities. All three outcomes keep the remaining people
+skipped.
 
 Malformed data is normally person-scoped. If it demonstrates a provider-wide
 contract incompatibility, it uses the provider-wide classification instead.

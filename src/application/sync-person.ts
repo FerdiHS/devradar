@@ -54,12 +54,12 @@ export type SyncOneResult =
 export type SyncPersonExecution = Readonly<{
 	result: SyncOneResult;
 	safeToContinue: boolean;
-	providerWideStop: boolean;
+	providerWideStop: false | 'incompatibility' | 'rate-limit';
 }>;
 
 type ExecutionEvidence = {
 	persisted: boolean;
-	providerWideStop: boolean;
+	providerWideStop: false | 'incompatibility' | 'rate-limit';
 };
 
 export type SyncOneProviderResult =
@@ -215,7 +215,10 @@ export class SyncPersonExecutor {
 		if (provider.kind !== 'success') {
 			const reason = failureReasonForProvider(provider);
 			if (provider.kind === 'provider-failure' && reason === 'provider')
-				evidence.providerWideStop = true;
+				evidence.providerWideStop =
+					provider.failure.category === 'rate-limit'
+						? 'rate-limit'
+						: 'incompatibility';
 			return this.finishFailure(
 				{
 					settings: settings.value,

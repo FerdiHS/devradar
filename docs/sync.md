@@ -247,8 +247,12 @@ boundary:
   failure and required provider-policy state have been persisted and settings
   have been reread as ready;
 - a per-person polling boundary skips that person and permits the next person;
-- provider-wide policy blocks stop further requests and report the remaining
-  people as skipped;
+- an active global provider-policy boundary stops further requests and reports
+  the remaining people as skipped because the policy is active;
+- provider-wide incompatibility and rate-limit failures also stop further
+  requests and report the remaining people as skipped with their cause retained
+  in aggregate feedback, including a rate-limit failure whose saved boundary
+  has expired by the settings reread;
 - a settings-save failure or loss of ready settings stops the run immediately;
   the current persistence failure remains a failed outcome and only people
   after it are reported as unattempted;

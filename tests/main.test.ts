@@ -816,6 +816,84 @@ describe('Sync All command wiring', () => {
 		);
 	});
 
+	it('reports provider stop causes accurately and counts each skipped remainder', async () => {
+		const plugin = fakePlugin(async () => FOLLOWED);
+		await plugin.onload();
+		const application = (
+			plugin as unknown as {
+				syncAllApplication: { syncAll: () => Promise<SyncAllResult> };
+			}
+		).syncAllApplication;
+		const failedOutcome = [
+			{
+				username: 'octocat',
+				result: { kind: 'failed', reason: 'provider' },
+			},
+		] as const;
+		const cases: ReadonlyArray<readonly [SyncAllResult, string]> = [
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-policy', skipped: 1 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 1 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 1 remaining person was skipped because a GitHub provider policy is active.',
+			],
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-policy', skipped: 2 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 2 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 2 remaining people were skipped because a GitHub provider policy is active.',
+			],
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-incompatibility', skipped: 1 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 1 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 1 remaining person was skipped because a GitHub provider-wide incompatibility prevents further requests.',
+			],
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-incompatibility', skipped: 2 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 2 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 2 remaining people were skipped because a GitHub provider-wide incompatibility prevents further requests.',
+			],
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-rate-limit', skipped: 1 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 1 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 1 remaining person was skipped because GitHub reported a rate limit.',
+			],
+			[
+				{
+					kind: 'completed',
+					outcomes: failedOutcome,
+					stop: { kind: 'provider-rate-limit', skipped: 2 },
+				},
+				'Sync all finished: 0 updated, 0 unchanged, 2 skipped, 1 failed. Failures: @octocat (GitHub retrieval failed). 2 remaining people were skipped because GitHub reported a rate limit.',
+			],
+		];
+		const results = cases.map(([result]) => result);
+		vi.spyOn(application, 'syncAll').mockImplementation(async () => {
+			const result = results.shift();
+			if (!result) throw new Error('No Sync All result was prepared');
+			return result;
+		});
+
+		for (const [, expectedNotice] of cases) {
+			await syncAllCommand(plugin).callback?.();
+			await Promise.resolve();
+			expect(obsidianNotice).toHaveBeenLastCalledWith(expectedNotice);
+		}
+	});
+
 	it('reports zero unattempted people for terminal stop reasons', async () => {
 		const plugin = fakePlugin(async () => FOLLOWED);
 		await plugin.onload();

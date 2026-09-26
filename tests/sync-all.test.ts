@@ -198,7 +198,7 @@ describe('Sync All application', () => {
 				return {
 					result: { kind: 'failed', reason: 'provider' },
 					safeToContinue: true,
-					providerWideStop: false,
+					providerWideStop: 'rate-limit',
 				};
 			}),
 		};
@@ -222,6 +222,48 @@ describe('Sync All application', () => {
 				},
 			],
 			stop: { kind: 'provider-policy', skipped: 2 },
+		});
+	});
+
+	it('reports incompatibility when the failed request also persists a global boundary', async () => {
+		const followed = [
+			person('zebra', '20'),
+			person('octocat', '10'),
+			person('owl', '30'),
+		];
+		let runtime: SettingsRuntimeState = ready(settings(followed));
+		const executor: Pick<SyncPersonExecutor, 'execute'> = {
+			execute: vi.fn<SyncPersonExecutor['execute']>(async () => {
+				const current = runtime;
+				if (current.kind !== 'ready')
+					throw new Error('settings unavailable');
+				runtime = ready({
+					...current.settings,
+					githubRequestPolicy: {
+						rateLimitNotBefore: '2026-09-23T12:30:00.000Z',
+					},
+				});
+				return {
+					result: { kind: 'failed', reason: 'provider' },
+					safeToContinue: true,
+					providerWideStop: 'incompatibility',
+				};
+			}),
+		};
+		const application = new SyncAllApplication({
+			settings: { getSettingsState: () => runtime },
+			executor,
+			mutationGuard: { run: async (operation) => operation() },
+			now: () => '2026-09-23T12:00:00.000Z',
+			isSupportedPlatform: () => true,
+		});
+
+		const result = await application.syncAll();
+
+		expect(executor.execute).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			kind: 'completed',
+			stop: { kind: 'provider-incompatibility', skipped: 2 },
 		});
 	});
 
@@ -279,7 +321,7 @@ describe('Sync All application', () => {
 			execute: vi.fn(async (): Promise<SyncPersonExecution> => ({
 				result: { kind: 'failed', reason: 'provider' },
 				safeToContinue: true,
-				providerWideStop: true,
+				providerWideStop: 'incompatibility',
 			})),
 		};
 		const application = new SyncAllApplication({
@@ -301,7 +343,55 @@ describe('Sync All application', () => {
 					result: { kind: 'failed', reason: 'provider' },
 				},
 			],
-			stop: { kind: 'provider-policy', skipped: 2 },
+			stop: { kind: 'provider-incompatibility', skipped: 2 },
+		});
+	});
+
+	it('reports a rate-limit stop when its boundary expires before the settings reread', async () => {
+		const followed = [
+			person('zebra', '20'),
+			person('octocat', '10'),
+			person('owl', '30'),
+		];
+		let runtime: SettingsRuntimeState = ready(settings(followed));
+		const executor: Pick<SyncPersonExecutor, 'execute'> = {
+			execute: vi.fn<SyncPersonExecutor['execute']>(async () => {
+				const current = runtime;
+				if (current.kind !== 'ready')
+					throw new Error('settings unavailable');
+				runtime = ready({
+					...current.settings,
+					githubRequestPolicy: {
+						rateLimitNotBefore: '2026-09-23T12:00:30.000Z',
+					},
+				});
+				return {
+					result: { kind: 'failed', reason: 'provider' },
+					safeToContinue: true,
+					providerWideStop: 'rate-limit',
+				};
+			}),
+		};
+		const instants = [
+			'2026-09-23T12:00:00.000Z',
+			'2026-09-23T12:00:01.000Z',
+			'2026-09-23T12:01:00.000Z',
+		];
+		let instantIndex = 0;
+		const application = new SyncAllApplication({
+			settings: { getSettingsState: () => runtime },
+			executor,
+			mutationGuard: { run: async (operation) => operation() },
+			now: () => instants[instantIndex++] ?? '2026-09-23T12:01:01.000Z',
+			isSupportedPlatform: () => true,
+		});
+
+		const result = await application.syncAll();
+
+		expect(executor.execute).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			kind: 'completed',
+			stop: { kind: 'provider-rate-limit', skipped: 2 },
 		});
 	});
 
