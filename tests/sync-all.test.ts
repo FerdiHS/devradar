@@ -225,6 +225,48 @@ describe('Sync All application', () => {
 		});
 	});
 
+	it('reports incompatibility when the failed request also persists a global boundary', async () => {
+		const followed = [
+			person('zebra', '20'),
+			person('octocat', '10'),
+			person('owl', '30'),
+		];
+		let runtime: SettingsRuntimeState = ready(settings(followed));
+		const executor: Pick<SyncPersonExecutor, 'execute'> = {
+			execute: vi.fn<SyncPersonExecutor['execute']>(async () => {
+				const current = runtime;
+				if (current.kind !== 'ready')
+					throw new Error('settings unavailable');
+				runtime = ready({
+					...current.settings,
+					githubRequestPolicy: {
+						rateLimitNotBefore: '2026-09-23T12:30:00.000Z',
+					},
+				});
+				return {
+					result: { kind: 'failed', reason: 'provider' },
+					safeToContinue: true,
+					providerWideStop: 'incompatibility',
+				};
+			}),
+		};
+		const application = new SyncAllApplication({
+			settings: { getSettingsState: () => runtime },
+			executor,
+			mutationGuard: { run: async (operation) => operation() },
+			now: () => '2026-09-23T12:00:00.000Z',
+			isSupportedPlatform: () => true,
+		});
+
+		const result = await application.syncAll();
+
+		expect(executor.execute).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			kind: 'completed',
+			stop: { kind: 'provider-incompatibility', skipped: 2 },
+		});
+	});
+
 	it('stops on a global policy boundary that is already active', async () => {
 		const followed = [
 			person('zebra', '20'),

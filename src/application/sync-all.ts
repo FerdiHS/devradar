@@ -197,6 +197,16 @@ export class SyncAllApplication {
 			const skipped = accountIds.length - index - 1;
 			if (
 				skipped > 0 &&
+				execution.providerWideStop === 'incompatibility'
+			) {
+				return {
+					kind: 'completed',
+					outcomes,
+					stop: { kind: 'provider-incompatibility', skipped },
+				};
+			}
+			if (
+				skipped > 0 &&
 				isGlobalPolicyActive(after.settings, after.now)
 			) {
 				return {
@@ -208,17 +218,11 @@ export class SyncAllApplication {
 					},
 				};
 			}
-			if (skipped > 0 && execution.providerWideStop) {
+			if (skipped > 0 && execution.providerWideStop === 'rate-limit') {
 				return {
 					kind: 'completed',
 					outcomes,
-					stop: {
-						kind:
-							execution.providerWideStop === 'rate-limit'
-								? 'provider-rate-limit'
-								: 'provider-incompatibility',
-						skipped,
-					},
+					stop: { kind: 'provider-rate-limit', skipped },
 				};
 			}
 		}
