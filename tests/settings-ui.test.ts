@@ -347,7 +347,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			allElements(editRow)
 				.filter((element) => element.tag === 'option')
 				.map((element) => element.text),
-		).toContain('Specific date');
+		).toContain('Date & time');
 		expect(
 			allElements(personRow).filter(
 				(element) =>
@@ -856,7 +856,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			elements
 				.filter((element) => element.tag === 'option')
 				.map((element) => element.text),
-		).toEqual(['Now', 'Available recent activity', 'Specific date']);
+		).toEqual(['Now', 'Available recent activity', 'Date & time']);
 		expect(
 			elements.filter((element) => element.tag === 'input'),
 		).toHaveLength(5);
@@ -1239,7 +1239,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 				mode.children
 					.filter((element) => element.tag === 'option')
 					.map((element) => element.text),
-			).toEqual(['Now', 'Available recent activity', 'Specific date']);
+			).toEqual(['Now', 'Available recent activity', 'Date & time']);
 			mode.value = 'from-date';
 			mode.emit('change');
 			let date = allElements(view.root).find(

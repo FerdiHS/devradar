@@ -392,7 +392,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Specific date'],
+			['from-date', 'Date & time'],
 		] as const) {
 			const element = trackingStart.createEl('option', {
 				text: option[1],
@@ -597,7 +597,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Specific date'],
+			['from-date', 'Date & time'],
 		] as const) {
 			const element = mode.createEl('option', { text: option[1] });
 			element.value = option[0];
@@ -963,7 +963,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Specific date'],
+			['from-date', 'Date & time'],
 		] as const) {
 			const element = trackingStart.createEl('option', {
 				text: option[1],
