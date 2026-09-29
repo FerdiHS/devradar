@@ -93,11 +93,9 @@ export class FollowManagementApplication {
 
 				const candidate: DevRadarSettingsV2 = {
 					...current.settings,
-					followedPeople: current.settings.followedPeople
-						.filter(
-							(item) => item.githubAccountId !== githubAccountId,
-						)
-						.map(clonePerson),
+					followedPeople: current.settings.followedPeople.filter(
+						(item) => item.githubAccountId !== githubAccountId,
+					),
 				};
 				let saved: SettingsSaveResult;
 				try {
@@ -143,10 +141,10 @@ export class FollowManagementApplication {
 						(person) =>
 							person.githubAccountId === githubAccountId
 								? {
-										...clonePerson(person),
+										...person,
 										trackingStart: trackingStart.value,
 									}
-								: clonePerson(person),
+								: person,
 					),
 				};
 				let saved: SettingsSaveResult;
@@ -228,20 +226,6 @@ function findPerson(
 				(person) => person.githubAccountId === githubAccountId,
 			)
 		: undefined;
-}
-
-function clonePerson(person: FollowedPersonV1): FollowedPersonV1 {
-	return {
-		...person,
-		trackingStart: { ...person.trackingStart },
-		syncState: {
-			...person.syncState,
-			seenEvents: person.syncState.seenEvents.map((event) => ({
-				...event,
-			})),
-			github: { ...person.syncState.github },
-		},
-	};
 }
 
 function unfollowConfirmation(username: string): string {
