@@ -540,6 +540,23 @@ describe('FollowApplication', () => {
 		expect(view.notes.getCurrentMarkdown()).toBe(managed);
 	});
 
+	it('re-follows an unfollowed person by reusing existing activity without duplication', async () => {
+		const managed =
+			'<!-- devradar:begin github="octocat" github-id="42" -->\n' +
+			'## DevRadar activity\n\n- retained canonical activity\n' +
+			'<!-- devradar:end github="octocat" github-id="42" -->';
+		const notes = fakeNotes('transform', managed);
+		const view = followApp(settings([]), identitySuccess(), { notes });
+
+		const result = await view.app.follow(draft());
+
+		expect(result).toMatchObject({
+			kind: 'followed',
+			noteDisposition: 'reused',
+		});
+		expect(view.notes.getCurrentMarkdown()).toBe(managed);
+	});
+
 	it('initializes a marker-free existing note without erasing its content', async () => {
 		const notes = fakeNotes('transform', '# Existing content\n');
 		const view = followApp(settings(), identitySuccess(), { notes });

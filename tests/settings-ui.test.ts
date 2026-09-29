@@ -140,6 +140,12 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 			settings: createEmptySettingsV2(),
 		}),
 	);
+	const unfollow = vi.fn<SettingsTabHost['unfollow']>(async () => ({
+		kind: 'cancelled',
+	}));
+	const changeTrackingStart = vi.fn<SettingsTabHost['changeTrackingStart']>(
+		async () => ({ kind: 'failed', reason: 'internal' }),
+	);
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
 		isRecoveryActionPending: () => pending,
@@ -147,6 +153,9 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		resetSettings,
 		isFollowPending: () => false,
 		follow,
+		isFollowManagementPending: () => false,
+		unfollow,
+		changeTrackingStart,
 		saveActivityFamilies,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
@@ -159,6 +168,8 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		resetSettings,
 		retrySettingsLoad,
 		follow,
+		unfollow,
+		changeTrackingStart,
 		saveActivityFamilies,
 	};
 }
@@ -265,6 +276,8 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 				'Note destination',
 				'Tracking start',
 				'Follow',
+				'Unfollow',
+				'Edit tracking start',
 				'Followed people',
 				'Follow status',
 				'Activity filter status',
@@ -274,6 +287,14 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			rows.find((definition) => definition.name === 'Followed people')
 				?.searchable,
 		).toBe(false);
+		expect(
+			rows.find((definition) => definition.name === 'Unfollow')
+				?.searchable,
+		).not.toBe(false);
+		expect(
+			rows.find((definition) => definition.name === 'Edit tracking start')
+				?.searchable,
+		).not.toBe(false);
 		expect(
 			rows.find((definition) => definition.name === 'Follow status')
 				?.searchable,
@@ -289,6 +310,161 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		expect(
 			rows.every((definition) => definition.control === undefined),
 		).toBe(true);
+	});
+
+	it('keeps the selected tracking-start editor in its searchable row', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'first-person',
+						githubAccountId: '41',
+						notePath: 'Private/first-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+					{
+						username: 'private-person',
+						githubAccountId: '99',
+						notePath: 'Private/private-person.md',
+						trackingStart: {
+							mode: 'from-date',
+							at: '2026-08-01T12:34:56.789Z',
+						},
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		view.changeTrackingStart.mockResolvedValue({
+			kind: 'updated',
+			username: 'private-person',
+			trackingStart: {
+				mode: 'from-now',
+				at: '2026-09-29T00:00:00.000Z',
+			},
+		});
+
+		const initial = renderedDefinition(view.tab, 'Edit tracking start');
+		allElements(initial)
+			.find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Edit tracking start',
+			)
+			?.click();
+
+		const personRow = renderedDefinition(view.tab, 'Followed people');
+		const editingFirst = renderedDefinition(
+			view.tab,
+			'Edit tracking start',
+		);
+		let selected = allElements(editingFirst).find(
+			(element) => element.id === 'devradar-edit-tracking-person',
+		);
+		let mode = allElements(editingFirst).find(
+			(element) => element.id === 'devradar-edit-tracking-start-mode',
+		);
+		expect(selected?.value).toBe('41');
+		expect(mode?.value).toBe('available-recent');
+		if (!selected) throw new Error('expected tracking-start selector');
+		selected.value = '99';
+		selected.emit('change');
+
+		const editingSecond = renderedDefinition(
+			view.tab,
+			'Edit tracking start',
+		);
+		selected = allElements(editingSecond).find(
+			(element) => element.id === 'devradar-edit-tracking-person',
+		);
+		mode = allElements(editingSecond).find(
+			(element) => element.id === 'devradar-edit-tracking-start-mode',
+		);
+
+		expect(selected?.value).toBe('99');
+		expect(mode?.value).toBe('from-date');
+		expect(
+			allElements(editingSecond)
+				.filter((element) => element.tag === 'option')
+				.map((element) => element.text),
+		).toContain('Date & time');
+		expect(
+			allElements(editingSecond)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('Current tracking start for @private-person:');
+		expect(
+			allElements(personRow).filter(
+				(element) =>
+					element.tag === 'button' ||
+					element.tag === 'input' ||
+					element.tag === 'select',
+			),
+		).toHaveLength(0);
+
+		if (!mode) throw new Error('expected tracking-start mode selector');
+		mode.value = 'now';
+		mode.emit('change');
+		const save = allElements(
+			renderedDefinition(view.tab, 'Edit tracking start'),
+		).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save tracking start',
+		);
+		if (!save) throw new Error('expected tracking-start Save');
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.changeTrackingStart).toHaveBeenCalledWith('99', {
+			mode: 'now',
+		});
+	});
+
+	it('routes the searchable Unfollow action by selected account ID', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'first-person',
+						githubAccountId: '41',
+						notePath: 'Private/first-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+					{
+						username: 'private-person',
+						githubAccountId: '99',
+						notePath: 'Private/private-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		const row = renderedDefinition(view.tab, 'Unfollow');
+		const select = allElements(row).find(
+			(element) => element.id === 'devradar-unfollow-person',
+		);
+		const button = allElements(row).find(
+			(element) => element.tag === 'button',
+		);
+		if (!select || !button) throw new Error('expected Unfollow selector');
+		select.value = '99';
+
+		button.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.unfollow).toHaveBeenCalledWith('99');
 	});
 
 	it('renders fail-closed recovery actions through the application host', () => {
@@ -613,6 +789,12 @@ describe('DevRadarSettingTab recovery UI', () => {
 				kind: 'failed' as const,
 				reason: 'internal' as const,
 			})),
+			isFollowManagementPending: () => false,
+			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
+			changeTrackingStart: vi.fn(async () => ({
+				kind: 'failed' as const,
+				reason: 'internal' as const,
+			})),
 			saveActivityFamilies: vi.fn(async () => ({
 				kind: 'saved' as const,
 				settings: readyEmpty.settings,
@@ -682,6 +864,61 @@ describe('DevRadarSettingTab recovery UI', () => {
 });
 
 describe('DevRadarSettingTab ready Follow UI', () => {
+	it('keeps the tracking-start editor input mounted while updating Save', () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'UTC';
+		try {
+			const view = tabFor({
+				kind: 'ready',
+				settings: {
+					schemaVersion: 2,
+					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+					followedPeople: [
+						{
+							username: 'octocat',
+							githubAccountId: '583231',
+							notePath: 'People/octocat.md',
+							trackingStart: {
+								mode: 'from-date',
+								at: '2026-08-01T12:34:00.000Z',
+							},
+							syncState: { seenEvents: [], github: {} },
+						},
+					],
+				},
+			});
+			view.tab.display();
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' &&
+						element.text === 'Edit tracking start',
+				)
+				?.click();
+
+			const date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			const save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			if (!date || !save)
+				throw new Error('expected date editor and Save');
+			expect(save.disabled).toBe(true);
+
+			date.value = '2026-08-02';
+			date.emit('input');
+
+			expect(allElements(view.root)).toContain(date);
+			expect(save.disabled).toBe(false);
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
 	it('renders the minimal Follow form and explicit empty state', () => {
 		const view = tabFor(readyEmpty);
 		view.tab.display();
@@ -699,7 +936,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			elements
 				.filter((element) => element.tag === 'option')
 				.map((element) => element.text),
-		).toEqual(['Now', 'Available recent activity', 'Specific date']);
+		).toEqual(['Now', 'Available recent activity', 'Date & time']);
 		expect(
 			elements.filter((element) => element.tag === 'input'),
 		).toHaveLength(5);
@@ -866,6 +1103,278 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			'@first — People/first.md — Available recent activity',
 			'@second — People/second.md — Date & time: 2026-08-01T00:00:00.000Z',
 		]);
+	});
+
+	it('renders an imperative Unfollow control for each followed person', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'octocat',
+						githubAccountId: '583231',
+						notePath: 'People/octocat.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		view.tab.display();
+		const item = allElements(view.root).find(
+			(element) => element.tag === 'li',
+		);
+		const button = item?.children.find(
+			(element) => element.tag === 'button',
+		);
+		if (!button) throw new Error('expected inline Unfollow button');
+
+		button.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.unfollow).toHaveBeenCalledWith('583231');
+	});
+
+	it('allows resetting an existing Now start to a fresh commit-time value', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'octocat',
+						githubAccountId: '583231',
+						notePath: 'People/octocat.md',
+						trackingStart: {
+							mode: 'from-now',
+							at: '2026-08-01T04:34:56.789Z',
+						},
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		view.changeTrackingStart.mockResolvedValue({
+			kind: 'updated',
+			username: 'octocat',
+			trackingStart: {
+				mode: 'from-now',
+				at: '2026-09-29T00:00:00.000Z',
+			},
+		});
+		view.tab.display();
+		allElements(view.root)
+			.find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Edit tracking start',
+			)
+			?.click();
+
+		const save = allElements(view.root).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save tracking start',
+		);
+		if (!save) throw new Error('expected tracking-start Save');
+		expect(save.disabled).toBe(false);
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.changeTrackingStart).toHaveBeenCalledWith('583231', {
+			mode: 'now',
+		});
+	});
+
+	it('shows the exact saved date, preserves sub-minute time on no-op, and saves a changed local minute', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'Asia/Singapore';
+		try {
+			const view = tabFor({
+				kind: 'ready',
+				settings: {
+					schemaVersion: 2,
+					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+					followedPeople: [
+						{
+							username: 'octocat',
+							githubAccountId: '583231',
+							notePath: 'People/octocat.md',
+							trackingStart: {
+								mode: 'from-date',
+								at: '2026-08-01T04:34:56.789Z',
+							},
+							syncState: { seenEvents: [], github: {} },
+						},
+					],
+				},
+			});
+			view.changeTrackingStart.mockResolvedValue({
+				kind: 'updated',
+				username: 'octocat',
+				trackingStart: {
+					mode: 'from-date',
+					at: '2026-08-01T04:35:00.000Z',
+				},
+			});
+			view.tab.display();
+			expect(
+				allElements(view.root)
+					.map((item) => item.text)
+					.join('\n'),
+			).toContain('2026-08-01T04:34:56.789Z');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' &&
+						element.text === 'Edit tracking start',
+				)
+				?.click();
+
+			const mode = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-mode',
+			);
+			const date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			const time = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-time',
+			);
+			const save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			expect(mode?.value).toBe('from-date');
+			expect(date?.value).toBe('2026-08-01');
+			expect(time?.value).toBe('12:34');
+			expect(save?.disabled).toBe(true);
+
+			if (!time) throw new Error('expected tracking-start time input');
+			time.value = '12:35';
+			time.emit('input');
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' &&
+						element.text === 'Save tracking start',
+				)
+				?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(view.changeTrackingStart).toHaveBeenCalledWith('583231', {
+				mode: 'from-date',
+				at: '2026-08-01T04:35:00.000Z',
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
+	it('disables date edits for invalid and future values and submits valid mode choices', async () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'UTC';
+		try {
+			const view = tabFor({
+				kind: 'ready',
+				settings: {
+					schemaVersion: 2,
+					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+					followedPeople: [
+						{
+							username: 'octocat',
+							githubAccountId: '583231',
+							notePath: 'People/octocat.md',
+							trackingStart: { mode: 'available-recent' },
+							syncState: { seenEvents: [], github: {} },
+						},
+					],
+				},
+			});
+			view.changeTrackingStart.mockResolvedValue({
+				kind: 'updated',
+				username: 'octocat',
+				trackingStart: { mode: 'available-recent' },
+			});
+			view.tab.display();
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' &&
+						element.text === 'Edit tracking start',
+				)
+				?.click();
+			let mode = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-mode',
+			);
+			if (!mode) throw new Error('expected tracking-start mode selector');
+			expect(
+				mode.children
+					.filter((element) => element.tag === 'option')
+					.map((element) => element.text),
+			).toEqual(['Now', 'Available recent activity', 'Date & time']);
+			mode.value = 'from-date';
+			mode.emit('change');
+			let date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			let save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			if (!date || !save) throw new Error('expected date editor');
+			date.value = 'not-a-date';
+			date.emit('input');
+			save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			expect(save?.disabled).toBe(true);
+			date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			if (!date) throw new Error('expected date editor');
+			date.value = '2099-01-01';
+			date.emit('input');
+			save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			expect(save?.disabled).toBe(true);
+			date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			if (!date) throw new Error('expected date editor');
+			date.value = '2020-01-01';
+			date.emit('input');
+			save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			if (!save) throw new Error('expected tracking-start Save');
+			expect(save.disabled).toBe(false);
+			save.click();
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(view.changeTrackingStart).toHaveBeenCalledWith('583231', {
+				mode: 'from-date',
+				at: '2020-01-01T00:00:00.000Z',
+			});
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
 	});
 
 	it('submits entered fields and date mode, then maps a stable result', async () => {
@@ -1103,6 +1612,12 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			resetSettings: vi.fn(async () => undefined),
 			isFollowPending: () => false,
 			follow,
+			isFollowManagementPending: () => false,
+			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
+			changeTrackingStart: vi.fn(async () => ({
+				kind: 'failed' as const,
+				reason: 'internal' as const,
+			})),
 			saveActivityFamilies: vi.fn(async () => ({
 				kind: 'saved' as const,
 				settings: readyEmpty.settings,

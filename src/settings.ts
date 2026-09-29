@@ -18,12 +18,23 @@ import type {
 	FollowResult,
 	FollowTrackingStartDraft,
 } from './application/follow';
+import type {
+	TrackingStartChangeFailureReason,
+	TrackingStartChangeResult,
+	UnfollowResult,
+} from './application/follow-management';
 
 export type { SettingsRuntimeState } from './application/settings';
 
 export type SettingsTabHost = SettingsApplicationHost & {
 	isFollowPending(): boolean;
 	follow(draft: FollowDraft): Promise<FollowResult>;
+	isFollowManagementPending(): boolean;
+	unfollow(githubAccountId: string): Promise<UnfollowResult>;
+	changeTrackingStart(
+		githubAccountId: string,
+		draft: FollowTrackingStartDraft,
+	): Promise<TrackingStartChangeResult>;
 	saveActivityFamilies(
 		families: readonly ActivityFamily[],
 	): Promise<import('./application/settings').SettingsSaveResult>;
@@ -37,11 +48,20 @@ type ReadySettings = Extract<
 >['settings'];
 type FollowedPersonSummary = {
 	readonly username: string;
+	readonly githubAccountId: string;
 	readonly notePath: string;
 	readonly trackingStart: {
 		readonly mode: 'from-now' | 'available-recent' | 'from-date';
 		readonly at?: string;
 	};
+};
+type TrackingStartEditorDraft = {
+	readonly githubAccountId: string;
+	readonly original: FollowedPersonSummary['trackingStart'];
+	mode: TrackingStartMode;
+	date: string;
+	time: string;
+	timeBadInput: boolean;
 };
 
 export class DevRadarSettingTab extends PluginSettingTab {
@@ -53,6 +73,11 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private fromTimeBadInput = false;
 	private followPending = false;
 	private followStatus?: string;
+	private unfollowPending = false;
+	private unfollowStatus?: string;
+	private trackingStartEditor?: TrackingStartEditorDraft;
+	private trackingStartSavePending = false;
+	private trackingStartStatus?: string;
 	private activityFamiliesDraft?: ActivityFamily[];
 	private activitySavePending = false;
 	private activitySaveStatus?: string;
@@ -254,8 +279,56 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					this.renderFollowedPeople(
 						setting.controlEl,
 						settings.followedPeople,
+						false,
+						refresh,
 					),
 			},
+			{
+				name: 'Unfollow',
+				visible: () => settings.followedPeople.length > 0,
+				render: (setting) =>
+					this.renderUnfollowSelector(
+						setting.controlEl,
+						settings.followedPeople,
+						refresh,
+					),
+			},
+			{
+				name: 'Edit tracking start',
+				visible: () => settings.followedPeople.length > 0,
+				render: (setting) =>
+					this.renderTrackingStartSelector(
+						setting.controlEl,
+						settings.followedPeople,
+						refresh,
+					),
+			},
+			...(this.unfollowStatus === undefined
+				? []
+				: [
+						{
+							name: 'Unfollow status',
+							searchable: false,
+							render: (setting: { controlEl: HTMLElement }) => {
+								setting.controlEl.createEl('p', {
+									text: this.unfollowStatus ?? '',
+								});
+							},
+						},
+					]),
+			...(this.trackingStartStatus === undefined
+				? []
+				: [
+						{
+							name: 'Tracking start status',
+							searchable: false,
+							render: (setting: { controlEl: HTMLElement }) => {
+								setting.controlEl.createEl('p', {
+									text: this.trackingStartStatus ?? '',
+								});
+							},
+						},
+					]),
 		];
 	}
 
@@ -319,7 +392,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Specific date'],
+			['from-date', 'Date & time'],
 		] as const) {
 			const element = trackingStart.createEl('option', {
 				text: option[1],
@@ -387,6 +460,8 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl: HTMLElement,
 		followedPeople: readonly FollowedPersonSummary[],
 		includeHeading = false,
+		refresh: SettingsRefresh = () => undefined,
+		includeActions = false,
 	): void {
 		if (includeHeading)
 			containerEl.createEl('p', { text: 'Followed people' });
@@ -396,10 +471,347 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}
 		const list = containerEl.createEl('ul');
 		for (const person of followedPeople) {
-			list.createEl('li', {
+			const item = list.createEl('li', {
 				text: `@${person.username} — ${person.notePath} — ${trackingStartSummary(person.trackingStart)}`,
 			});
+			if (includeActions) {
+				this.renderUnfollowButton(item, person, refresh);
+				this.renderTrackingStartEditButton(item, person, refresh);
+				if (
+					this.trackingStartEditor?.githubAccountId ===
+					person.githubAccountId
+				)
+					this.renderTrackingStartEditor(item, person, refresh);
+			}
 		}
+	}
+
+	private renderTrackingStartSelector(
+		containerEl: HTMLElement,
+		followedPeople: readonly FollowedPersonSummary[],
+		refresh: SettingsRefresh,
+	): void {
+		const select = containerEl.createEl('select');
+		select.id = 'devradar-edit-tracking-person';
+		for (const person of followedPeople) {
+			const option = select.createEl('option', {
+				text: `@${person.username}`,
+			});
+			option.value = person.githubAccountId;
+		}
+		const editingPerson = followedPeople.find(
+			(person) =>
+				person.githubAccountId ===
+				this.trackingStartEditor?.githubAccountId,
+		);
+		select.value =
+			editingPerson?.githubAccountId ??
+			followedPeople[0]?.githubAccountId ??
+			'';
+		select.disabled =
+			this.trackingStartSavePending ||
+			this.host.isFollowManagementPending();
+		select.addEventListener('change', () => {
+			const selectedPerson = followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			);
+			if (selectedPerson && this.trackingStartEditor) {
+				this.beginTrackingStartEdit(selectedPerson);
+				refresh();
+			}
+		});
+		this.renderTrackingStartEditButton(
+			containerEl,
+			followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			),
+			refresh,
+			select,
+		);
+		if (editingPerson)
+			this.renderTrackingStartEditor(containerEl, editingPerson, refresh);
+	}
+
+	private renderTrackingStartEditButton(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary | undefined,
+		refresh: SettingsRefresh,
+		select?: HTMLSelectElement,
+	): void {
+		const button = containerEl.createEl('button', {
+			text: 'Edit tracking start',
+		});
+		button.disabled =
+			person === undefined ||
+			this.trackingStartSavePending ||
+			this.host.isFollowManagementPending();
+		button.addEventListener('click', () => {
+			const githubAccountId = select?.value ?? person?.githubAccountId;
+			if (select) {
+				const settings = this.host.getSettingsState();
+				const selectedFromState =
+					settings.kind === 'ready'
+						? settings.settings.followedPeople.find(
+								(item) =>
+									item.githubAccountId === githubAccountId,
+							)
+						: undefined;
+				if (selectedFromState)
+					this.beginTrackingStartEdit(selectedFromState);
+			} else if (person) {
+				this.beginTrackingStartEdit(person);
+			}
+			refresh();
+		});
+	}
+
+	private beginTrackingStartEdit(person: FollowedPersonSummary): void {
+		const local =
+			person.trackingStart.mode === 'from-date'
+				? utcToLocalDateTime(person.trackingStart.at ?? '')
+				: undefined;
+		this.trackingStartEditor = {
+			githubAccountId: person.githubAccountId,
+			original: { ...person.trackingStart },
+			mode: trackingStartDraftMode(person.trackingStart),
+			date: local?.date ?? '',
+			time: local?.time ?? '',
+			timeBadInput: false,
+		};
+		this.trackingStartStatus = undefined;
+	}
+
+	private renderTrackingStartEditor(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary,
+		refresh: SettingsRefresh,
+	): void {
+		const editor = this.trackingStartEditor;
+		if (!editor) return;
+		containerEl.createEl('p', {
+			text: `Current tracking start for @${person.username}: ${trackingStartSummary(editor.original)}`,
+		});
+		let save: HTMLButtonElement | undefined;
+		const updateSaveDisabled = () => {
+			if (!save) return;
+			save.disabled =
+				this.trackingStartSavePending ||
+				this.host.isFollowManagementPending() ||
+				this.trackingStartEditorIsUnchanged() ||
+				this.trackingStartDraft() === undefined;
+		};
+		const modeLabel = containerEl.createEl('label', {
+			text: 'Tracking start',
+		});
+		const mode = containerEl.createEl('select');
+		mode.id = 'devradar-edit-tracking-start-mode';
+		modeLabel.htmlFor = mode.id;
+		for (const option of [
+			['now', 'Now'],
+			['available-recent', 'Available recent activity'],
+			['from-date', 'Date & time'],
+		] as const) {
+			const element = mode.createEl('option', { text: option[1] });
+			element.value = option[0];
+		}
+		mode.value = editor.mode;
+		mode.disabled = this.trackingStartSavePending;
+		mode.addEventListener('change', () => {
+			if (!this.trackingStartEditor) return;
+			this.trackingStartEditor.mode = mode.value as TrackingStartMode;
+			this.trackingStartStatus = undefined;
+			refresh();
+		});
+
+		if (editor.mode === 'from-date') {
+			const dateLabel = containerEl.createEl('label', {
+				text: 'Start date',
+			});
+			const date = containerEl.createEl('input');
+			date.id = 'devradar-edit-tracking-start-date';
+			dateLabel.htmlFor = date.id;
+			date.type = 'date';
+			date.required = true;
+			date.value = editor.date;
+			date.disabled = this.trackingStartSavePending;
+			date.addEventListener('input', () => {
+				if (!this.trackingStartEditor) return;
+				this.trackingStartEditor.date = date.value;
+				updateSaveDisabled();
+			});
+
+			const timeLabel = containerEl.createEl('label', {
+				text: 'Start time (optional)',
+			});
+			const time = containerEl.createEl('input');
+			time.id = 'devradar-edit-tracking-start-time';
+			timeLabel.htmlFor = time.id;
+			time.type = 'time';
+			time.step = '60';
+			time.value = editor.time;
+			time.disabled = this.trackingStartSavePending;
+			time.addEventListener('input', () => {
+				if (!this.trackingStartEditor) return;
+				this.trackingStartEditor.time = time.value;
+				this.trackingStartEditor.timeBadInput = time.validity.badInput;
+				updateSaveDisabled();
+			});
+			containerEl.createEl('p', {
+				text: 'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
+			});
+		}
+
+		save = containerEl.createEl('button', {
+			text: 'Save tracking start',
+		});
+		updateSaveDisabled();
+		save.addEventListener('click', () =>
+			this.submitTrackingStartChange(person.githubAccountId, refresh),
+		);
+		const cancel = containerEl.createEl('button', { text: 'Cancel edit' });
+		cancel.disabled = this.trackingStartSavePending;
+		cancel.addEventListener('click', () => {
+			this.trackingStartEditor = undefined;
+			this.trackingStartStatus = undefined;
+			refresh();
+		});
+	}
+
+	private trackingStartDraft(): FollowTrackingStartDraft | undefined {
+		const editor = this.trackingStartEditor;
+		if (!editor) return undefined;
+		if (editor.mode !== 'from-date') return { mode: editor.mode };
+		if (
+			editor.timeBadInput ||
+			!isValidCalendarDate(editor.date) ||
+			(editor.time && !isValidLocalTime(editor.time))
+		)
+			return undefined;
+		const at = localDateTimeToUtc(editor.date, editor.time);
+		if (!at || new Date(at).getTime() > Date.now()) return undefined;
+		return { mode: 'from-date', at };
+	}
+
+	private trackingStartEditorIsUnchanged(): boolean {
+		const editor = this.trackingStartEditor;
+		if (!editor) return true;
+		if (editor.mode === 'now') return false;
+		if (editor.mode === 'available-recent')
+			return editor.original.mode === 'available-recent';
+		return (
+			editor.original.mode === 'from-date' &&
+			editor.date ===
+				utcToLocalDateTime(editor.original.at ?? '')?.date &&
+			editor.time === utcToLocalDateTime(editor.original.at ?? '')?.time
+		);
+	}
+
+	private submitTrackingStartChange(
+		githubAccountId: string,
+		refresh: SettingsRefresh,
+	): void {
+		if (
+			this.trackingStartSavePending ||
+			this.host.isFollowManagementPending()
+		)
+			return;
+		const draft = this.trackingStartDraft();
+		if (!draft || this.trackingStartEditorIsUnchanged()) return;
+		this.trackingStartSavePending = true;
+		this.trackingStartStatus = undefined;
+		refresh();
+		void this.host.changeTrackingStart(githubAccountId, draft).then(
+			(result) => {
+				this.trackingStartSavePending = false;
+				if (result.kind === 'updated') {
+					this.trackingStartEditor = undefined;
+					this.trackingStartStatus = `Tracking start updated for @${result.username}.`;
+				} else {
+					this.trackingStartStatus = trackingStartChangeStatus(
+						result.reason,
+					);
+				}
+				refresh();
+			},
+			() => {
+				this.trackingStartSavePending = false;
+				this.trackingStartStatus =
+					'DevRadar could not complete the tracking-start change safely.';
+				refresh();
+			},
+		);
+	}
+
+	private renderUnfollowSelector(
+		containerEl: HTMLElement,
+		followedPeople: readonly FollowedPersonSummary[],
+		refresh: SettingsRefresh,
+	): void {
+		const select = containerEl.createEl('select');
+		select.id = 'devradar-unfollow-person';
+		for (const person of followedPeople) {
+			const option = select.createEl('option', {
+				text: `@${person.username}`,
+			});
+			option.value = person.githubAccountId;
+		}
+		select.value = followedPeople[0]?.githubAccountId ?? '';
+		this.renderUnfollowButton(
+			containerEl,
+			followedPeople[0],
+			refresh,
+			select,
+		);
+	}
+
+	private renderUnfollowButton(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary | undefined,
+		refresh: SettingsRefresh,
+		select?: HTMLSelectElement,
+	): void {
+		const button = containerEl.createEl('button', { text: 'Unfollow' });
+		button.disabled =
+			person === undefined ||
+			this.unfollowPending ||
+			this.host.isFollowManagementPending();
+		button.addEventListener('click', () => {
+			const githubAccountId = select?.value ?? person?.githubAccountId;
+			if (githubAccountId)
+				this.submitUnfollow(githubAccountId, refresh, button);
+		});
+	}
+
+	private submitUnfollow(
+		githubAccountId: string,
+		refresh: SettingsRefresh,
+		button?: HTMLButtonElement,
+	): void {
+		if (this.unfollowPending || this.host.isFollowManagementPending())
+			return;
+		this.unfollowPending = true;
+		this.unfollowStatus = undefined;
+		if (button) button.disabled = true;
+		refresh();
+		void this.host.unfollow(githubAccountId).then(
+			(result) => {
+				this.unfollowPending = false;
+				if (
+					result.kind === 'unfollowed' &&
+					this.trackingStartEditor?.githubAccountId ===
+						githubAccountId
+				)
+					this.trackingStartEditor = undefined;
+				this.unfollowStatus = unfollowStatus(result);
+				refresh();
+			},
+			() => {
+				this.unfollowPending = false;
+				this.unfollowStatus =
+					'DevRadar could not complete Unfollow safely.';
+				refresh();
+			},
+		);
 	}
 
 	private updateActivityDraft(
@@ -518,6 +930,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl: HTMLElement,
 		followedPeople: readonly {
 			username: string;
+			githubAccountId: string;
 			notePath: string;
 			trackingStart: {
 				mode: 'from-now' | 'available-recent' | 'from-date';
@@ -562,7 +975,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		for (const option of [
 			['now', 'Now'],
 			['available-recent', 'Available recent activity'],
-			['from-date', 'Specific date'],
+			['from-date', 'Date & time'],
 		] as const) {
 			const element = trackingStart.createEl('option', {
 				text: option[1],
@@ -618,7 +1031,17 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		if (this.followStatus !== undefined)
 			containerEl.createEl('p', { text: this.followStatus });
 
-		this.renderFollowedPeople(containerEl, followedPeople, true);
+		this.renderFollowedPeople(
+			containerEl,
+			followedPeople,
+			true,
+			() => this.display(),
+			true,
+		);
+		if (this.unfollowStatus !== undefined)
+			containerEl.createEl('p', { text: this.unfollowStatus });
+		if (this.trackingStartStatus !== undefined)
+			containerEl.createEl('p', { text: this.trackingStartStatus });
 	}
 
 	private displayActivityFilters(
@@ -760,13 +1183,53 @@ function localDateTimeToUtc(
 	return local.toISOString();
 }
 
+function utcToLocalDateTime(
+	value: string,
+): { readonly date: string; readonly time: string } | undefined {
+	const instant = new Date(value);
+	if (Number.isNaN(instant.getTime())) return undefined;
+	const year = String(instant.getFullYear()).padStart(4, '0');
+	const month = String(instant.getMonth() + 1).padStart(2, '0');
+	const day = String(instant.getDate()).padStart(2, '0');
+	const hour = String(instant.getHours()).padStart(2, '0');
+	const minute = String(instant.getMinutes()).padStart(2, '0');
+	return {
+		date: `${year}-${month}-${day}`,
+		time: `${hour}:${minute}`,
+	};
+}
+
 function trackingStartSummary(start: {
 	readonly mode: 'from-now' | 'available-recent' | 'from-date';
 	readonly at?: string;
 }): string {
-	if (start.mode === 'from-now') return 'Now';
+	if (start.mode === 'from-now') return `Now: ${start.at ?? 'invalid'}`;
 	if (start.mode === 'available-recent') return 'Available recent activity';
 	return `Date & time: ${start.at ?? 'invalid'}`;
+}
+
+function trackingStartDraftMode(start: {
+	readonly mode: 'from-now' | 'available-recent' | 'from-date';
+}): TrackingStartMode {
+	if (start.mode === 'from-now') return 'now';
+	return start.mode;
+}
+
+function trackingStartChangeStatus(
+	reason: TrackingStartChangeFailureReason,
+): string {
+	switch (reason) {
+		case 'invalid-input':
+			return 'Choose a valid tracking start that is not in the future.';
+		case 'settings-not-ready':
+			return 'Tracking start is unavailable until settings recovery succeeds.';
+		case 'not-followed':
+			return 'That person is no longer followed.';
+		case 'persistence':
+			return 'DevRadar could not save the tracking-start change.';
+		case 'internal':
+			return 'DevRadar could not complete the tracking-start change safely.';
+	}
 }
 
 function activityFamilyLabel(family: ActivityFamily): string {
@@ -800,6 +1263,22 @@ function followStatus(result: FollowResult): string {
 			return 'DevRadar could not save the follow settings.';
 		case 'internal':
 			return 'DevRadar could not complete Follow safely.';
+	}
+}
+
+function unfollowStatus(result: UnfollowResult): string {
+	if (result.kind === 'unfollowed')
+		return `Unfollowed @${result.username}; the person note and recorded activity remain unchanged.`;
+	if (result.kind === 'cancelled') return 'Unfollow cancelled.';
+	switch (result.reason) {
+		case 'settings-not-ready':
+			return 'Unfollow is unavailable until settings recovery succeeds.';
+		case 'not-followed':
+			return 'That person is no longer followed.';
+		case 'persistence':
+			return 'DevRadar could not save the Unfollow change.';
+		case 'internal':
+			return 'DevRadar could not complete Unfollow safely.';
 	}
 }
 
