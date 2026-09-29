@@ -312,7 +312,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		).toBe(true);
 	});
 
-	it('opens the tracking-start editor from its static searchable action', () => {
+	it('keeps the searchable tracking-start editor with its selector', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
@@ -337,16 +337,25 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			.find((element) => element.tag === 'button')
 			?.click();
 		const personRow = renderedDefinition(view.tab, 'Followed people');
-		const mode = allElements(personRow).find(
+		const editRow = renderedDefinition(view.tab, 'Edit tracking start');
+		const mode = allElements(editRow).find(
 			(element) => element.id === 'devradar-edit-tracking-start-mode',
 		);
 
 		expect(mode?.value).toBe('from-date');
 		expect(
-			allElements(personRow)
+			allElements(editRow)
 				.filter((element) => element.tag === 'option')
 				.map((element) => element.text),
 		).toContain('Specific date');
+		expect(
+			allElements(personRow).filter(
+				(element) =>
+					element.tag === 'button' ||
+					element.tag === 'input' ||
+					element.tag === 'select',
+			),
+		).toHaveLength(0);
 	});
 
 	it('routes the searchable Unfollow action by selected account ID', async () => {

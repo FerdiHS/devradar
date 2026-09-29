@@ -461,6 +461,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		followedPeople: readonly FollowedPersonSummary[],
 		includeHeading = false,
 		refresh: SettingsRefresh = () => undefined,
+		includeActions = false,
 	): void {
 		if (includeHeading)
 			containerEl.createEl('p', { text: 'Followed people' });
@@ -473,13 +474,15 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			const item = list.createEl('li', {
 				text: `@${person.username} — ${person.notePath} — ${trackingStartSummary(person.trackingStart)}`,
 			});
-			this.renderUnfollowButton(item, person, refresh);
-			this.renderTrackingStartEditButton(item, person, refresh);
-			if (
-				this.trackingStartEditor?.githubAccountId ===
-				person.githubAccountId
-			)
-				this.renderTrackingStartEditor(item, person, refresh);
+			if (includeActions) {
+				this.renderUnfollowButton(item, person, refresh);
+				this.renderTrackingStartEditButton(item, person, refresh);
+				if (
+					this.trackingStartEditor?.githubAccountId ===
+					person.githubAccountId
+				)
+					this.renderTrackingStartEditor(item, person, refresh);
+			}
 		}
 	}
 
@@ -496,13 +499,25 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			});
 			option.value = person.githubAccountId;
 		}
-		select.value = followedPeople[0]?.githubAccountId ?? '';
+		const editingPerson = followedPeople.find(
+			(person) =>
+				person.githubAccountId ===
+				this.trackingStartEditor?.githubAccountId,
+		);
+		select.value =
+			editingPerson?.githubAccountId ??
+			followedPeople[0]?.githubAccountId ??
+			'';
 		this.renderTrackingStartEditButton(
 			containerEl,
-			followedPeople[0],
+			followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			),
 			refresh,
 			select,
 		);
+		if (editingPerson)
+			this.renderTrackingStartEditor(containerEl, editingPerson, refresh);
 	}
 
 	private renderTrackingStartEditButton(
@@ -1006,6 +1021,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 		this.renderFollowedPeople(containerEl, followedPeople, true, () =>
 			this.display(),
+			true,
 		);
 		if (this.unfollowStatus !== undefined)
 			containerEl.createEl('p', { text: this.unfollowStatus });
