@@ -312,7 +312,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		).toBe(true);
 	});
 
-	it('keeps the selected tracking-start editor in its searchable row', () => {
+	it('keeps the selected tracking-start editor in its searchable row', async () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
@@ -339,31 +339,64 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 				],
 			},
 		});
-		const action = renderedDefinition(view.tab, 'Edit tracking start');
-		const select = allElements(action).find(
-			(element) => element.id === 'devradar-edit-tracking-person',
-		);
-		if (!select) throw new Error('expected tracking-start selector');
-		select.value = '99';
-		allElements(action)
-			.find((element) => element.tag === 'button')
+		view.changeTrackingStart.mockResolvedValue({
+			kind: 'updated',
+			username: 'private-person',
+			trackingStart: {
+				mode: 'from-now',
+				at: '2026-09-29T00:00:00.000Z',
+			},
+		});
+
+		const initial = renderedDefinition(view.tab, 'Edit tracking start');
+		allElements(initial)
+			.find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Edit tracking start',
+			)
 			?.click();
+
 		const personRow = renderedDefinition(view.tab, 'Followed people');
-		const editRow = renderedDefinition(view.tab, 'Edit tracking start');
-		const selected = allElements(editRow).find(
+		const editingFirst = renderedDefinition(
+			view.tab,
+			'Edit tracking start',
+		);
+		let selected = allElements(editingFirst).find(
 			(element) => element.id === 'devradar-edit-tracking-person',
 		);
-		const mode = allElements(editRow).find(
+		let mode = allElements(editingFirst).find(
+			(element) => element.id === 'devradar-edit-tracking-start-mode',
+		);
+		expect(selected?.value).toBe('41');
+		expect(mode?.value).toBe('available-recent');
+		if (!selected) throw new Error('expected tracking-start selector');
+		selected.value = '99';
+		selected.emit('change');
+
+		const editingSecond = renderedDefinition(
+			view.tab,
+			'Edit tracking start',
+		);
+		selected = allElements(editingSecond).find(
+			(element) => element.id === 'devradar-edit-tracking-person',
+		);
+		mode = allElements(editingSecond).find(
 			(element) => element.id === 'devradar-edit-tracking-start-mode',
 		);
 
 		expect(selected?.value).toBe('99');
 		expect(mode?.value).toBe('from-date');
 		expect(
-			allElements(editRow)
+			allElements(editingSecond)
 				.filter((element) => element.tag === 'option')
 				.map((element) => element.text),
 		).toContain('Date & time');
+		expect(
+			allElements(editingSecond)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('Current tracking start for @private-person:');
 		expect(
 			allElements(personRow).filter(
 				(element) =>
@@ -372,6 +405,25 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 					element.tag === 'select',
 			),
 		).toHaveLength(0);
+
+		if (!mode) throw new Error('expected tracking-start mode selector');
+		mode.value = 'now';
+		mode.emit('change');
+		const save = allElements(
+			renderedDefinition(view.tab, 'Edit tracking start'),
+		).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Save tracking start',
+		);
+		if (!save) throw new Error('expected tracking-start Save');
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.changeTrackingStart).toHaveBeenCalledWith('99', {
+			mode: 'now',
+		});
 	});
 
 	it('routes the searchable Unfollow action by selected account ID', async () => {

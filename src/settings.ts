@@ -508,6 +508,18 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			editingPerson?.githubAccountId ??
 			followedPeople[0]?.githubAccountId ??
 			'';
+		select.disabled =
+			this.trackingStartSavePending ||
+			this.host.isFollowManagementPending();
+		select.addEventListener('change', () => {
+			const selectedPerson = followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			);
+			if (selectedPerson && this.trackingStartEditor) {
+				this.beginTrackingStartEdit(selectedPerson);
+				refresh();
+			}
+		});
 		this.renderTrackingStartEditButton(
 			containerEl,
 			followedPeople.find(
@@ -577,7 +589,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		const editor = this.trackingStartEditor;
 		if (!editor) return;
 		containerEl.createEl('p', {
-			text: `Current tracking start: ${trackingStartSummary(editor.original)}`,
+			text: `Current tracking start for @${person.username}: ${trackingStartSummary(editor.original)}`,
 		});
 		let save: HTMLButtonElement | undefined;
 		const updateSaveDisabled = () => {
