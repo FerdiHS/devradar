@@ -140,6 +140,9 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 			settings: createEmptySettingsV2(),
 		}),
 	);
+	const unfollow = vi.fn<SettingsTabHost['unfollow']>(async () => ({
+		kind: 'cancelled',
+	}));
 	const host: SettingsTabHost = {
 		getSettingsState: () => state,
 		isRecoveryActionPending: () => pending,
@@ -147,6 +150,8 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		resetSettings,
 		isFollowPending: () => false,
 		follow,
+		isFollowManagementPending: () => false,
+		unfollow,
 		saveActivityFamilies,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
@@ -159,6 +164,7 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		resetSettings,
 		retrySettingsLoad,
 		follow,
+		unfollow,
 		saveActivityFamilies,
 	};
 }
@@ -265,6 +271,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 				'Note destination',
 				'Tracking start',
 				'Follow',
+				'Unfollow',
 				'Followed people',
 				'Follow status',
 				'Activity filter status',
@@ -274,6 +281,10 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			rows.find((definition) => definition.name === 'Followed people')
 				?.searchable,
 		).toBe(false);
+		expect(
+			rows.find((definition) => definition.name === 'Unfollow')
+				?.searchable,
+		).not.toBe(false);
 		expect(
 			rows.find((definition) => definition.name === 'Follow status')
 				?.searchable,
@@ -289,6 +300,36 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		expect(
 			rows.every((definition) => definition.control === undefined),
 		).toBe(true);
+	});
+
+	it('routes the searchable Unfollow action by selected account ID', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'private-person',
+						githubAccountId: '42',
+						notePath: 'Private/private-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		const row = renderedDefinition(view.tab, 'Unfollow');
+		const button = allElements(row).find(
+			(element) => element.tag === 'button',
+		);
+		if (!button) throw new Error('expected Unfollow button');
+
+		button.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.unfollow).toHaveBeenCalledWith('42');
 	});
 
 	it('renders fail-closed recovery actions through the application host', () => {
@@ -613,6 +654,8 @@ describe('DevRadarSettingTab recovery UI', () => {
 				kind: 'failed' as const,
 				reason: 'internal' as const,
 			})),
+			isFollowManagementPending: () => false,
+			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
 			saveActivityFamilies: vi.fn(async () => ({
 				kind: 'saved' as const,
 				settings: readyEmpty.settings,
@@ -868,6 +911,39 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		]);
 	});
 
+	it('renders an imperative Unfollow control for each followed person', async () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: {
+				schemaVersion: 2,
+				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+				followedPeople: [
+					{
+						username: 'octocat',
+						githubAccountId: '583231',
+						notePath: 'People/octocat.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+				],
+			},
+		});
+		view.tab.display();
+		const item = allElements(view.root).find(
+			(element) => element.tag === 'li',
+		);
+		const button = item?.children.find(
+			(element) => element.tag === 'button',
+		);
+		if (!button) throw new Error('expected inline Unfollow button');
+
+		button.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.unfollow).toHaveBeenCalledWith('583231');
+	});
+
 	it('submits entered fields and date mode, then maps a stable result', async () => {
 		const view = tabFor(readyEmpty);
 		view.follow.mockResolvedValue({
@@ -1103,6 +1179,8 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			resetSettings: vi.fn(async () => undefined),
 			isFollowPending: () => false,
 			follow,
+			isFollowManagementPending: () => false,
+			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
 			saveActivityFamilies: vi.fn(async () => ({
 				kind: 'saved' as const,
 				settings: readyEmpty.settings,

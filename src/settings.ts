@@ -18,12 +18,15 @@ import type {
 	FollowResult,
 	FollowTrackingStartDraft,
 } from './application/follow';
+import type { UnfollowResult } from './application/follow-management';
 
 export type { SettingsRuntimeState } from './application/settings';
 
 export type SettingsTabHost = SettingsApplicationHost & {
 	isFollowPending(): boolean;
 	follow(draft: FollowDraft): Promise<FollowResult>;
+	isFollowManagementPending(): boolean;
+	unfollow(githubAccountId: string): Promise<UnfollowResult>;
 	saveActivityFamilies(
 		families: readonly ActivityFamily[],
 	): Promise<import('./application/settings').SettingsSaveResult>;
@@ -37,6 +40,7 @@ type ReadySettings = Extract<
 >['settings'];
 type FollowedPersonSummary = {
 	readonly username: string;
+	readonly githubAccountId: string;
 	readonly notePath: string;
 	readonly trackingStart: {
 		readonly mode: 'from-now' | 'available-recent' | 'from-date';
@@ -53,6 +57,8 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private fromTimeBadInput = false;
 	private followPending = false;
 	private followStatus?: string;
+	private unfollowPending = false;
+	private unfollowStatus?: string;
 	private activityFamiliesDraft?: ActivityFamily[];
 	private activitySavePending = false;
 	private activitySaveStatus?: string;
@@ -254,8 +260,33 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					this.renderFollowedPeople(
 						setting.controlEl,
 						settings.followedPeople,
+						false,
+						refresh,
 					),
 			},
+			{
+				name: 'Unfollow',
+				visible: () => settings.followedPeople.length > 0,
+				render: (setting) =>
+					this.renderUnfollowSelector(
+						setting.controlEl,
+						settings.followedPeople,
+						refresh,
+					),
+			},
+			...(this.unfollowStatus === undefined
+				? []
+				: [
+						{
+							name: 'Unfollow status',
+							searchable: false,
+							render: (setting: { controlEl: HTMLElement }) => {
+								setting.controlEl.createEl('p', {
+									text: this.unfollowStatus ?? '',
+								});
+							},
+						},
+					]),
 		];
 	}
 
@@ -387,6 +418,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl: HTMLElement,
 		followedPeople: readonly FollowedPersonSummary[],
 		includeHeading = false,
+		refresh: SettingsRefresh = () => undefined,
 	): void {
 		if (includeHeading)
 			containerEl.createEl('p', { text: 'Followed people' });
@@ -396,10 +428,77 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		}
 		const list = containerEl.createEl('ul');
 		for (const person of followedPeople) {
-			list.createEl('li', {
+			const item = list.createEl('li', {
 				text: `@${person.username} — ${person.notePath} — ${trackingStartSummary(person.trackingStart)}`,
 			});
+			this.renderUnfollowButton(item, person, refresh);
 		}
+	}
+
+	private renderUnfollowSelector(
+		containerEl: HTMLElement,
+		followedPeople: readonly FollowedPersonSummary[],
+		refresh: SettingsRefresh,
+	): void {
+		const select = containerEl.createEl('select');
+		select.id = 'devradar-unfollow-person';
+		for (const person of followedPeople) {
+			const option = select.createEl('option', {
+				text: `@${person.username}`,
+			});
+			option.value = person.githubAccountId;
+		}
+		select.value = followedPeople[0]?.githubAccountId ?? '';
+		this.renderUnfollowButton(
+			containerEl,
+			followedPeople[0],
+			refresh,
+			select,
+		);
+	}
+
+	private renderUnfollowButton(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary | undefined,
+		refresh: SettingsRefresh,
+		select?: HTMLSelectElement,
+	): void {
+		const button = containerEl.createEl('button', { text: 'Unfollow' });
+		button.disabled =
+			person === undefined ||
+			this.unfollowPending ||
+			this.host.isFollowManagementPending();
+		button.addEventListener('click', () => {
+			const githubAccountId = select?.value ?? person?.githubAccountId;
+			if (githubAccountId)
+				this.submitUnfollow(githubAccountId, refresh, button);
+		});
+	}
+
+	private submitUnfollow(
+		githubAccountId: string,
+		refresh: SettingsRefresh,
+		button?: HTMLButtonElement,
+	): void {
+		if (this.unfollowPending || this.host.isFollowManagementPending())
+			return;
+		this.unfollowPending = true;
+		this.unfollowStatus = undefined;
+		if (button) button.disabled = true;
+		refresh();
+		void this.host.unfollow(githubAccountId).then(
+			(result) => {
+				this.unfollowPending = false;
+				this.unfollowStatus = unfollowStatus(result);
+				refresh();
+			},
+			() => {
+				this.unfollowPending = false;
+				this.unfollowStatus =
+					'DevRadar could not complete Unfollow safely.';
+				refresh();
+			},
+		);
 	}
 
 	private updateActivityDraft(
@@ -518,6 +617,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl: HTMLElement,
 		followedPeople: readonly {
 			username: string;
+			githubAccountId: string;
 			notePath: string;
 			trackingStart: {
 				mode: 'from-now' | 'available-recent' | 'from-date';
@@ -618,7 +718,11 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		if (this.followStatus !== undefined)
 			containerEl.createEl('p', { text: this.followStatus });
 
-		this.renderFollowedPeople(containerEl, followedPeople, true);
+		this.renderFollowedPeople(containerEl, followedPeople, true, () =>
+			this.display(),
+		);
+		if (this.unfollowStatus !== undefined)
+			containerEl.createEl('p', { text: this.unfollowStatus });
 	}
 
 	private displayActivityFilters(
@@ -800,6 +904,22 @@ function followStatus(result: FollowResult): string {
 			return 'DevRadar could not save the follow settings.';
 		case 'internal':
 			return 'DevRadar could not complete Follow safely.';
+	}
+}
+
+function unfollowStatus(result: UnfollowResult): string {
+	if (result.kind === 'unfollowed')
+		return `Unfollowed @${result.username}; the person note and recorded activity remain unchanged.`;
+	if (result.kind === 'cancelled') return 'Unfollow cancelled.';
+	switch (result.reason) {
+		case 'settings-not-ready':
+			return 'Unfollow is unavailable until settings recovery succeeds.';
+		case 'not-followed':
+			return 'That person is no longer followed.';
+		case 'persistence':
+			return 'DevRadar could not save the Unfollow change.';
+		case 'internal':
+			return 'DevRadar could not complete Unfollow safely.';
 	}
 }
 

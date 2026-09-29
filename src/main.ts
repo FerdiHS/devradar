@@ -27,6 +27,10 @@ import {
 	type FollowDraft,
 	type FollowResult,
 } from './application/follow';
+import {
+	FollowManagementApplication,
+	type UnfollowResult,
+} from './application/follow-management';
 import { GitHubAdapter } from './adapters/github';
 import { createObsidianGitHubTransport } from './adapters/github-transport';
 import { createObsidianNotePersistence } from './adapters/obsidian-notes';
@@ -78,6 +82,7 @@ export default class DevRadarPlugin extends Plugin {
 	private persistence!: ObsidianSettingsPersistence;
 	private settingsApplication!: SettingsApplication;
 	private followApplication!: FollowApplication;
+	private followManagementApplication!: FollowManagementApplication;
 	private syncOneApplication!: SyncOneApplication;
 	private syncAllApplication!: SyncAllApplication;
 	private syncPending = false;
@@ -119,6 +124,11 @@ export default class DevRadarPlugin extends Plugin {
 			notes,
 			mutationGuard,
 			now: () => new Date().toISOString(),
+		});
+		this.followManagementApplication = new FollowManagementApplication({
+			settings: this.settingsApplication,
+			mutationGuard,
+			confirmUnfollow: (message) => window.confirm(message),
 		});
 		const syncPersonExecutor = new SyncPersonExecutor({
 			settings: this.settingsApplication,
@@ -186,6 +196,14 @@ export default class DevRadarPlugin extends Plugin {
 
 	async follow(draft: FollowDraft): Promise<FollowResult> {
 		return this.followApplication.follow(draft);
+	}
+
+	isFollowManagementPending(): boolean {
+		return this.followManagementApplication.isPending();
+	}
+
+	async unfollow(githubAccountId: string): Promise<UnfollowResult> {
+		return this.followManagementApplication.unfollow(githubAccountId);
 	}
 
 	private startSyncOne(): void {

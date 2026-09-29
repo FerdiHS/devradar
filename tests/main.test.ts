@@ -394,6 +394,42 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		expect(plugin.getSettingsState().kind).toBe('recovery');
 	});
 
+	it('wires confirmed Unfollow through persisted settings and preserves provider policy', async () => {
+		const confirm = vi.fn<(message: string) => boolean>(() => true);
+		vi.stubGlobal('window', { confirm });
+		const saveData = vi.fn(async () => undefined);
+		const initial = {
+			...FOLLOWED,
+			githubRequestPolicy: {
+				rateLimitNotBefore: '2026-09-30T00:00:00.000Z',
+			},
+		};
+		const plugin = fakePlugin(async () => initial, saveData);
+
+		await plugin.onload();
+		await expect(plugin.unfollow('583231')).resolves.toEqual({
+			kind: 'unfollowed',
+			username: 'octocat',
+		});
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(confirm.mock.calls[0]?.[0]).toContain('person note');
+		expect(confirm.mock.calls[0]?.[0]).toContain(
+			'DevRadar-managed section',
+		);
+		expect(confirm.mock.calls[0]?.[0]).toContain('recorded activity');
+		expect(confirm.mock.calls[0]?.[0]).toContain('user-authored content');
+		expect(saveData).toHaveBeenCalledTimes(1);
+		expect(saveData.mock.calls[0]?.[0]).toMatchObject({
+			followedPeople: [],
+			githubRequestPolicy: initial.githubRequestPolicy,
+		});
+		expect(plugin.getSettingsState()).toMatchObject({
+			kind: 'ready',
+			settings: { followedPeople: [] },
+		});
+	});
+
 	it('keeps recovery state and exposes retry after a reset write failure', async () => {
 		const plugin = fakePlugin(
 			async () => ({ malformed: true }),
