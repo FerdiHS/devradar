@@ -312,7 +312,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		).toBe(true);
 	});
 
-	it('keeps the searchable tracking-start editor with its selector', () => {
+	it('keeps the selected tracking-start editor in its searchable row', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
@@ -320,8 +320,15 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
+						username: 'first-person',
+						githubAccountId: '41',
+						notePath: 'Private/first-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+					{
 						username: 'private-person',
-						githubAccountId: '42',
+						githubAccountId: '99',
 						notePath: 'Private/private-person.md',
 						trackingStart: {
 							mode: 'from-date',
@@ -333,15 +340,24 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			},
 		});
 		const action = renderedDefinition(view.tab, 'Edit tracking start');
+		const select = allElements(action).find(
+			(element) => element.id === 'devradar-edit-tracking-person',
+		);
+		if (!select) throw new Error('expected tracking-start selector');
+		select.value = '99';
 		allElements(action)
 			.find((element) => element.tag === 'button')
 			?.click();
 		const personRow = renderedDefinition(view.tab, 'Followed people');
 		const editRow = renderedDefinition(view.tab, 'Edit tracking start');
+		const selected = allElements(editRow).find(
+			(element) => element.id === 'devradar-edit-tracking-person',
+		);
 		const mode = allElements(editRow).find(
 			(element) => element.id === 'devradar-edit-tracking-start-mode',
 		);
 
+		expect(selected?.value).toBe('99');
 		expect(mode?.value).toBe('from-date');
 		expect(
 			allElements(editRow)
@@ -366,8 +382,15 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
+						username: 'first-person',
+						githubAccountId: '41',
+						notePath: 'Private/first-person.md',
+						trackingStart: { mode: 'available-recent' },
+						syncState: { seenEvents: [], github: {} },
+					},
+					{
 						username: 'private-person',
-						githubAccountId: '42',
+						githubAccountId: '99',
 						notePath: 'Private/private-person.md',
 						trackingStart: { mode: 'available-recent' },
 						syncState: { seenEvents: [], github: {} },
@@ -376,16 +399,20 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			},
 		});
 		const row = renderedDefinition(view.tab, 'Unfollow');
+		const select = allElements(row).find(
+			(element) => element.id === 'devradar-unfollow-person',
+		);
 		const button = allElements(row).find(
 			(element) => element.tag === 'button',
 		);
-		if (!button) throw new Error('expected Unfollow button');
+		if (!select || !button) throw new Error('expected Unfollow selector');
+		select.value = '99';
 
 		button.click();
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(view.unfollow).toHaveBeenCalledWith('42');
+		expect(view.unfollow).toHaveBeenCalledWith('99');
 	});
 
 	it('renders fail-closed recovery actions through the application host', () => {
@@ -825,7 +852,8 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 					element.tag === 'button' &&
 					element.text === 'Save tracking start',
 			);
-			if (!date || !save) throw new Error('expected date editor and Save');
+			if (!date || !save)
+				throw new Error('expected date editor and Save');
 			expect(save.disabled).toBe(true);
 
 			date.value = '2026-08-02';

@@ -1019,8 +1019,11 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		if (this.followStatus !== undefined)
 			containerEl.createEl('p', { text: this.followStatus });
 
-		this.renderFollowedPeople(containerEl, followedPeople, true, () =>
-			this.display(),
+		this.renderFollowedPeople(
+			containerEl,
+			followedPeople,
+			true,
+			() => this.display(),
 			true,
 		);
 		if (this.unfollowStatus !== undefined)
