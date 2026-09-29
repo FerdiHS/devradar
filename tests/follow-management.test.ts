@@ -44,6 +44,7 @@ function harness(
 		confirm?: (message: string) => boolean;
 		save?: (candidate: DevRadarSettingsV2) => Promise<SettingsSaveResult>;
 		guard?: ReturnType<typeof createApplicationMutationGuard>;
+		now?: () => string;
 	} = {},
 ) {
 	let state: SettingsRuntimeState = { kind: 'ready', settings: initial };
@@ -68,6 +69,7 @@ function harness(
 		},
 		mutationGuard,
 		confirmUnfollow: confirm,
+		now: options.now ?? (() => '2026-08-28T00:00:00.000Z'),
 	});
 	return {
 		app,
@@ -298,5 +300,169 @@ describe('FollowManagementApplication.unfollow', () => {
 			reason: 'not-followed',
 		});
 		expect(view.save).not.toHaveBeenCalled();
+	});
+});
+
+describe('FollowManagementApplication.changeTrackingStart', () => {
+	it('resolves Now after entering the mutation guard and stores the commit instant', async () => {
+		let instant = '2026-08-28T00:00:00.000Z';
+		const now = vi.fn(() => instant);
+		const guard = {
+			run: async <T>(operation: () => Promise<T>) => {
+				instant = '2026-08-28T00:01:02.345Z';
+				return operation();
+			},
+		};
+		const view = harness(settings(), { guard, now });
+
+		await expect(
+			view.app.changeTrackingStart('42', { mode: 'now' }),
+		).resolves.toEqual({
+			kind: 'updated',
+			username: 'octocat',
+			trackingStart: {
+				mode: 'from-now',
+				at: '2026-08-28T00:01:02.345Z',
+			},
+		});
+		expect(now).toHaveBeenCalledTimes(1);
+		expect(view.saved[0]?.followedPeople[0]?.trackingStart).toEqual({
+			mode: 'from-now',
+			at: '2026-08-28T00:01:02.345Z',
+		});
+	});
+
+	it('stores Available recent without a timestamp', async () => {
+		const view = harness();
+
+		await expect(
+			view.app.changeTrackingStart('42', { mode: 'available-recent' }),
+		).resolves.toEqual({
+			kind: 'updated',
+			username: 'octocat',
+			trackingStart: { mode: 'available-recent' },
+		});
+		expect(view.saved[0]?.followedPeople[0]?.trackingStart).toEqual({
+			mode: 'available-recent',
+		});
+	});
+
+	it('accepts canonical past dates in either direction and preserves all other settings', async () => {
+		for (const at of [
+			'2026-08-02T12:34:56.789Z',
+			'2026-07-31T23:59:59.999Z',
+		]) {
+			const initial = settings();
+			const view = harness(initial);
+			await expect(
+				view.app.changeTrackingStart('42', { mode: 'from-date', at }),
+			).resolves.toEqual({
+				kind: 'updated',
+				username: 'octocat',
+				trackingStart: { mode: 'from-date', at },
+			});
+			const candidate = view.saved[0];
+			const originalPerson = initial.followedPeople[0];
+			if (!originalPerson) throw new Error('expected selected person');
+			expect(candidate?.followedPeople[0]?.trackingStart).toEqual({
+				mode: 'from-date',
+				at,
+			});
+			expect(candidate?.followedPeople[0]).toEqual({
+				...originalPerson,
+				trackingStart: { mode: 'from-date', at },
+			});
+			expect(candidate?.followedPeople[0]?.syncState).toEqual(
+				initial.followedPeople[0]?.syncState,
+			);
+			expect(candidate?.followedPeople[1]).toEqual(
+				initial.followedPeople[1],
+			);
+			expect(candidate?.githubRequestPolicy).toEqual(
+				initial.githubRequestPolicy,
+			);
+			expect(candidate?.enabledActivityFamilies).toEqual(
+				initial.enabledActivityFamilies,
+			);
+		}
+	});
+
+	it('rejects noncanonical and future dates without saving', async () => {
+		const view = harness();
+		for (const draft of [
+			{ mode: 'from-date', at: '2026-08-20T00:00:00Z' },
+			{ mode: 'from-date', at: '2026-08-29T00:00:00.000Z' },
+			{ mode: 'unknown' },
+		]) {
+			await expect(
+				view.app.changeTrackingStart('42', draft as never),
+			).resolves.toEqual({ kind: 'failed', reason: 'invalid-input' });
+		}
+		expect(view.save).not.toHaveBeenCalled();
+	});
+
+	it('reports persistence failure and enters settings recovery', async () => {
+		const view = harness(settings(), {
+			save: async () => ({ kind: 'write-failure' }),
+		});
+
+		await expect(
+			view.app.changeTrackingStart('42', { mode: 'available-recent' }),
+		).resolves.toEqual({ kind: 'failed', reason: 'persistence' });
+		expect(view.getState()).toEqual({
+			kind: 'recovery',
+			diagnostic: { kind: 'write-failure' },
+		});
+	});
+
+	it('waits for the shared guard and rereads settings before changing one person', async () => {
+		const guard = createApplicationMutationGuard();
+		let release!: () => void;
+		let entered!: () => void;
+		const started = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const view = harness(settings(), { guard });
+		const occupyingMutation = guard.run(async () => {
+			entered();
+			await blocked;
+		});
+		await started;
+		const result = view.app.changeTrackingStart('42', {
+			mode: 'available-recent',
+		});
+		await Promise.resolve();
+		view.setState({
+			kind: 'ready',
+			settings: {
+				...settings(),
+				githubRequestPolicy: {
+					rateLimitNotBefore: '2026-08-29T00:00:00.000Z',
+				},
+				followedPeople: [
+					person('octocat', '42'),
+					{
+						...person('hubot', '7'),
+						syncState: {
+							...person('hubot', '7').syncState,
+							lastAttemptAt: '2026-08-27T00:00:00.000Z',
+						},
+					},
+				],
+			},
+		});
+		expect(view.save).not.toHaveBeenCalled();
+		release();
+		await occupyingMutation;
+		await expect(result).resolves.toMatchObject({ kind: 'updated' });
+		expect(view.saved[0]?.githubRequestPolicy).toEqual({
+			rateLimitNotBefore: '2026-08-29T00:00:00.000Z',
+		});
+		expect(view.saved[0]?.followedPeople[1]?.syncState.lastAttemptAt).toBe(
+			'2026-08-27T00:00:00.000Z',
+		);
 	});
 });

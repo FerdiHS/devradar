@@ -397,7 +397,7 @@ describe('DevRadarPlugin settings lifecycle', () => {
 	it('wires confirmed Unfollow through persisted settings and preserves provider policy', async () => {
 		const confirm = vi.fn<(message: string) => boolean>(() => true);
 		vi.stubGlobal('window', { confirm });
-		const saveData = vi.fn(async () => undefined);
+		const saveData = vi.fn(async (_data: unknown) => undefined);
 		const initial = {
 			...FOLLOWED,
 			githubRequestPolicy: {
@@ -427,6 +427,40 @@ describe('DevRadarPlugin settings lifecycle', () => {
 		expect(plugin.getSettingsState()).toMatchObject({
 			kind: 'ready',
 			settings: { followedPeople: [] },
+		});
+	});
+
+	it('routes a tracking-start edit through the persisted management service', async () => {
+		const saveData = vi.fn(async (_data: unknown) => undefined);
+		const plugin = fakePlugin(async () => FOLLOWED, saveData);
+
+		await plugin.onload();
+		await expect(
+			plugin.changeTrackingStart('583231', {
+				mode: 'from-date',
+				at: '2026-08-15T10:30:00.000Z',
+			}),
+		).resolves.toEqual({
+			kind: 'updated',
+			username: 'octocat',
+			trackingStart: {
+				mode: 'from-date',
+				at: '2026-08-15T10:30:00.000Z',
+			},
+		});
+
+		expect(saveData).toHaveBeenCalledTimes(1);
+		expect(saveData.mock.calls[0]?.[0]).toMatchObject({
+			followedPeople: [
+				{
+					githubAccountId: '583231',
+					trackingStart: {
+						mode: 'from-date',
+						at: '2026-08-15T10:30:00.000Z',
+					},
+					syncState: FOLLOWED.followedPeople[0]?.syncState,
+				},
+			],
 		});
 	});
 

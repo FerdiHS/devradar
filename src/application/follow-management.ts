@@ -1,4 +1,10 @@
-import type { DevRadarSettingsV2, FollowedPersonV1 } from '../domain/settings';
+import { compareCanonicalTimestamps } from '../domain/activity';
+import {
+	validateCanonicalPluginTimestamp,
+	type DevRadarSettingsV2,
+	type FollowedPersonV1,
+} from '../domain/settings';
+import type { FollowTrackingStartDraft } from './follow';
 import type { ApplicationMutationGuard } from './mutation-guard';
 import type {
 	SettingsAuthority,
@@ -14,6 +20,24 @@ export type UnfollowResult =
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'failed'; readonly reason: UnfollowFailureReason };
 
+export type TrackingStartChangeFailureReason =
+	| 'invalid-input'
+	| 'settings-not-ready'
+	| 'not-followed'
+	| 'persistence'
+	| 'internal';
+
+export type TrackingStartChangeResult =
+	| {
+			readonly kind: 'updated';
+			readonly username: string;
+			readonly trackingStart: FollowedPersonV1['trackingStart'];
+	  }
+	| {
+			readonly kind: 'failed';
+			readonly reason: TrackingStartChangeFailureReason;
+	  };
+
 type FollowManagementDependencies = {
 	readonly settings: Pick<
 		SettingsAuthority,
@@ -21,12 +45,17 @@ type FollowManagementDependencies = {
 	>;
 	readonly mutationGuard: ApplicationMutationGuard;
 	readonly confirmUnfollow: (message: string) => boolean;
+	readonly now: () => string;
 };
 
 const failed = (reason: UnfollowFailureReason): UnfollowResult => ({
 	kind: 'failed',
 	reason,
 });
+
+const trackingStartFailed = (
+	reason: TrackingStartChangeFailureReason,
+): TrackingStartChangeResult => ({ kind: 'failed', reason });
 
 export class FollowManagementApplication {
 	private pending = 0;
@@ -89,6 +118,103 @@ export class FollowManagementApplication {
 			return failed('internal');
 		} finally {
 			this.pending -= 1;
+		}
+	}
+
+	async changeTrackingStart(
+		githubAccountId: string,
+		draft: FollowTrackingStartDraft,
+	): Promise<TrackingStartChangeResult> {
+		this.pending += 1;
+		try {
+			return await this.dependencies.mutationGuard.run(async () => {
+				const state = this.dependencies.settings.getSettingsState();
+				if (state.kind !== 'ready')
+					return trackingStartFailed('settings-not-ready');
+				const selected = findPerson(state, githubAccountId);
+				if (!selected) return trackingStartFailed('not-followed');
+
+				const trackingStart = this.prepareTrackingStart(draft);
+				if (!trackingStart.ok)
+					return trackingStartFailed(trackingStart.reason);
+				const candidate: DevRadarSettingsV2 = {
+					...state.settings,
+					followedPeople: state.settings.followedPeople.map(
+						(person) =>
+							person.githubAccountId === githubAccountId
+								? {
+										...clonePerson(person),
+										trackingStart: trackingStart.value,
+									}
+								: clonePerson(person),
+					),
+				};
+				let saved: SettingsSaveResult;
+				try {
+					saved =
+						await this.dependencies.settings.saveCandidateWithinMutation(
+							candidate,
+						);
+				} catch {
+					return trackingStartFailed('internal');
+				}
+				if (saved.kind !== 'saved')
+					return trackingStartFailed(
+						saved.kind === 'internal-failure'
+							? 'internal'
+							: 'persistence',
+					);
+				return {
+					kind: 'updated',
+					username: selected.username,
+					trackingStart: trackingStart.value,
+				};
+			});
+		} catch {
+			return trackingStartFailed('internal');
+		} finally {
+			this.pending -= 1;
+		}
+	}
+
+	private prepareTrackingStart(draft: FollowTrackingStartDraft):
+		| {
+				readonly ok: true;
+				readonly value: FollowedPersonV1['trackingStart'];
+		  }
+		| {
+				readonly ok: false;
+				readonly reason: 'invalid-input' | 'internal';
+		  } {
+		if (!draft || typeof draft !== 'object')
+			return { ok: false, reason: 'invalid-input' };
+		if (draft.mode === 'available-recent')
+			return { ok: true, value: { mode: 'available-recent' } };
+		if (draft.mode === 'now') {
+			const now = this.currentInstant();
+			return now
+				? { ok: true, value: { mode: 'from-now', at: now } }
+				: { ok: false, reason: 'internal' };
+		}
+		if (draft.mode !== 'from-date')
+			return { ok: false, reason: 'invalid-input' };
+		const at = validateCanonicalPluginTimestamp(draft.at);
+		if (!at.ok) return { ok: false, reason: 'invalid-input' };
+		const now = this.currentInstant();
+		if (!now) return { ok: false, reason: 'internal' };
+		if (compareCanonicalTimestamps(at.value, now) > 0)
+			return { ok: false, reason: 'invalid-input' };
+		return { ok: true, value: { mode: 'from-date', at: at.value } };
+	}
+
+	private currentInstant(): string | undefined {
+		try {
+			const result = validateCanonicalPluginTimestamp(
+				this.dependencies.now(),
+			);
+			return result.ok ? result.value : undefined;
+		} catch {
+			return undefined;
 		}
 	}
 }

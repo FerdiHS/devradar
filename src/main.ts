@@ -26,9 +26,11 @@ import {
 	FollowApplication,
 	type FollowDraft,
 	type FollowResult,
+	type FollowTrackingStartDraft,
 } from './application/follow';
 import {
 	FollowManagementApplication,
+	type TrackingStartChangeResult,
 	type UnfollowResult,
 } from './application/follow-management';
 import { GitHubAdapter } from './adapters/github';
@@ -129,6 +131,7 @@ export default class DevRadarPlugin extends Plugin {
 			settings: this.settingsApplication,
 			mutationGuard,
 			confirmUnfollow: (message) => window.confirm(message),
+			now: () => new Date().toISOString(),
 		});
 		const syncPersonExecutor = new SyncPersonExecutor({
 			settings: this.settingsApplication,
@@ -204,6 +207,16 @@ export default class DevRadarPlugin extends Plugin {
 
 	async unfollow(githubAccountId: string): Promise<UnfollowResult> {
 		return this.followManagementApplication.unfollow(githubAccountId);
+	}
+
+	async changeTrackingStart(
+		githubAccountId: string,
+		draft: FollowTrackingStartDraft,
+	): Promise<TrackingStartChangeResult> {
+		return this.followManagementApplication.changeTrackingStart(
+			githubAccountId,
+			draft,
+		);
 	}
 
 	private startSyncOne(): void {
