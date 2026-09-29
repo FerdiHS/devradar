@@ -776,6 +776,60 @@ describe('DevRadarSettingTab recovery UI', () => {
 });
 
 describe('DevRadarSettingTab ready Follow UI', () => {
+	it('keeps the tracking-start editor input mounted while updating Save', () => {
+		const previousTimezone = process.env.TZ;
+		process.env.TZ = 'UTC';
+		try {
+			const view = tabFor({
+				kind: 'ready',
+				settings: {
+					schemaVersion: 2,
+					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+					followedPeople: [
+						{
+							username: 'octocat',
+							githubAccountId: '583231',
+							notePath: 'People/octocat.md',
+							trackingStart: {
+								mode: 'from-date',
+								at: '2026-08-01T12:34:00.000Z',
+							},
+							syncState: { seenEvents: [], github: {} },
+						},
+					],
+				},
+			});
+			view.tab.display();
+			allElements(view.root)
+				.find(
+					(element) =>
+						element.tag === 'button' &&
+						element.text === 'Edit tracking start',
+				)
+				?.click();
+
+			const date = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-tracking-start-date',
+			);
+			const save = allElements(view.root).find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Save tracking start',
+			);
+			if (!date || !save) throw new Error('expected date editor and Save');
+			expect(save.disabled).toBe(true);
+
+			date.value = '2026-08-02';
+			date.emit('input');
+
+			expect(allElements(view.root)).toContain(date);
+			expect(save.disabled).toBe(false);
+		} finally {
+			if (previousTimezone === undefined) delete process.env.TZ;
+			else process.env.TZ = previousTimezone;
+		}
+	});
+
 	it('renders the minimal Follow form and explicit empty state', () => {
 		const view = tabFor(readyEmpty);
 		view.tab.display();

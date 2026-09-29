@@ -564,6 +564,15 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		containerEl.createEl('p', {
 			text: `Current tracking start: ${trackingStartSummary(editor.original)}`,
 		});
+		let save: HTMLButtonElement | undefined;
+		const updateSaveDisabled = () => {
+			if (!save) return;
+			save.disabled =
+				this.trackingStartSavePending ||
+				this.host.isFollowManagementPending() ||
+				this.trackingStartEditorIsUnchanged() ||
+				this.trackingStartDraft() === undefined;
+		};
 		const modeLabel = containerEl.createEl('label', {
 			text: 'Tracking start',
 		});
@@ -601,8 +610,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			date.addEventListener('input', () => {
 				if (!this.trackingStartEditor) return;
 				this.trackingStartEditor.date = date.value;
-				this.trackingStartStatus = undefined;
-				refresh();
+				updateSaveDisabled();
 			});
 
 			const timeLabel = containerEl.createEl('label', {
@@ -619,22 +627,17 @@ export class DevRadarSettingTab extends PluginSettingTab {
 				if (!this.trackingStartEditor) return;
 				this.trackingStartEditor.time = time.value;
 				this.trackingStartEditor.timeBadInput = time.validity.badInput;
-				this.trackingStartStatus = undefined;
-				refresh();
+				updateSaveDisabled();
 			});
 			containerEl.createEl('p', {
 				text: 'Leave the time empty to begin at 00:00 on the selected date in your local timezone.',
 			});
 		}
 
-		const save = containerEl.createEl('button', {
+		save = containerEl.createEl('button', {
 			text: 'Save tracking start',
 		});
-		save.disabled =
-			this.trackingStartSavePending ||
-			this.host.isFollowManagementPending() ||
-			this.trackingStartEditorIsUnchanged() ||
-			this.trackingStartDraft() === undefined;
+		updateSaveDisabled();
 		save.addEventListener('click', () =>
 			this.submitTrackingStartChange(person.githubAccountId, refresh),
 		);
