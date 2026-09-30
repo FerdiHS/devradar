@@ -1071,19 +1071,17 @@ describe('Obsidian note persistence current-content processing', () => {
 	});
 
 	it.each([
-		VALID_NOTE.replace(/^---[\s\S]*?---\n\n/, ''),
-		VALID_NOTE.replace('devradarGithubId: "583231"\n', ''),
-		VALID_NOTE.replace(
-			'devradarGithubId: "583231"',
-			'devradarGithubId: "1"',
-		),
-		VALID_NOTE.replace(
-			'devradarGithubId: "583231"',
-			'devradarGithubId: []',
-		),
+		{
+			name: 'no Properties block',
+			markdown: VALID_NOTE.replace(/^---[\s\S]*?---\n\n/, ''),
+		},
+		{
+			name: 'one missing reserved Property',
+			markdown: VALID_NOTE.replace('devradarGithubId: "583231"\n', ''),
+		},
 	])(
-		'reuses associated notes without relying on Properties: %s',
-		async (current) => {
+		'reuses a same-person section with $name',
+		async ({ markdown: current }) => {
 			const file = new FakeTFile('People/octocat.md');
 			const processFrontMatter = vi.fn(async () => undefined);
 			fakeVault.getAbstractFileByPath.mockReturnValue(file);
@@ -1120,6 +1118,151 @@ describe('Obsidian note persistence current-content processing', () => {
 			expect(processFrontMatter).not.toHaveBeenCalled();
 		},
 	);
+
+	it.each([
+		{
+			name: 'mismatched account ID',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubId: "583231"',
+				'devradarGithubId: "1"',
+			),
+			error: { reason: 'invalid-property', property: 'github-id' },
+		},
+		{
+			name: 'wrong-type account ID',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubId: "583231"',
+				'devradarGithubId: []',
+			),
+			error: { reason: 'invalid-property', property: 'github-id' },
+		},
+		{
+			name: 'mismatched username',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubUsername: "octocat"',
+				'devradarGithubUsername: "other-person"',
+			),
+			error: {
+				reason: 'invalid-property',
+				property: 'github-username',
+			},
+		},
+		{
+			name: 'duplicate reserved key',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubId: "583231"',
+				'devradarGithubId: "583231"\ndevradarGithubId: "583231"',
+			),
+			error: { reason: 'malformed' },
+		},
+		{
+			name: 'case-colliding reserved key',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubId: "583231"',
+				'devradarGithubId: "583231"\nDevRadarGithubId: "583231"',
+			),
+			error: { reason: 'reserved-key-variant' },
+		},
+		{
+			name: 'malformed frontmatter',
+			markdown: VALID_NOTE.replace(
+				'devradarGithubId: "583231"',
+				'devradarGithubId: [',
+			),
+			error: { reason: 'malformed' },
+		},
+	])(
+		'rejects reuse with $name before mutation',
+		async ({ markdown: current, error }) => {
+			const file = new FakeTFile('People/octocat.md');
+			fakeVault.getAbstractFileByPath.mockReturnValue(file);
+			fakeVault.read.mockResolvedValue(current);
+			fakeVault.process.mockImplementation(
+				(_file: unknown, transform: (content: string) => string) => {
+					expect(transform(current)).toBe(current);
+				},
+			);
+			const processFrontMatter = vi.fn(async () => undefined);
+			const notesWithProperties = adapter(fakeVault, {
+				processFrontMatter,
+			});
+
+			await expect(
+				notesWithProperties.prepareAssociation(
+					'People/octocat.md',
+					IDENTITY,
+					(content) => {
+						const parsed = parsePersonNote(content, IDENTITY);
+						return parsed.kind === 'valid-section'
+							? { kind: 'reuse' }
+							: parsed.kind === 'invalid'
+								? { kind: 'reject', error: parsed.error }
+								: {
+										kind: 'reject',
+										error: {
+											kind: 'missing-marker',
+											missing: 'associated-section',
+										},
+									};
+					},
+				),
+			).resolves.toMatchObject({
+				kind: 'failed',
+				error: {
+					kind: 'transform-rejection',
+					error: { kind: 'frontmatter-failure', ...error },
+				},
+			});
+			expect(fakeVault.process).not.toHaveBeenCalled();
+			expect(processFrontMatter).not.toHaveBeenCalled();
+		},
+	);
+
+	it('rechecks reserved Properties at the final mutation boundary', async () => {
+		const file = new FakeTFile('People/octocat.md');
+		const conflictingCurrent = VALID_NOTE.replace(
+			'devradarGithubId: "583231"',
+			'devradarGithubId: "1"',
+		);
+		fakeVault.getAbstractFileByPath.mockReturnValue(file);
+		fakeVault.read.mockResolvedValue(VALID_NOTE);
+		fakeVault.process.mockImplementation(
+			(_file: unknown, transform: (content: string) => string) => {
+				expect(transform(conflictingCurrent)).toBe(conflictingCurrent);
+			},
+		);
+
+		await expect(
+			notes.prepareAssociation(
+				'People/octocat.md',
+				IDENTITY,
+				(content) => {
+					const parsed = parsePersonNote(content, IDENTITY);
+					return parsed.kind === 'valid-section'
+						? { kind: 'reuse' }
+						: parsed.kind === 'invalid'
+							? { kind: 'reject', error: parsed.error }
+							: {
+									kind: 'reject',
+									error: {
+										kind: 'missing-marker',
+										missing: 'associated-section',
+									},
+								};
+				},
+			),
+		).resolves.toMatchObject({
+			kind: 'failed',
+			error: {
+				kind: 'transform-rejection',
+				error: {
+					kind: 'frontmatter-failure',
+					reason: 'invalid-property',
+					property: 'github-id',
+				},
+			},
+		});
+	});
 
 	it('reports association transform throws as transform failure', async () => {
 		const file = new FakeTFile('People/octocat.md');
