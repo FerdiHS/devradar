@@ -542,6 +542,10 @@ export class DevRadarSettingTab extends PluginSettingTab {
 		if (followedPeople.length === 0) return;
 		const select = containerEl.createEl('select');
 		select.id = 'devradar-edit-note-destination-person';
+		select.setAttribute(
+			'aria-label',
+			'Person whose note destination to edit',
+		);
 		for (const person of followedPeople) {
 			const option = select.createEl('option', {
 				text: `@${person.username}`,

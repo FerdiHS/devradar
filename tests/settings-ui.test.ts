@@ -728,6 +728,9 @@ describe('DevRadarSettingTab note destination editing', () => {
 		);
 		if (!select || !edit) throw new Error('expected destination selector');
 		expect(select.value).toBe('42');
+		expect(select.attributes.get('aria-label')).toBe(
+			'Person whose note destination to edit',
+		);
 		edit.click();
 
 		const editor = renderedDefinition(view.tab, 'Edit note destination');
@@ -763,6 +766,9 @@ describe('DevRadarSettingTab note destination editing', () => {
 	it('lets the user cancel a legacy destination edit without calling the host', () => {
 		const view = tabFor(readyWithFollowedPerson);
 		view.tab.display();
+		const selector = allElements(view.root).find(
+			(element) => element.id === 'devradar-edit-note-destination-person',
+		);
 		allElements(view.root)
 			.find(
 				(element) =>
@@ -777,6 +783,9 @@ describe('DevRadarSettingTab note destination editing', () => {
 			(element) => element.text === 'Cancel edit',
 		);
 		if (!input || !cancel) throw new Error('expected edit and cancel');
+		expect(selector?.attributes.get('aria-label')).toBe(
+			'Person whose note destination to edit',
+		);
 		expect(input.value).toBe('People/octocat.md');
 		cancel.click();
 		expect(
