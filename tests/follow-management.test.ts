@@ -7,7 +7,7 @@ import type {
 	DevRadarSettingsV2,
 	FollowedPersonV1,
 } from '../src/domain/settings';
-import { ACTIVITY_FAMILIES } from '../src/domain/activity';
+import { ACTIVITY_FAMILIES, createIssueActivity } from '../src/domain/activity';
 import { validatePersistedSettingsV2 } from '../src/domain/settings';
 import type {
 	SettingsRuntimeState,
@@ -15,10 +15,15 @@ import type {
 } from '../src/application/settings';
 import type {
 	AssociationTransform,
+	CurrentContentTransform,
 	NotePersistence,
 	NotePreparationResult,
+	NoteProcessResult,
 } from '../src/application/note-persistence';
-import type { PersonIdentity } from '../src/domain/person-note';
+import {
+	renderActivityEntry,
+	type PersonIdentity,
+} from '../src/domain/person-note';
 
 function person(username: string, githubAccountId: string): FollowedPersonV1 {
 	return {
@@ -715,23 +720,51 @@ describe('FollowManagementApplication.changeNotePath', () => {
 			'_No activity recorded by DevRadar yet._',
 			end,
 		].join('\n');
+		const previouslySeen = createIssueActivity({
+			providerEventId: '100',
+			timestamp: '2026-08-19T00:00:00Z',
+			repository: 'octocat/hello-world',
+			number: '5',
+			title: 'Previously seen issue',
+			action: 'opened',
+		});
+		const newActivity = createIssueActivity({
+			providerEventId: '101',
+			timestamp: '2026-08-27T00:00:00Z',
+			repository: 'octocat/hello-world',
+			number: '6',
+			title: 'New issue after destination change',
+			action: 'opened',
+		});
+		if (!previouslySeen.ok || !newActivity.ok)
+			throw new Error('expected valid test activities');
+		const oldPath = selected.notePath;
+		const oldNote = view.noteContents.get(oldPath);
 		const readPaths: string[] = [];
 		const processedPaths: string[] = [];
-		const notes = {
-			read: vi.fn(async (path: string) => {
+		let destinationMarkdown = markdown;
+		const notes: Pick<NotePersistence, 'read' | 'process'> = {
+			read: async (path) => {
 				readPaths.push(path);
-				return { kind: 'read' as const, markdown };
-			}),
-			process: vi.fn(
-				async (
-					path: string,
-					transform: (content: string) => unknown,
-				) => {
-					processedPaths.push(path);
-					transform(markdown);
-					return { kind: 'unchanged' as const };
-				},
-			),
+				return { kind: 'read', markdown: destinationMarkdown };
+			},
+			process: async <TTransformError>(
+				path: string,
+				transform: CurrentContentTransform<TTransformError>,
+			): Promise<NoteProcessResult<TTransformError>> => {
+				processedPaths.push(path);
+				const result = transform(destinationMarkdown);
+				if (result.kind === 'reject')
+					return {
+						kind: 'failed',
+						error: {
+							kind: 'transform-rejection',
+							error: result.error,
+						},
+					};
+				destinationMarkdown = result.markdown;
+				return { kind: 'changed' };
+			},
 		};
 		const syncOne = new SyncOneApplication({
 			settings: {
@@ -742,30 +775,49 @@ describe('FollowManagementApplication.changeNotePath', () => {
 				retrieveEvents: vi.fn(async () => ({
 					kind: 'success' as const,
 					requestAttempted: true as const,
-					data: { activities: [] },
+					data: {
+						activities: [previouslySeen.value, newActivity.value],
+					},
 					policy: {},
 				})),
 			},
-			notes: notes as never,
+			notes,
 			mutationGuard: createApplicationMutationGuard(),
 			now: () => '2026-08-28T00:00:00.000Z',
 			isSupportedPlatform: () => true,
 		});
 
-		await syncOne.syncOne({ githubAccountId: '42' });
+		await expect(
+			syncOne.syncOne({ githubAccountId: '42' }),
+		).resolves.toEqual({ kind: 'updated' });
 
 		expect(readPaths).toEqual(['People/new-octocat.md']);
 		expect(processedPaths).toEqual(['People/new-octocat.md']);
+		expect(destinationMarkdown).toContain(
+			renderActivityEntry(newActivity.value),
+		);
+		expect(destinationMarkdown).not.toContain(
+			renderActivityEntry(previouslySeen.value),
+		);
+		expect(view.noteContents.get(oldPath)).toBe(oldNote);
 		const finalState = view.getState();
 		expect(finalState.kind).toBe('ready');
-		if (finalState.kind === 'ready')
-			expect(
-				finalState.settings.followedPeople.find(
-					(person) => person.githubAccountId === '42',
-				),
-			).toMatchObject({
+		if (finalState.kind === 'ready') {
+			const syncedPerson = finalState.settings.followedPeople.find(
+				(person) => person.githubAccountId === '42',
+			);
+			expect(syncedPerson).toMatchObject({
 				notePath: 'People/new-octocat.md',
-				syncState: { seenEvents: selected.syncState.seenEvents },
 			});
+			expect(syncedPerson?.syncState.seenEvents).toHaveLength(2);
+			for (const seenEvent of selected.syncState.seenEvents)
+				expect(syncedPerson?.syncState.seenEvents).toContainEqual(
+					seenEvent,
+				);
+			expect(syncedPerson?.syncState.seenEvents).toContainEqual({
+				id: newActivity.value.providerEventId,
+				createdAt: newActivity.value.timestamp,
+			});
+		}
 	});
 });
