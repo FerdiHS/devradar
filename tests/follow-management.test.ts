@@ -678,7 +678,7 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		expect(view.noteContents.has('People/new-octocat.md')).toBe(true);
 	});
 
-	it('waits for the shared guard before reading or preparing the destination', async () => {
+	it('reads authoritative settings after waiting for the shared guard', async () => {
 		const guard = createApplicationMutationGuard();
 		let release!: () => void;
 		let entered!: () => void;
@@ -699,9 +699,42 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		await Promise.resolve();
 		expect(view.app.isPending()).toBe(true);
 		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		const latest = settings();
+		const latestSelected = latest.followedPeople[0];
+		if (!latestSelected) throw new Error('expected selected person');
+		const latestSyncState = {
+			...latestSelected.syncState,
+			lastAttemptAt: '2026-08-27T00:00:00.000Z',
+			seenEvents: [
+				...latestSelected.syncState.seenEvents,
+				{ id: '200', createdAt: '2026-08-26T00:00:00Z' },
+			],
+		};
+		view.setState({
+			kind: 'ready',
+			settings: {
+				...latest,
+				githubRequestPolicy: {
+					rateLimitNotBefore: '2026-08-29T00:00:00.000Z',
+				},
+				followedPeople: latest.followedPeople.map((person) =>
+					person.githubAccountId === '42'
+						? { ...person, syncState: latestSyncState }
+						: person,
+				),
+			},
+		});
 		release();
 		await occupyingMutation;
 		await expect(result).resolves.toMatchObject({ kind: 'updated' });
+		expect(view.saved[0]?.followedPeople[0]).toEqual({
+			...latestSelected,
+			notePath: 'People/new.md',
+			syncState: latestSyncState,
+		});
+		expect(view.saved[0]?.githubRequestPolicy).toEqual({
+			rateLimitNotBefore: '2026-08-29T00:00:00.000Z',
+		});
 	});
 
 	it('lets Sync One read the new path with the existing deduplication state', async () => {
