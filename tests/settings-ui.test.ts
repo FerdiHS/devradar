@@ -127,7 +127,25 @@ const readyEmpty: SettingsRuntimeState = {
 	},
 };
 
+const readyWithFollowedPerson: SettingsRuntimeState = {
+	kind: 'ready',
+	settings: {
+		schemaVersion: 2,
+		followedPeople: [
+			{
+				username: 'octocat',
+				githubAccountId: '42',
+				notePath: 'People/octocat.md',
+				trackingStart: { mode: 'available-recent' },
+				syncState: { seenEvents: [], github: {} },
+			},
+		],
+		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	},
+};
+
 function tabFor(state: SettingsRuntimeState, pending = false) {
+	let currentState = state;
 	const resetSettings = vi.fn(async () => undefined);
 	const retrySettingsLoad = vi.fn(async () => undefined);
 	const follow = vi.fn<SettingsTabHost['follow']>(async () => ({
@@ -146,8 +164,11 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 	const changeTrackingStart = vi.fn<SettingsTabHost['changeTrackingStart']>(
 		async () => ({ kind: 'failed', reason: 'internal' }),
 	);
+	const changeNotePath = vi.fn<SettingsTabHost['changeNotePath']>(
+		async () => ({ kind: 'failed', reason: 'internal' }),
+	);
 	const host: SettingsTabHost = {
-		getSettingsState: () => state,
+		getSettingsState: () => currentState,
 		isRecoveryActionPending: () => pending,
 		retrySettingsLoad,
 		resetSettings,
@@ -156,6 +177,7 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		isFollowManagementPending: () => false,
 		unfollow,
 		changeTrackingStart,
+		changeNotePath,
 		saveActivityFamilies,
 	};
 	const tab = new DevRadarSettingTab({} as never, {} as never, host);
@@ -170,7 +192,11 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 		follow,
 		unfollow,
 		changeTrackingStart,
+		changeNotePath,
 		saveActivityFamilies,
+		setState: (next: SettingsRuntimeState) => {
+			currentState = next;
+		},
 	};
 }
 
@@ -682,6 +708,234 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 	});
 });
 
+describe('DevRadarSettingTab note destination editing', () => {
+	it('opens the declarative editor for the selected account with its saved path', async () => {
+		const view = tabFor(readyWithFollowedPerson);
+		view.changeNotePath.mockResolvedValue({
+			kind: 'updated',
+			username: 'octocat',
+			notePath: 'People/new.md',
+			noteDisposition: 'created',
+		});
+		const selector = renderedDefinition(view.tab, 'Edit note destination');
+		const select = allElements(selector).find(
+			(element) => element.id === 'devradar-edit-note-destination-person',
+		);
+		const edit = allElements(selector).find(
+			(element) =>
+				element.tag === 'button' &&
+				element.text === 'Edit note destination',
+		);
+		if (!select || !edit) throw new Error('expected destination selector');
+		expect(select.value).toBe('42');
+		edit.click();
+
+		const editor = renderedDefinition(view.tab, 'Edit note destination');
+		const input = allElements(editor).find(
+			(element) => element.id === 'devradar-edit-note-destination',
+		);
+		const save = allElements(editor).find(
+			(element) => element.text === 'Save note destination',
+		);
+		if (!input || !save) throw new Error('expected destination editor');
+		expect(input.value).toBe('People/octocat.md');
+		input.value = 'People/new.md';
+		input.emit('input');
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.changeNotePath).toHaveBeenCalledWith('42', 'People/new.md');
+		const status = flattenDefinitions(getSettingDefinitions(view.tab)).find(
+			(definition) => definition.name === 'Note destination status',
+		);
+		expect(status?.searchable).toBe(false);
+		if (!status?.render) throw new Error('expected destination status');
+		const statusElement = new FakeElement();
+		status.render({ controlEl: statusElement });
+		expect(
+			allElements(statusElement)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('future activity will use People/new.md (created)');
+	});
+
+	it('lets the user cancel a legacy destination edit without calling the host', () => {
+		const view = tabFor(readyWithFollowedPerson);
+		view.tab.display();
+		allElements(view.root)
+			.find(
+				(element) =>
+					element.tag === 'button' &&
+					element.text === 'Edit note destination',
+			)
+			?.click();
+		const input = allElements(view.root).find(
+			(element) => element.id === 'devradar-edit-note-destination',
+		);
+		const cancel = allElements(view.root).find(
+			(element) => element.text === 'Cancel edit',
+		);
+		if (!input || !cancel) throw new Error('expected edit and cancel');
+		expect(input.value).toBe('People/octocat.md');
+		cancel.click();
+		expect(
+			allElements(view.root).some(
+				(element) => element.id === 'devradar-edit-note-destination',
+			),
+		).toBe(false);
+		expect(view.changeNotePath).not.toHaveBeenCalled();
+	});
+
+	it('reports an unchanged result without saving settings in the UI', async () => {
+		const view = tabFor(readyWithFollowedPerson);
+		view.changeNotePath.mockResolvedValue({
+			kind: 'unchanged',
+			username: 'octocat',
+			notePath: 'People/octocat.md',
+		});
+		view.tab.display();
+		allElements(view.root)
+			.find((element) => element.text === 'Edit note destination')
+			?.click();
+		allElements(view.root)
+			.find((element) => element.text === 'Save note destination')
+			?.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(view.changeNotePath).toHaveBeenCalledWith(
+			'42',
+			'People/octocat.md',
+		);
+		expect(
+			allElements(view.root)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('already uses People/octocat.md');
+	});
+
+	it('disables save and prevents duplicate host submissions while pending', async () => {
+		let release!: (result: {
+			kind: 'updated';
+			username: string;
+			notePath: string;
+			noteDisposition: 'created';
+		}) => void;
+		const pending = new Promise<{
+			kind: 'updated';
+			username: string;
+			notePath: string;
+			noteDisposition: 'created';
+		}>((resolve) => {
+			release = resolve;
+		});
+		const view = tabFor(readyWithFollowedPerson);
+		view.changeNotePath.mockReturnValue(pending);
+		view.tab.display();
+		allElements(view.root)
+			.find((element) => element.text === 'Edit note destination')
+			?.click();
+		const save = allElements(view.root).find(
+			(element) => element.text === 'Save note destination',
+		);
+		if (!save) throw new Error('expected destination Save');
+		save.click();
+		save.click();
+
+		expect(view.changeNotePath).toHaveBeenCalledTimes(1);
+		expect(save.disabled).toBe(true);
+		release({
+			kind: 'updated',
+			username: 'octocat',
+			notePath: 'People/new.md',
+			noteDisposition: 'created',
+		});
+		await pending;
+	});
+
+	it('shows a stable duplicate-path failure', async () => {
+		const view = tabFor(readyWithFollowedPerson);
+		view.changeNotePath.mockResolvedValue({
+			kind: 'failed',
+			reason: 'duplicate',
+		});
+		view.tab.display();
+		allElements(view.root)
+			.find((element) => element.text === 'Edit note destination')
+			?.click();
+		const input = allElements(view.root).find(
+			(element) => element.id === 'devradar-edit-note-destination',
+		);
+		const save = allElements(view.root).find(
+			(element) => element.text === 'Save note destination',
+		);
+		if (!input || !save) throw new Error('expected destination editor');
+		input.value = 'People/hubot.md';
+		input.emit('input');
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(
+			allElements(view.root)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain(
+			'Another followed person already uses that note destination.',
+		);
+	});
+
+	it('keeps persistence partial-outcome details visible after entering recovery', async () => {
+		const view = tabFor(readyWithFollowedPerson);
+		view.changeNotePath.mockImplementation(async () => {
+			view.setState({
+				kind: 'recovery',
+				diagnostic: { kind: 'write-failure' },
+			});
+			return { kind: 'failed', reason: 'persistence' };
+		});
+		view.tab.display();
+		allElements(view.root)
+			.find((element) => element.text === 'Edit note destination')
+			?.click();
+		const input = allElements(view.root).find(
+			(element) => element.id === 'devradar-edit-note-destination',
+		);
+		const save = allElements(view.root).find(
+			(element) => element.text === 'Save note destination',
+		);
+		if (!input || !save) throw new Error('expected destination editor');
+		input.value = 'People/new.md';
+		input.emit('input');
+		save.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const text = allElements(view.root)
+			.map((element) => element.text)
+			.join('\n');
+		expect(text).toContain('Settings need attention.');
+		expect(text).toContain(
+			'@octocat remains configured at People/octocat.md',
+		);
+		expect(text).toContain('People/new.md may have been prepared');
+		expect(text).toContain('Retry');
+		const declarativeStatus = flattenDefinitions(
+			getSettingDefinitions(view.tab),
+		).find((definition) => definition.name === 'Note destination status');
+		if (!declarativeStatus?.render)
+			throw new Error('expected recovery destination status');
+		const declarativeStatusElement = new FakeElement();
+		declarativeStatus.render({ controlEl: declarativeStatusElement });
+		expect(
+			allElements(declarativeStatusElement)
+				.map((element) => element.text)
+				.join('\n'),
+		).toContain('People/new.md may have been prepared');
+	});
+});
+
 describe('DevRadarSettingTab recovery UI', () => {
 	it('always shows Retry but only offers Reset for ordinary malformed data', () => {
 		const ordinary = tabFor(ordinaryMalformed);
@@ -792,6 +1046,10 @@ describe('DevRadarSettingTab recovery UI', () => {
 			isFollowManagementPending: () => false,
 			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
 			changeTrackingStart: vi.fn(async () => ({
+				kind: 'failed' as const,
+				reason: 'internal' as const,
+			})),
+			changeNotePath: vi.fn(async () => ({
 				kind: 'failed' as const,
 				reason: 'internal' as const,
 			})),
@@ -1615,6 +1873,10 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			isFollowManagementPending: () => false,
 			unfollow: vi.fn(async () => ({ kind: 'cancelled' as const })),
 			changeTrackingStart: vi.fn(async () => ({
+				kind: 'failed' as const,
+				reason: 'internal' as const,
+			})),
+			changeNotePath: vi.fn(async () => ({
 				kind: 'failed' as const,
 				reason: 'internal' as const,
 			})),

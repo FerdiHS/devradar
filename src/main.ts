@@ -30,6 +30,7 @@ import {
 } from './application/follow';
 import {
 	FollowManagementApplication,
+	type NotePathChangeResult,
 	type TrackingStartChangeResult,
 	type UnfollowResult,
 } from './application/follow-management';
@@ -217,6 +218,16 @@ export default class DevRadarPlugin extends Plugin {
 		return this.followManagementApplication.changeTrackingStart(
 			githubAccountId,
 			draft,
+		);
+	}
+
+	async changeNotePath(
+		githubAccountId: string,
+		draftPath: string,
+	): Promise<NotePathChangeResult> {
+		return this.followManagementApplication.changeNotePath(
+			githubAccountId,
+			draftPath,
 		);
 	}
 
