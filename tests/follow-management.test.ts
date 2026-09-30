@@ -698,7 +698,7 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		expect(view.noteContents.get(oldPath)).toBe(oldNote);
 	});
 
-	it('keeps the prior persisted destination when settings save fails after preparation', async () => {
+	it('returns canonical recovery context when settings save fails after preparation', async () => {
 		const initial = settings();
 		const view = harness(initial, {
 			notePreparation: { kind: 'created' },
@@ -709,8 +709,16 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		const oldNote = view.noteContents.get(oldPath);
 
 		await expect(
-			view.app.changeNotePath('42', 'People/new-octocat.md'),
-		).resolves.toEqual({ kind: 'failed', reason: 'persistence' });
+			view.app.changeNotePath('42', 'People//new-octocat.md'),
+		).resolves.toEqual({
+			kind: 'failed',
+			reason: 'persistence',
+			preparedDestination: {
+				username: 'octocat',
+				previousPath: oldPath,
+				preparedPath: 'People/new-octocat.md',
+			},
+		});
 		expect(view.prepared.map(({ path }) => path)).toEqual([
 			'People/new-octocat.md',
 		]);
@@ -721,6 +729,36 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		expect(view.getState()).toMatchObject({ kind: 'recovery' });
 		expect(view.noteContents.get(oldPath)).toBe(oldNote);
 		expect(view.noteContents.has('People/new-octocat.md')).toBe(true);
+	});
+
+	it.each([
+		{
+			name: 'an internal failure result',
+			save: async () => ({ kind: 'internal-failure' as const }),
+		},
+		{
+			name: 'a thrown settings save',
+			save: async () => {
+				throw new Error('settings save failed');
+			},
+		},
+	])('returns prepared recovery context for $name', async ({ save }) => {
+		const view = harness(settings(), {
+			notePreparation: { kind: 'created' },
+			save,
+		});
+
+		await expect(
+			view.app.changeNotePath('42', 'People/new.md'),
+		).resolves.toMatchObject({
+			kind: 'failed',
+			reason: 'internal',
+			preparedDestination: {
+				username: 'octocat',
+				previousPath: 'People/octocat.md',
+				preparedPath: 'People/new.md',
+			},
+		});
 	});
 
 	it('reads authoritative settings after waiting for the shared guard', async () => {
@@ -779,6 +817,62 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		});
 		expect(view.saved[0]?.githubRequestPolicy).toEqual({
 			rateLimitNotBefore: '2026-08-29T00:00:00.000Z',
+		});
+	});
+
+	it('uses the authoritative person and path in recovery after waiting for the guard', async () => {
+		const guard = createApplicationMutationGuard();
+		let release!: () => void;
+		let entered!: () => void;
+		const started = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const view = harness(settings(), {
+			guard,
+			notePreparation: { kind: 'created' },
+			save: async () => ({ kind: 'write-failure' }),
+		});
+		const occupyingMutation = guard.run(async () => {
+			entered();
+			await blocked;
+		});
+		await started;
+		const result = view.app.changeNotePath('42', 'People//new.md');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const latest = settings();
+		const latestPeople = latest.followedPeople.map((person) =>
+			person.githubAccountId === '42'
+				? {
+						...person,
+						username: 'renamed-octocat',
+						notePath: 'Archive/octocat.md',
+					}
+				: person,
+		);
+		view.setState({
+			kind: 'ready',
+			settings: { ...latest, followedPeople: latestPeople },
+		});
+		release();
+		await occupyingMutation;
+
+		await expect(result).resolves.toEqual({
+			kind: 'failed',
+			reason: 'persistence',
+			preparedDestination: {
+				username: 'renamed-octocat',
+				previousPath: 'Archive/octocat.md',
+				preparedPath: 'People/new.md',
+			},
+		});
+		expect(view.prepared[0]?.identity).toEqual({
+			username: 'renamed-octocat',
+			githubId: '42',
 		});
 	});
 

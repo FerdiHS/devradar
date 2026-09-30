@@ -21,7 +21,6 @@ import type {
 import type {
 	TrackingStartChangeFailureReason,
 	TrackingStartChangeResult,
-	NotePathChangeFailureReason,
 	NotePathChangeResult,
 	UnfollowResult,
 } from './application/follow-management';
@@ -658,8 +657,6 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			this.submitNotePathChange(
 				editor.githubAccountId,
 				editor.path,
-				editor.originalPath,
-				person.username,
 				refresh,
 				save,
 			),
@@ -676,8 +673,6 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private submitNotePathChange(
 		githubAccountId: string,
 		draftPath: string,
-		originalPath: string,
-		username: string,
 		refresh: SettingsRefresh,
 		button?: HTMLButtonElement,
 	): void {
@@ -697,12 +692,7 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					this.notePathEditor = undefined;
 					this.notePathStatus = `No change: @${result.username} already uses ${result.notePath}.`;
 				} else {
-					this.notePathStatus = notePathChangeStatus(
-						result.reason,
-						username,
-						originalPath,
-						draftPath,
-					);
+					this.notePathStatus = notePathChangeStatus(result);
 				}
 				refresh();
 			},
@@ -1469,12 +1459,10 @@ function trackingStartChangeStatus(
 }
 
 function notePathChangeStatus(
-	reason: NotePathChangeFailureReason,
-	username: string,
-	originalPath: string,
-	draftPath: string,
+	result: Extract<NotePathChangeResult, { readonly kind: 'failed' }>,
 ): string {
-	switch (reason) {
+	const preparedDestination = result.preparedDestination;
+	switch (result.reason) {
 		case 'invalid-input':
 			return 'Enter a valid vault-relative Markdown destination.';
 		case 'settings-not-ready':
@@ -1486,12 +1474,12 @@ function notePathChangeStatus(
 		case 'note':
 			return 'The destination note could not be prepared safely; the current path remains configured.';
 		case 'persistence':
-			return (
-				`DevRadar could not save the note destination change. @${username} ` +
-				`remains configured at ${originalPath}. The requested destination ` +
-				`${draftPath} may have been prepared safely and was left in place.`
-			);
+			if (!preparedDestination)
+				return 'DevRadar could not save the note destination change.';
+			return `DevRadar could not save the note destination change. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The prepared destination ${preparedDestination.preparedPath} may have been prepared safely and was left in place.`;
 		case 'internal':
+			if (preparedDestination)
+				return `DevRadar could not complete the note destination change safely. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The prepared destination ${preparedDestination.preparedPath} may have been prepared safely and was left in place.`;
 			return 'DevRadar could not complete the note destination change safely.';
 	}
 }

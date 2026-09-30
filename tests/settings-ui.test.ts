@@ -895,54 +895,67 @@ describe('DevRadarSettingTab note destination editing', () => {
 		);
 	});
 
-	it('keeps persistence partial-outcome details visible after entering recovery', async () => {
-		const view = tabFor(readyWithFollowedPerson);
-		view.changeNotePath.mockImplementation(async () => {
-			view.setState({
-				kind: 'recovery',
-				diagnostic: { kind: 'write-failure' },
+	it.each(['persistence', 'internal'] as const)(
+		'keeps prepared destination details visible after %s failure and recovery',
+		async (reason) => {
+			const view = tabFor(readyWithFollowedPerson);
+			view.changeNotePath.mockImplementation(async () => {
+				view.setState({
+					kind: 'recovery',
+					diagnostic: { kind: 'write-failure' },
+				});
+				return {
+					kind: 'failed',
+					reason,
+					preparedDestination: {
+						username: 'renamed-octocat',
+						previousPath: 'Archive/octocat.md',
+						preparedPath: 'People/new.md',
+					},
+				};
 			});
-			return { kind: 'failed', reason: 'persistence' };
-		});
-		view.tab.display();
-		allElements(view.root)
-			.find((element) => element.text === 'Edit note destination')
-			?.click();
-		const input = allElements(view.root).find(
-			(element) => element.id === 'devradar-edit-note-destination',
-		);
-		const save = allElements(view.root).find(
-			(element) => element.text === 'Save note destination',
-		);
-		if (!input || !save) throw new Error('expected destination editor');
-		input.value = 'People/new.md';
-		input.emit('input');
-		save.click();
-		await Promise.resolve();
-		await Promise.resolve();
+			view.tab.display();
+			allElements(view.root)
+				.find((element) => element.text === 'Edit note destination')
+				?.click();
+			const input = allElements(view.root).find(
+				(element) => element.id === 'devradar-edit-note-destination',
+			);
+			const save = allElements(view.root).find(
+				(element) => element.text === 'Save note destination',
+			);
+			if (!input || !save) throw new Error('expected destination editor');
+			input.value = 'People//new.md';
+			input.emit('input');
+			save.click();
+			await Promise.resolve();
+			await Promise.resolve();
 
-		const text = allElements(view.root)
-			.map((element) => element.text)
-			.join('\n');
-		expect(text).toContain('Settings need attention.');
-		expect(text).toContain(
-			'@octocat remains configured at People/octocat.md',
-		);
-		expect(text).toContain('People/new.md may have been prepared');
-		expect(text).toContain('Retry');
-		const declarativeStatus = flattenDefinitions(
-			getSettingDefinitions(view.tab),
-		).find((definition) => definition.name === 'Note destination status');
-		if (!declarativeStatus?.render)
-			throw new Error('expected recovery destination status');
-		const declarativeStatusElement = new FakeElement();
-		declarativeStatus.render({ controlEl: declarativeStatusElement });
-		expect(
-			allElements(declarativeStatusElement)
+			const text = allElements(view.root)
 				.map((element) => element.text)
-				.join('\n'),
-		).toContain('People/new.md may have been prepared');
-	});
+				.join('\n');
+			expect(text).toContain('Settings need attention.');
+			expect(text).toContain(
+				'@renamed-octocat remains configured at Archive/octocat.md',
+			);
+			expect(text).toContain('People/new.md may have been prepared');
+			expect(text).toContain('Retry');
+			const declarativeStatus = flattenDefinitions(
+				getSettingDefinitions(view.tab),
+			).find(
+				(definition) => definition.name === 'Note destination status',
+			);
+			if (!declarativeStatus?.render)
+				throw new Error('expected recovery destination status');
+			const declarativeStatusElement = new FakeElement();
+			declarativeStatus.render({ controlEl: declarativeStatusElement });
+			expect(
+				allElements(declarativeStatusElement)
+					.map((element) => element.text)
+					.join('\n'),
+			).toContain('People/new.md may have been prepared');
+		},
+	);
 });
 
 describe('DevRadarSettingTab recovery UI', () => {

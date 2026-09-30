@@ -53,6 +53,18 @@ export type NotePathChangeFailureReason =
 	| 'persistence'
 	| 'internal';
 
+export type PreparedNotePathDestination = {
+	readonly username: string;
+	readonly previousPath: string;
+	readonly preparedPath: string;
+};
+
+export type NotePathChangeFailure = {
+	readonly kind: 'failed';
+	readonly reason: NotePathChangeFailureReason;
+	readonly preparedDestination?: PreparedNotePathDestination;
+};
+
 export type NotePathChangeResult =
 	| {
 			readonly kind: 'updated';
@@ -65,7 +77,7 @@ export type NotePathChangeResult =
 			readonly username: string;
 			readonly notePath: string;
 	  }
-	| { readonly kind: 'failed'; readonly reason: NotePathChangeFailureReason };
+	| NotePathChangeFailure;
 
 type FollowManagementDependencies = {
 	readonly settings: Pick<
@@ -89,9 +101,11 @@ const trackingStartFailed = (
 
 const notePathFailed = (
 	reason: NotePathChangeFailureReason,
+	preparedDestination?: PreparedNotePathDestination,
 ): NotePathChangeResult => ({
 	kind: 'failed',
 	reason,
+	...(preparedDestination ? { preparedDestination } : {}),
 });
 
 export class FollowManagementApplication {
@@ -261,6 +275,11 @@ export class FollowManagementApplication {
 				}
 				if (preparation.kind === 'failed')
 					return notePathFailed('note');
+				const preparedDestination: PreparedNotePathDestination = {
+					username: selected.username,
+					previousPath: selected.notePath,
+					preparedPath: notePath,
+				};
 
 				const candidate: DevRadarSettingsV2 = {
 					...state.settings,
@@ -278,13 +297,14 @@ export class FollowManagementApplication {
 							candidate,
 						);
 				} catch {
-					return notePathFailed('internal');
+					return notePathFailed('internal', preparedDestination);
 				}
 				if (saved.kind !== 'saved')
 					return notePathFailed(
 						saved.kind === 'internal-failure'
 							? 'internal'
 							: 'persistence',
+						preparedDestination,
 					);
 				return {
 					kind: 'updated',
