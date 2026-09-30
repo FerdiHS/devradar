@@ -13,6 +13,12 @@ import type {
 	SettingsRuntimeState,
 	SettingsSaveResult,
 } from '../src/application/settings';
+import type {
+	AssociationTransform,
+	NotePersistence,
+	NotePreparationResult,
+} from '../src/application/note-persistence';
+import type { PersonIdentity } from '../src/domain/person-note';
 
 function person(username: string, githubAccountId: string): FollowedPersonV1 {
 	return {
@@ -43,23 +49,55 @@ function harness(
 	options: {
 		confirm?: (message: string) => boolean;
 		save?: (candidate: DevRadarSettingsV2) => Promise<SettingsSaveResult>;
+		notePreparation?: NotePreparationResult | 'throw';
 		guard?: ReturnType<typeof createApplicationMutationGuard>;
 		now?: () => string;
 	} = {},
 ) {
 	let state: SettingsRuntimeState = { kind: 'ready', settings: initial };
+	let persisted = initial;
 	const saved: DevRadarSettingsV2[] = [];
+	const noteContents = new Map(
+		initial.followedPeople.map((person) => [
+			person.notePath,
+			`existing note bytes for ${person.notePath}`,
+		]),
+	);
+	const prepared: {
+		path: string;
+		identity: PersonIdentity;
+		transform: AssociationTransform;
+	}[] = [];
 	const save = vi.fn(async (candidate: DevRadarSettingsV2) => {
 		saved.push(candidate);
 		const result = options.save
 			? await options.save(candidate)
 			: ({ kind: 'saved', settings: candidate } as const);
+		if (result.kind === 'saved') persisted = result.settings;
 		state =
 			result.kind === 'saved'
 				? { kind: 'ready', settings: result.settings }
 				: { kind: 'recovery', diagnostic: { kind: 'write-failure' } };
 		return result;
 	});
+	const notes: Pick<NotePersistence, 'prepareAssociation'> = {
+		prepareAssociation: vi.fn<NotePersistence['prepareAssociation']>(
+			async (path, identity, transform) => {
+				prepared.push({ path, identity, transform });
+				if (options.notePreparation === 'throw')
+					throw new Error('note preparation failed');
+				const result = options.notePreparation ?? { kind: 'reused' };
+				if (result.kind === 'created')
+					noteContents.set(path, `created managed note at ${path}`);
+				else if (result.kind === 'initialized')
+					noteContents.set(
+						path,
+						`${noteContents.get(path) ?? ''}\nmanaged section initialized`,
+					);
+				return result;
+			},
+		),
+	};
 	const confirm = vi.fn(options.confirm ?? (() => true));
 	const mutationGuard = options.guard ?? createApplicationMutationGuard();
 	const app = new FollowManagementApplication({
@@ -67,6 +105,7 @@ function harness(
 			getSettingsState: () => state,
 			saveCandidateWithinMutation: save,
 		},
+		notes,
 		mutationGuard,
 		confirmUnfollow: confirm,
 		now: options.now ?? (() => '2026-08-28T00:00:00.000Z'),
@@ -74,9 +113,13 @@ function harness(
 	return {
 		app,
 		confirm,
+		notes,
+		noteContents,
+		prepared,
 		save,
 		saved,
 		getState: () => state,
+		getPersisted: () => persisted,
 		setState: (next: SettingsRuntimeState) => {
 			state = next;
 		},
@@ -464,5 +507,265 @@ describe('FollowManagementApplication.changeTrackingStart', () => {
 		expect(view.saved[0]?.followedPeople[1]?.syncState.lastAttemptAt).toBe(
 			'2026-08-27T00:00:00.000Z',
 		);
+	});
+});
+
+describe('FollowManagementApplication.changeNotePath', () => {
+	it.each(['created', 'initialized', 'reused'] as const)(
+		'prepares a %s destination before saving only the selected path change',
+		async (disposition) => {
+			const initial = settings();
+			const view = harness(initial, {
+				notePreparation: { kind: disposition },
+			});
+			if (disposition === 'reused')
+				view.noteContents.set(
+					'People/new-octocat.md',
+					'existing destination note bytes',
+				);
+			const oldPath = initial.followedPeople[0]?.notePath;
+			if (!oldPath) throw new Error('expected selected person');
+			const oldNote = view.noteContents.get(oldPath);
+
+			await expect(
+				view.app.changeNotePath('42', 'People/new-octocat.md'),
+			).resolves.toEqual({
+				kind: 'updated',
+				username: 'octocat',
+				notePath: 'People/new-octocat.md',
+				noteDisposition: disposition,
+			});
+
+			expect(view.prepared).toHaveLength(1);
+			expect(view.prepared[0]).toMatchObject({
+				path: 'People/new-octocat.md',
+				identity: { username: 'octocat', githubId: '42' },
+			});
+			expect(
+				view.prepared[0]?.transform(
+					[
+						'<!-- devradar:begin github="octocat" github-id="42" -->',
+						'## DevRadar activity',
+						'<!-- devradar:end github="octocat" github-id="42" -->',
+					].join('\n'),
+				),
+			).toEqual({ kind: 'reuse' });
+			const changed = view.saved[0]?.followedPeople[0];
+			expect(changed).toEqual({
+				...initial.followedPeople[0],
+				notePath: 'People/new-octocat.md',
+			});
+			expect(view.saved[0]?.followedPeople[1]).toEqual(
+				initial.followedPeople[1],
+			);
+			expect(view.saved[0]?.enabledActivityFamilies).toEqual(
+				initial.enabledActivityFamilies,
+			);
+			expect(view.saved[0]?.githubRequestPolicy).toEqual(
+				initial.githubRequestPolicy,
+			);
+			expect(view.noteContents.get(oldPath)).toBe(oldNote);
+			expect(view.noteContents.has('People/new-octocat.md')).toBe(true);
+		},
+	);
+
+	it('treats a case-only equivalent of the current path as unchanged', async () => {
+		const view = harness();
+
+		await expect(
+			view.app.changeNotePath('42', 'people/OCTOCAT.md'),
+		).resolves.toEqual({
+			kind: 'unchanged',
+			username: 'octocat',
+			notePath: 'People/octocat.md',
+		});
+		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		expect(view.save).not.toHaveBeenCalled();
+	});
+
+	it.each(['../outside.md', '/absolute.md', 'People/not-markdown.txt', ''])(
+		'rejects invalid destination %s before note or settings work',
+		async (path) => {
+			const view = harness();
+
+			await expect(view.app.changeNotePath('42', path)).resolves.toEqual({
+				kind: 'failed',
+				reason: 'invalid-input',
+			});
+			expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+			expect(view.save).not.toHaveBeenCalled();
+		},
+	);
+
+	it('rejects a case-insensitive path used by another followed person', async () => {
+		const initial = settings();
+		const view = harness(initial);
+
+		await expect(
+			view.app.changeNotePath('42', 'people/HUBOT.md'),
+		).resolves.toEqual({ kind: 'failed', reason: 'duplicate' });
+		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		expect(view.save).not.toHaveBeenCalled();
+	});
+
+	it('fails when the account is missing or settings are in recovery', async () => {
+		const view = harness();
+
+		await expect(
+			view.app.changeNotePath('missing', 'People/new.md'),
+		).resolves.toEqual({ kind: 'failed', reason: 'not-followed' });
+		view.setState({
+			kind: 'recovery',
+			diagnostic: { kind: 'write-failure' },
+		});
+		await expect(
+			view.app.changeNotePath('42', 'People/new.md'),
+		).resolves.toEqual({
+			kind: 'failed',
+			reason: 'settings-not-ready',
+		});
+		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		expect(view.save).not.toHaveBeenCalled();
+	});
+
+	it('leaves the old path and note untouched when destination preparation fails', async () => {
+		const initial = settings();
+		const view = harness(initial, {
+			notePreparation: {
+				kind: 'failed',
+				error: { kind: 'process-failure' },
+			},
+		});
+		const oldPath = initial.followedPeople[0]?.notePath;
+		if (!oldPath) throw new Error('expected selected person');
+		const oldNote = view.noteContents.get(oldPath);
+
+		await expect(
+			view.app.changeNotePath('42', 'People/new-octocat.md'),
+		).resolves.toEqual({ kind: 'failed', reason: 'note' });
+		expect(view.save).not.toHaveBeenCalled();
+		expect(view.getPersisted().followedPeople[0]?.notePath).toBe(oldPath);
+		expect(view.noteContents.get(oldPath)).toBe(oldNote);
+	});
+
+	it('keeps the prior persisted destination when settings save fails after preparation', async () => {
+		const initial = settings();
+		const view = harness(initial, {
+			notePreparation: { kind: 'created' },
+			save: async () => ({ kind: 'write-failure' }),
+		});
+		const oldPath = initial.followedPeople[0]?.notePath;
+		if (!oldPath) throw new Error('expected selected person');
+		const oldNote = view.noteContents.get(oldPath);
+
+		await expect(
+			view.app.changeNotePath('42', 'People/new-octocat.md'),
+		).resolves.toEqual({ kind: 'failed', reason: 'persistence' });
+		expect(view.prepared.map(({ path }) => path)).toEqual([
+			'People/new-octocat.md',
+		]);
+		expect(view.saved[0]?.followedPeople[0]?.notePath).toBe(
+			'People/new-octocat.md',
+		);
+		expect(view.getPersisted().followedPeople[0]?.notePath).toBe(oldPath);
+		expect(view.getState()).toMatchObject({ kind: 'recovery' });
+		expect(view.noteContents.get(oldPath)).toBe(oldNote);
+		expect(view.noteContents.has('People/new-octocat.md')).toBe(true);
+	});
+
+	it('waits for the shared guard before reading or preparing the destination', async () => {
+		const guard = createApplicationMutationGuard();
+		let release!: () => void;
+		let entered!: () => void;
+		const started = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const view = harness(settings(), { guard });
+		const occupyingMutation = guard.run(async () => {
+			entered();
+			await blocked;
+		});
+		await started;
+		const result = view.app.changeNotePath('42', 'People/new.md');
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(view.app.isPending()).toBe(true);
+		expect(view.notes.prepareAssociation).not.toHaveBeenCalled();
+		release();
+		await occupyingMutation;
+		await expect(result).resolves.toMatchObject({ kind: 'updated' });
+	});
+
+	it('lets Sync One read the new path with the existing deduplication state', async () => {
+		const initial = settings();
+		const view = harness(initial);
+		await expect(
+			view.app.changeNotePath('42', 'People/new-octocat.md'),
+		).resolves.toMatchObject({ kind: 'updated' });
+		const selected = initial.followedPeople[0];
+		if (!selected) throw new Error('expected selected person');
+		const begin = '<!-- devradar:begin github="octocat" github-id="42" -->';
+		const end = '<!-- devradar:end github="octocat" github-id="42" -->';
+		const markdown = [
+			begin,
+			'## DevRadar activity',
+			'_No activity recorded by DevRadar yet._',
+			end,
+		].join('\n');
+		const readPaths: string[] = [];
+		const processedPaths: string[] = [];
+		const notes = {
+			read: vi.fn(async (path: string) => {
+				readPaths.push(path);
+				return { kind: 'read' as const, markdown };
+			}),
+			process: vi.fn(
+				async (
+					path: string,
+					transform: (content: string) => unknown,
+				) => {
+					processedPaths.push(path);
+					transform(markdown);
+					return { kind: 'unchanged' as const };
+				},
+			),
+		};
+		const syncOne = new SyncOneApplication({
+			settings: {
+				getSettingsState: view.getState,
+				saveCandidateWithinMutation: view.save,
+			},
+			github: {
+				retrieveEvents: vi.fn(async () => ({
+					kind: 'success' as const,
+					requestAttempted: true as const,
+					data: { activities: [] },
+					policy: {},
+				})),
+			},
+			notes: notes as never,
+			mutationGuard: createApplicationMutationGuard(),
+			now: () => '2026-08-28T00:00:00.000Z',
+			isSupportedPlatform: () => true,
+		});
+
+		await syncOne.syncOne({ githubAccountId: '42' });
+
+		expect(readPaths).toEqual(['People/new-octocat.md']);
+		expect(processedPaths).toEqual(['People/new-octocat.md']);
+		const finalState = view.getState();
+		expect(finalState.kind).toBe('ready');
+		if (finalState.kind === 'ready')
+			expect(
+				finalState.settings.followedPeople.find(
+					(person) => person.githubAccountId === '42',
+				),
+			).toMatchObject({
+				notePath: 'People/new-octocat.md',
+				syncState: { seenEvents: selected.syncState.seenEvents },
+			});
 	});
 });

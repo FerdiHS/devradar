@@ -1,11 +1,17 @@
 import { compareCanonicalTimestamps } from '../domain/activity';
 import {
 	validateCanonicalPluginTimestamp,
+	canonicalizeDraftNotePath,
 	type DevRadarSettingsV2,
 	type FollowedPersonV1,
 } from '../domain/settings';
-import type { FollowTrackingStartDraft } from './follow';
+import type { PersonIdentity } from '../domain/person-note';
+import { associationTransform, type FollowTrackingStartDraft } from './follow';
 import type { ApplicationMutationGuard } from './mutation-guard';
+import type {
+	NotePersistence,
+	NotePreparationResult,
+} from './note-persistence';
 import type {
 	SettingsAuthority,
 	SettingsRuntimeState,
@@ -38,11 +44,35 @@ export type TrackingStartChangeResult =
 			readonly reason: TrackingStartChangeFailureReason;
 	  };
 
+export type NotePathChangeFailureReason =
+	| 'invalid-input'
+	| 'settings-not-ready'
+	| 'not-followed'
+	| 'duplicate'
+	| 'note'
+	| 'persistence'
+	| 'internal';
+
+export type NotePathChangeResult =
+	| {
+			readonly kind: 'updated';
+			readonly username: string;
+			readonly notePath: string;
+			readonly noteDisposition: 'created' | 'initialized' | 'reused';
+	  }
+	| {
+			readonly kind: 'unchanged';
+			readonly username: string;
+			readonly notePath: string;
+	  }
+	| { readonly kind: 'failed'; readonly reason: NotePathChangeFailureReason };
+
 type FollowManagementDependencies = {
 	readonly settings: Pick<
 		SettingsAuthority,
 		'getSettingsState' | 'saveCandidateWithinMutation'
 	>;
+	readonly notes: Pick<NotePersistence, 'prepareAssociation'>;
 	readonly mutationGuard: ApplicationMutationGuard;
 	readonly confirmUnfollow: (message: string) => boolean;
 	readonly now: () => string;
@@ -56,6 +86,13 @@ const failed = (reason: UnfollowFailureReason): UnfollowResult => ({
 const trackingStartFailed = (
 	reason: TrackingStartChangeFailureReason,
 ): TrackingStartChangeResult => ({ kind: 'failed', reason });
+
+const notePathFailed = (
+	reason: NotePathChangeFailureReason,
+): NotePathChangeResult => ({
+	kind: 'failed',
+	reason,
+});
 
 export class FollowManagementApplication {
 	private pending = 0;
@@ -170,6 +207,94 @@ export class FollowManagementApplication {
 			});
 		} catch {
 			return trackingStartFailed('internal');
+		} finally {
+			this.pending -= 1;
+		}
+	}
+
+	async changeNotePath(
+		githubAccountId: string,
+		draftPath: string,
+	): Promise<NotePathChangeResult> {
+		this.pending += 1;
+		try {
+			return await this.dependencies.mutationGuard.run(async () => {
+				const state = this.dependencies.settings.getSettingsState();
+				if (state.kind !== 'ready')
+					return notePathFailed('settings-not-ready');
+				const selected = findPerson(state, githubAccountId);
+				if (!selected) return notePathFailed('not-followed');
+
+				const destination = canonicalizeDraftNotePath(draftPath);
+				if (!destination.ok) return notePathFailed('invalid-input');
+				const notePath = destination.value;
+				if (notePath.toLowerCase() === selected.notePath.toLowerCase())
+					return {
+						kind: 'unchanged',
+						username: selected.username,
+						notePath: selected.notePath,
+					};
+				if (
+					state.settings.followedPeople.some(
+						(person) =>
+							person.githubAccountId !== githubAccountId &&
+							person.notePath.toLowerCase() ===
+								notePath.toLowerCase(),
+					)
+				)
+					return notePathFailed('duplicate');
+
+				const identity: PersonIdentity = {
+					username: selected.username,
+					githubId: selected.githubAccountId,
+				};
+				let preparation: NotePreparationResult;
+				try {
+					preparation =
+						await this.dependencies.notes.prepareAssociation(
+							notePath,
+							identity,
+							associationTransform(identity),
+						);
+				} catch {
+					return notePathFailed('internal');
+				}
+				if (preparation.kind === 'failed')
+					return notePathFailed('note');
+
+				const candidate: DevRadarSettingsV2 = {
+					...state.settings,
+					followedPeople: state.settings.followedPeople.map(
+						(person) =>
+							person.githubAccountId === githubAccountId
+								? { ...person, notePath }
+								: person,
+					),
+				};
+				let saved: SettingsSaveResult;
+				try {
+					saved =
+						await this.dependencies.settings.saveCandidateWithinMutation(
+							candidate,
+						);
+				} catch {
+					return notePathFailed('internal');
+				}
+				if (saved.kind !== 'saved')
+					return notePathFailed(
+						saved.kind === 'internal-failure'
+							? 'internal'
+							: 'persistence',
+					);
+				return {
+					kind: 'updated',
+					username: selected.username,
+					notePath,
+					noteDisposition: preparation.kind,
+				};
+			});
+		} catch {
+			return notePathFailed('internal');
 		} finally {
 			this.pending -= 1;
 		}

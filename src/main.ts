@@ -129,6 +129,7 @@ export default class DevRadarPlugin extends Plugin {
 		});
 		this.followManagementApplication = new FollowManagementApplication({
 			settings: this.settingsApplication,
+			notes,
 			mutationGuard,
 			confirmUnfollow: (message) => window.confirm(message),
 			now: () => new Date().toISOString(),
