@@ -1476,10 +1476,10 @@ function notePathChangeStatus(
 		case 'persistence':
 			if (!preparedDestination)
 				return 'DevRadar could not save the note destination change.';
-			return `DevRadar could not save the note destination change. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The prepared destination ${preparedDestination.preparedPath} may have been prepared safely and was left in place.`;
+			return `DevRadar could not save the note destination change. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The destination ${preparedDestination.preparedPath} was prepared safely and was left in place.`;
 		case 'internal':
 			if (preparedDestination)
-				return `DevRadar could not complete the note destination change safely. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The prepared destination ${preparedDestination.preparedPath} may have been prepared safely and was left in place.`;
+				return `DevRadar could not complete the note destination change safely. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The destination ${preparedDestination.preparedPath} was prepared before the operation failed and was left in place.`;
 			return 'DevRadar could not complete the note destination change safely.';
 	}
 }

@@ -938,7 +938,11 @@ describe('DevRadarSettingTab note destination editing', () => {
 			expect(text).toContain(
 				'@renamed-octocat remains configured at Archive/octocat.md',
 			);
-			expect(text).toContain('People/new.md may have been prepared');
+			const preparationOutcome =
+				reason === 'persistence'
+					? 'The destination People/new.md was prepared safely and was left in place.'
+					: 'The destination People/new.md was prepared before the operation failed and was left in place.';
+			expect(text).toContain(preparationOutcome);
 			expect(text).toContain('Retry');
 			const declarativeStatus = flattenDefinitions(
 				getSettingDefinitions(view.tab),
@@ -953,7 +957,7 @@ describe('DevRadarSettingTab note destination editing', () => {
 				allElements(declarativeStatusElement)
 					.map((element) => element.text)
 					.join('\n'),
-			).toContain('People/new.md may have been prepared');
+			).toContain(preparationOutcome);
 		},
 	);
 });
