@@ -574,6 +574,51 @@ describe('FollowManagementApplication.changeNotePath', () => {
 		},
 	);
 
+	it('waits for destination preparation before saving settings', async () => {
+		const view = harness();
+		let finishPreparation!: (result: NotePreparationResult) => void;
+		let preparationStarted!: () => void;
+		const pendingPreparation = new Promise<NotePreparationResult>(
+			(resolve) => {
+				finishPreparation = resolve;
+			},
+		);
+		const started = new Promise<void>((resolve) => {
+			preparationStarted = resolve;
+		});
+		const prepareAssociation = vi.fn<NotePersistence['prepareAssociation']>(
+			async () => {
+				preparationStarted();
+				return pendingPreparation;
+			},
+		);
+		view.notes.prepareAssociation = prepareAssociation;
+
+		const result = view.app.changeNotePath('42', 'People/new.md');
+		await started;
+
+		expect(prepareAssociation).toHaveBeenCalledTimes(1);
+		expect(view.save).not.toHaveBeenCalled();
+		const pendingState = view.getState();
+		expect(pendingState.kind).toBe('ready');
+		if (pendingState.kind === 'ready')
+			expect(
+				pendingState.settings.followedPeople.find(
+					(person) => person.githubAccountId === '42',
+				)?.notePath,
+			).toBe('People/octocat.md');
+
+		finishPreparation({ kind: 'reused' });
+		await expect(result).resolves.toMatchObject({
+			kind: 'updated',
+			notePath: 'People/new.md',
+		});
+		expect(view.save).toHaveBeenCalledTimes(1);
+		expect(view.saved[0]?.followedPeople[0]?.notePath).toBe(
+			'People/new.md',
+		);
+	});
+
 	it('treats a case-only equivalent of the current path as unchanged', async () => {
 		const view = harness();
 
