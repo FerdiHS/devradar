@@ -21,6 +21,7 @@ import type {
 import type {
 	TrackingStartChangeFailureReason,
 	TrackingStartChangeResult,
+	NotePathChangeResult,
 	UnfollowResult,
 } from './application/follow-management';
 
@@ -35,6 +36,10 @@ export type SettingsTabHost = SettingsApplicationHost & {
 		githubAccountId: string,
 		draft: FollowTrackingStartDraft,
 	): Promise<TrackingStartChangeResult>;
+	changeNotePath(
+		githubAccountId: string,
+		draftPath: string,
+	): Promise<NotePathChangeResult>;
 	saveActivityFamilies(
 		families: readonly ActivityFamily[],
 	): Promise<import('./application/settings').SettingsSaveResult>;
@@ -63,6 +68,11 @@ type TrackingStartEditorDraft = {
 	time: string;
 	timeBadInput: boolean;
 };
+type NotePathEditorDraft = {
+	readonly githubAccountId: string;
+	readonly originalPath: string;
+	path: string;
+};
 
 export class DevRadarSettingTab extends PluginSettingTab {
 	private username = '';
@@ -78,6 +88,9 @@ export class DevRadarSettingTab extends PluginSettingTab {
 	private trackingStartEditor?: TrackingStartEditorDraft;
 	private trackingStartSavePending = false;
 	private trackingStartStatus?: string;
+	private notePathEditor?: NotePathEditorDraft;
+	private notePathSavePending = false;
+	private notePathStatus?: string;
 	private activityFamiliesDraft?: ActivityFamily[];
 	private activitySavePending = false;
 	private activitySaveStatus?: string;
@@ -118,6 +131,17 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					this.renderRecoveryDetails(setting.controlEl, diagnostic),
 			},
 		];
+		if (this.notePathStatus !== undefined) {
+			items.push({
+				name: 'Note destination status',
+				searchable: false,
+				render: (setting) => {
+					setting.controlEl.createEl('p', {
+						text: this.notePathStatus ?? '',
+					});
+				},
+			});
+		}
 		if (diagnostic.kind !== 'unsupported-platform') {
 			items.push({
 				name: 'Retry',
@@ -303,6 +327,16 @@ export class DevRadarSettingTab extends PluginSettingTab {
 						refresh,
 					),
 			},
+			{
+				name: 'Edit note destination',
+				visible: () => settings.followedPeople.length > 0,
+				render: (setting) =>
+					this.renderNotePathSelector(
+						setting.controlEl,
+						settings.followedPeople,
+						refresh,
+					),
+			},
 			...(this.unfollowStatus === undefined
 				? []
 				: [
@@ -325,6 +359,19 @@ export class DevRadarSettingTab extends PluginSettingTab {
 							render: (setting: { controlEl: HTMLElement }) => {
 								setting.controlEl.createEl('p', {
 									text: this.trackingStartStatus ?? '',
+								});
+							},
+						},
+					]),
+			...(this.notePathStatus === undefined
+				? []
+				: [
+						{
+							name: 'Note destination status',
+							searchable: false,
+							render: (setting: { controlEl: HTMLElement }) => {
+								setting.controlEl.createEl('p', {
+									text: this.notePathStatus ?? '',
 								});
 							},
 						},
@@ -484,6 +531,178 @@ export class DevRadarSettingTab extends PluginSettingTab {
 					this.renderTrackingStartEditor(item, person, refresh);
 			}
 		}
+	}
+
+	private renderNotePathSelector(
+		containerEl: HTMLElement,
+		followedPeople: readonly FollowedPersonSummary[],
+		refresh: SettingsRefresh,
+	): void {
+		if (followedPeople.length === 0) return;
+		const select = containerEl.createEl('select');
+		select.id = 'devradar-edit-note-destination-person';
+		select.setAttribute(
+			'aria-label',
+			'Person whose note destination to edit',
+		);
+		for (const person of followedPeople) {
+			const option = select.createEl('option', {
+				text: `@${person.username}`,
+			});
+			option.value = person.githubAccountId;
+		}
+		const editingPerson = followedPeople.find(
+			(person) =>
+				person.githubAccountId === this.notePathEditor?.githubAccountId,
+		);
+		select.value =
+			editingPerson?.githubAccountId ??
+			followedPeople[0]?.githubAccountId ??
+			'';
+		select.disabled =
+			this.notePathSavePending || this.host.isFollowManagementPending();
+		select.addEventListener('change', () => {
+			const selectedPerson = followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			);
+			if (selectedPerson) {
+				this.beginNotePathEdit(selectedPerson);
+				refresh();
+			}
+		});
+		this.renderNotePathEditButton(
+			containerEl,
+			followedPeople.find(
+				(person) => person.githubAccountId === select.value,
+			),
+			refresh,
+			select,
+		);
+		if (editingPerson)
+			this.renderNotePathEditor(containerEl, editingPerson, refresh);
+	}
+
+	private renderNotePathEditButton(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary | undefined,
+		refresh: SettingsRefresh,
+		select: HTMLSelectElement,
+	): void {
+		const button = containerEl.createEl('button', {
+			text: 'Edit note destination',
+		});
+		button.disabled =
+			person === undefined ||
+			this.notePathSavePending ||
+			this.host.isFollowManagementPending();
+		button.addEventListener('click', () => {
+			if (
+				this.notePathSavePending ||
+				this.host.isFollowManagementPending()
+			)
+				return;
+			const state = this.host.getSettingsState();
+			const currentPerson =
+				state.kind === 'ready'
+					? state.settings.followedPeople.find(
+							(item) => item.githubAccountId === select.value,
+						)
+					: undefined;
+			if (currentPerson) this.beginNotePathEdit(currentPerson);
+			refresh();
+		});
+	}
+
+	private beginNotePathEdit(person: FollowedPersonSummary): void {
+		this.notePathEditor = {
+			githubAccountId: person.githubAccountId,
+			originalPath: person.notePath,
+			path: person.notePath,
+		};
+		this.notePathStatus = undefined;
+	}
+
+	private renderNotePathEditor(
+		containerEl: HTMLElement,
+		person: FollowedPersonSummary,
+		refresh: SettingsRefresh,
+	): void {
+		const editor = this.notePathEditor;
+		if (!editor) return;
+		containerEl.createEl('p', {
+			text: `Current note destination for @${person.username}: ${editor.originalPath}`,
+		});
+		const label = containerEl.createEl('label', {
+			text: 'New note destination',
+		});
+		const input = containerEl.createEl('input');
+		input.id = 'devradar-edit-note-destination';
+		input.type = 'text';
+		input.value = editor.path;
+		input.placeholder = 'People/octocat.md';
+		input.disabled = this.notePathSavePending;
+		label.htmlFor = input.id;
+		input.addEventListener('input', () => {
+			if (!this.notePathEditor) return;
+			this.notePathEditor.path = input.value;
+			this.notePathStatus = undefined;
+		});
+
+		const save = containerEl.createEl('button', {
+			text: 'Save note destination',
+		});
+		save.disabled =
+			this.notePathSavePending || this.host.isFollowManagementPending();
+		save.addEventListener('click', () =>
+			this.submitNotePathChange(
+				editor.githubAccountId,
+				editor.path,
+				refresh,
+				save,
+			),
+		);
+		const cancel = containerEl.createEl('button', { text: 'Cancel edit' });
+		cancel.disabled = this.notePathSavePending;
+		cancel.addEventListener('click', () => {
+			this.notePathEditor = undefined;
+			this.notePathStatus = undefined;
+			refresh();
+		});
+	}
+
+	private submitNotePathChange(
+		githubAccountId: string,
+		draftPath: string,
+		refresh: SettingsRefresh,
+		button?: HTMLButtonElement,
+	): void {
+		if (this.notePathSavePending || this.host.isFollowManagementPending())
+			return;
+		this.notePathSavePending = true;
+		this.notePathStatus = undefined;
+		if (button) button.disabled = true;
+		refresh();
+		void this.host.changeNotePath(githubAccountId, draftPath).then(
+			(result) => {
+				this.notePathSavePending = false;
+				if (result.kind === 'updated') {
+					this.notePathEditor = undefined;
+					this.notePathStatus = `Note destination updated for @${result.username}; future activity will use ${result.notePath} (${result.noteDisposition}).`;
+				} else if (result.kind === 'unchanged') {
+					this.notePathEditor = undefined;
+					this.notePathStatus = `No change: @${result.username} already uses ${result.notePath}.`;
+				} else {
+					this.notePathStatus = notePathChangeStatus(result);
+				}
+				refresh();
+			},
+			() => {
+				this.notePathSavePending = false;
+				this.notePathStatus =
+					'DevRadar could not complete the note destination change safely.';
+				refresh();
+			},
+		);
 	}
 
 	private renderTrackingStartSelector(
@@ -907,6 +1126,8 @@ export class DevRadarSettingTab extends PluginSettingTab {
 
 		const diagnostic = state.diagnostic;
 		this.renderRecoveryDetails(containerEl, diagnostic);
+		if (this.notePathStatus !== undefined)
+			containerEl.createEl('p', { text: this.notePathStatus });
 		if (diagnostic.kind === 'unsupported-platform') return;
 		const refresh = () => this.display();
 		this.renderRecoveryAction(
@@ -1038,10 +1259,15 @@ export class DevRadarSettingTab extends PluginSettingTab {
 			() => this.display(),
 			true,
 		);
+		this.renderNotePathSelector(containerEl, followedPeople, () =>
+			this.display(),
+		);
 		if (this.unfollowStatus !== undefined)
 			containerEl.createEl('p', { text: this.unfollowStatus });
 		if (this.trackingStartStatus !== undefined)
 			containerEl.createEl('p', { text: this.trackingStartStatus });
+		if (this.notePathStatus !== undefined)
+			containerEl.createEl('p', { text: this.notePathStatus });
 	}
 
 	private displayActivityFilters(
@@ -1229,6 +1455,32 @@ function trackingStartChangeStatus(
 			return 'DevRadar could not save the tracking-start change.';
 		case 'internal':
 			return 'DevRadar could not complete the tracking-start change safely.';
+	}
+}
+
+function notePathChangeStatus(
+	result: Extract<NotePathChangeResult, { readonly kind: 'failed' }>,
+): string {
+	const preparedDestination = result.preparedDestination;
+	switch (result.reason) {
+		case 'invalid-input':
+			return 'Enter a valid vault-relative Markdown destination.';
+		case 'settings-not-ready':
+			return 'Note destination changes are unavailable until settings recovery succeeds.';
+		case 'not-followed':
+			return 'That person is no longer followed.';
+		case 'duplicate':
+			return 'Another followed person already uses that note destination.';
+		case 'note':
+			return 'The destination note could not be prepared safely; the current path remains configured.';
+		case 'persistence':
+			if (!preparedDestination)
+				return 'DevRadar could not save the note destination change.';
+			return `DevRadar could not save the note destination change. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The destination ${preparedDestination.preparedPath} was prepared safely and was left in place.`;
+		case 'internal':
+			if (preparedDestination)
+				return `DevRadar could not complete the note destination change safely. @${preparedDestination.username} remains configured at ${preparedDestination.previousPath}. The destination ${preparedDestination.preparedPath} was prepared before the operation failed and was left in place.`;
+			return 'DevRadar could not complete the note destination change safely.';
 	}
 }
 

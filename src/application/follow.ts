@@ -362,7 +362,9 @@ function addAssociation(
 	return settings;
 }
 
-function associationTransform(identity: PersonIdentity): AssociationTransform {
+export function associationTransform(
+	identity: PersonIdentity,
+): AssociationTransform {
 	return (currentMarkdown) => {
 		const parsed = parsePersonNote(currentMarkdown, identity);
 		if (parsed.kind === 'invalid')

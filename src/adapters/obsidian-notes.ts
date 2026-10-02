@@ -135,6 +135,17 @@ async function prepareAssociation(
 			kind: 'transform-rejection',
 			error: initialTransform.error,
 		});
+	if (initialTransform.kind === 'reuse') {
+		const properties = inspectAssociationProperties(
+			currentMarkdown,
+			identity,
+		);
+		if (!properties.ok)
+			return failed({
+				kind: 'transform-rejection',
+				error: properties.error,
+			});
+	}
 	if (initialTransform.kind === 'initialize') {
 		let needsProperties = false;
 		try {
@@ -208,6 +219,17 @@ async function prepareAssociation(
 						return currentMarkdown;
 					}
 					if (result.kind === 'reuse') {
+						const properties = inspectAssociationProperties(
+							currentMarkdown,
+							identity,
+						);
+						if (!properties.ok) {
+							decision = {
+								kind: 'reject',
+								error: properties.error,
+							};
+							return currentMarkdown;
+						}
 						decision = { kind: 'reuse' };
 						return currentMarkdown;
 					}

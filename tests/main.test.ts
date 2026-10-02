@@ -103,7 +103,13 @@ type FakePlugin = DevRadarPlugin & {
 	app: {
 		vault: {
 			adapter: { exists: () => Promise<boolean> };
+			getAbstractFileByPath: ReturnType<typeof vi.fn>;
+			read: ReturnType<typeof vi.fn>;
+			create: ReturnType<typeof vi.fn>;
+			createFolder: ReturnType<typeof vi.fn>;
+			process: ReturnType<typeof vi.fn>;
 		};
+		fileManager: { processFrontMatter: ReturnType<typeof vi.fn> };
 	};
 	manifest: { id: string; dir?: string };
 	saveData: (data: unknown) => Promise<void>;
@@ -114,6 +120,7 @@ type FakePlugin = DevRadarPlugin & {
 type FakePluginOptions = {
 	exists?: () => Promise<boolean>;
 	pluginDir?: string;
+	getAbstractFileByPath?: (path: string) => unknown;
 };
 
 function fakePlugin(
@@ -125,7 +132,15 @@ function fakePlugin(
 	plugin.app = {
 		vault: {
 			adapter: { exists: options.exists ?? (async () => false) },
+			getAbstractFileByPath: vi.fn(
+				options.getAbstractFileByPath ?? (() => undefined),
+			),
+			read: vi.fn(async () => ''),
+			create: vi.fn(async (path: string) => ({ path })),
+			createFolder: vi.fn(async () => undefined),
+			process: vi.fn(),
 		},
+		fileManager: { processFrontMatter: vi.fn(async () => undefined) },
 	} as FakePlugin['app'];
 	plugin.manifest = {
 		id: 'devradar',
@@ -461,6 +476,31 @@ describe('DevRadarPlugin settings lifecycle', () => {
 					syncState: FOLLOWED.followedPeople[0]?.syncState,
 				},
 			],
+		});
+	});
+
+	it('routes a note destination edit through the existing note and settings services', async () => {
+		const saveData = vi.fn(async (_data: unknown) => undefined);
+		const plugin = fakePlugin(async () => FOLLOWED, saveData);
+
+		await plugin.onload();
+		await expect(
+			plugin.changeNotePath('583231', 'new.md'),
+		).resolves.toEqual({
+			kind: 'updated',
+			username: 'octocat',
+			notePath: 'new.md',
+			noteDisposition: 'created',
+		});
+
+		expect(plugin.app.vault.create.mock.calls).toHaveLength(1);
+		expect(plugin.app.vault.create.mock.calls[0]?.[0]).toBe('new.md');
+		expect(plugin.app.vault.create.mock.calls[0]?.[1]).toContain(
+			'github-id="583231"',
+		);
+		expect(saveData).toHaveBeenCalledTimes(1);
+		expect(saveData.mock.calls[0]?.[0]).toMatchObject({
+			followedPeople: [{ githubAccountId: '583231', notePath: 'new.md' }],
 		});
 	});
 
