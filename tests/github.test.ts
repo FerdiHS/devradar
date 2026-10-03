@@ -730,9 +730,11 @@ describe('GitHub Events validation and mapping', () => {
 		expect(result.kind).toBe('success');
 		if (result.kind !== 'success') return;
 		expect(result.data.activities).toHaveLength(1);
-		expect(result.data.activities[0]?.sourceUrl).toBe(
-			'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
-		);
+		expect(result.data.activities[0]).toMatchObject({
+			family: 'pull-request-review',
+			sourceUrl:
+				'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+		});
 	});
 
 	it('fails malformed required review and comment data but ignores unsupported actions', async () => {
