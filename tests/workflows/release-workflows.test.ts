@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error The trusted workflow helper intentionally has no TypeScript declaration.
 import { evaluateReleaseApproval as importedEvaluateReleaseApproval } from '../../.github/scripts/release-please-approval.mjs';
@@ -64,6 +65,19 @@ type ApprovalDecision = {
 	reason?: string;
 };
 
+type ReleasePleaseWorkflow = {
+	jobs?: Record<
+		string,
+		| {
+				steps?: Array<{
+					uses?: string;
+					with?: Record<string, unknown>;
+				}>;
+		  }
+		| undefined
+	>;
+};
+
 type EvaluateReleaseApproval = (input: ApprovalInput) => ApprovalDecision;
 
 type ApprovalShellFixture = {
@@ -79,6 +93,12 @@ const evaluateReleaseApproval =
 	importedEvaluateReleaseApproval as EvaluateReleaseApproval;
 
 const repositoryRoot = process.cwd();
+const releasePleaseWorkflow = parse(
+	readFileSync(
+		join(repositoryRoot, '.github/workflows/release-please.yml'),
+		'utf8',
+	),
+) as ReleasePleaseWorkflow;
 const versionSyncWorkflow = readFileSync(
 	join(repositoryRoot, '.github/workflows/release-please-version-sync.yml'),
 	'utf8',
@@ -1728,6 +1748,25 @@ describe('Release Please approval shell steps', () => {
 });
 
 describe('Release Please workflow contracts', () => {
+	it('uses the configured App Client ID for both Release Please tokens', () => {
+		const tokenSteps = Object.values(releasePleaseWorkflow.jobs ?? {})
+			.flatMap((job) => job?.steps ?? [])
+			.filter((step) =>
+				step.uses?.startsWith('actions/create-github-app-token@'),
+			);
+
+		expect(tokenSteps).toHaveLength(2);
+		for (const step of tokenSteps) {
+			expect(step.with?.['client-id']).toBe(
+				'${{ vars.RELEASE_PLEASE_APP_CLIENT_ID }}',
+			);
+			expect(step.with?.['private-key']).toBe(
+				'${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}',
+			);
+			expect(step.with).not.toHaveProperty('app-id');
+		}
+	});
+
 	it('keeps the approval workflow and policy safeguards', () => {
 		expect(approvalWorkflow).toContain('pull_request_target');
 		for (const event of [
