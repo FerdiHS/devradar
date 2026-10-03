@@ -643,6 +643,7 @@ describe('GitHub Events validation and mapping', () => {
 				timestamp: '2026-08-20T12:00:00Z',
 				repository: 'octocat/hello-world',
 				number: '4',
+				reviewId: '21',
 				sourceUrl:
 					'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
 			},
@@ -654,6 +655,7 @@ describe('GitHub Events validation and mapping', () => {
 				timestamp: '2026-08-20T12:00:00Z',
 				repository: 'octocat/hello-world',
 				number: '5',
+				commentId: '22',
 				sourceUrl: 'https://github.com/octocat/hello-world/issues/5',
 			},
 			{
@@ -664,6 +666,7 @@ describe('GitHub Events validation and mapping', () => {
 				timestamp: '2026-08-20T12:00:00Z',
 				repository: 'octocat/hello-world',
 				number: '6',
+				commentId: '23',
 				sourceUrl:
 					'https://github.com/octocat/hello-world/pull/6#issuecomment-23',
 			},
@@ -674,6 +677,7 @@ describe('GitHub Events validation and mapping', () => {
 				timestamp: '2026-08-20T12:00:00Z',
 				repository: 'octocat/hello-world',
 				number: '7',
+				commentId: '24',
 				sourceUrl:
 					'https://github.com/octocat/hello-world/pull/7#discussion_r24',
 			},
@@ -684,6 +688,7 @@ describe('GitHub Events validation and mapping', () => {
 				timestamp: '2026-08-20T12:00:00Z',
 				repository: 'octocat/hello-world',
 				commitId: sha,
+				commentId: '25',
 				sourceUrl: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-25`,
 			},
 		]);
@@ -1548,6 +1553,140 @@ describe('GitHub Events pagination and completeness', () => {
 			kind: 'person-failure',
 			failure: { category: 'malformed-provider-data' },
 		});
+	});
+
+	it('collapses identical review/comment Events and rejects conflicting duplicates', async () => {
+		const sha = 'a'.repeat(40);
+		const cases: readonly {
+			readonly name: string;
+			readonly first: Record<string, unknown>;
+			readonly conflict: Record<string, unknown>;
+		}[] = [
+			{
+				name: 'review ID',
+				first: event({
+					id: '31',
+					type: 'PullRequestReviewEvent',
+					payload: {
+						action: 'created',
+						pull_request: { number: 4 },
+						review: { id: 41 },
+					},
+				}),
+				conflict: event({
+					id: '31',
+					type: 'PullRequestReviewEvent',
+					payload: {
+						action: 'created',
+						pull_request: { number: 4 },
+						review: { id: 42 },
+					},
+				}),
+			},
+			{
+				name: 'issue comment ID',
+				first: event({
+					id: '32',
+					type: 'IssueCommentEvent',
+					payload: {
+						action: 'created',
+						issue: { number: 5 },
+						comment: { id: 51 },
+					},
+				}),
+				conflict: event({
+					id: '32',
+					type: 'IssueCommentEvent',
+					payload: {
+						action: 'created',
+						issue: { number: 5 },
+						comment: { id: 52 },
+					},
+				}),
+			},
+			{
+				name: 'issue versus pull-request target',
+				first: event({
+					id: '33',
+					type: 'IssueCommentEvent',
+					payload: {
+						action: 'created',
+						issue: { number: 6 },
+						comment: { id: 61 },
+					},
+				}),
+				conflict: event({
+					id: '33',
+					type: 'IssueCommentEvent',
+					payload: {
+						action: 'created',
+						issue: { number: 6, pull_request: null },
+						comment: { id: 61 },
+					},
+				}),
+			},
+			{
+				name: 'review comment ID',
+				first: event({
+					id: '34',
+					type: 'PullRequestReviewCommentEvent',
+					payload: {
+						action: 'created',
+						pull_request: { number: 7 },
+						comment: { id: 71 },
+					},
+				}),
+				conflict: event({
+					id: '34',
+					type: 'PullRequestReviewCommentEvent',
+					payload: {
+						action: 'created',
+						pull_request: { number: 7 },
+						comment: { id: 72 },
+					},
+				}),
+			},
+			{
+				name: 'commit comment ID',
+				first: event({
+					id: '35',
+					type: 'CommitCommentEvent',
+					payload: {
+						action: 'created',
+						comment: { id: 81, commit_id: sha },
+					},
+				}),
+				conflict: event({
+					id: '35',
+					type: 'CommitCommentEvent',
+					payload: {
+						action: 'created',
+						comment: { id: 82, commit_id: sha },
+					},
+				}),
+			},
+		];
+
+		for (const { name, first, conflict } of cases) {
+			const equalCase = adapter([response([first, first])]);
+			const equalResult =
+				await equalCase.adapter.retrieveEvents(eventsRequest());
+			expect(equalResult, `${name} equal duplicate`).toMatchObject({
+				kind: 'success',
+				data: { activities: [expect.anything()] },
+			});
+
+			const conflictCase = adapter([response([first, conflict])]);
+			const conflictResult =
+				await conflictCase.adapter.retrieveEvents(eventsRequest());
+			expect(
+				conflictResult,
+				`${name} conflicting duplicate`,
+			).toMatchObject({
+				kind: 'person-failure',
+				failure: { category: 'malformed-provider-data' },
+			});
+		}
 	});
 
 	it('prefers Event provenance for equivalent duplicate PRs', async () => {

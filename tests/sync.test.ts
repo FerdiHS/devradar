@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createCommitCommentActivity,
+	createIssueCommentActivity,
 	createIssueActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	type Activity,
 } from '../src/domain/activity';
 import {
@@ -43,6 +47,55 @@ const issue = (
 	if (!result.ok) throw new Error(result.error.message);
 	return result.value;
 };
+
+const review = (providerEventId: string, reviewId = '50'): Activity =>
+	ok(
+		createPullRequestReviewActivity({
+			providerEventId,
+			timestamp: '2026-08-18T03:00:00Z',
+			repository: 'octocat/hello-world',
+			number: '5',
+			reviewId,
+		}),
+	);
+
+const issueComment = (
+	providerEventId: string,
+	commentId = '60',
+	target: 'issue' | 'pull-request' = 'issue',
+): Activity =>
+	ok(
+		createIssueCommentActivity({
+			providerEventId,
+			timestamp: '2026-08-18T03:00:00Z',
+			repository: 'octocat/hello-world',
+			number: '5',
+			target,
+			commentId,
+		}),
+	);
+
+const reviewComment = (providerEventId: string, commentId = '70'): Activity =>
+	ok(
+		createPullRequestReviewCommentActivity({
+			providerEventId,
+			timestamp: '2026-08-18T03:00:00Z',
+			repository: 'octocat/hello-world',
+			number: '5',
+			commentId,
+		}),
+	);
+
+const commitComment = (providerEventId: string, commentId = '80'): Activity =>
+	ok(
+		createCommitCommentActivity({
+			providerEventId,
+			timestamp: '2026-08-18T03:00:00Z',
+			repository: 'octocat/hello-world',
+			commitId: 'a'.repeat(40),
+			commentId,
+		}),
+	);
 
 const detailPullRequest = (
 	providerEventId: string,
@@ -129,6 +182,43 @@ describe('synchronization reconciliation', () => {
 		expect(
 			result.newActivities.map((item) => item.providerEventId),
 		).toEqual(['1']);
+	});
+
+	it('collapses equal review/comment duplicates and rejects conflicting payloads', () => {
+		const equalActivities = [
+			review('10'),
+			issueComment('11'),
+			reviewComment('12'),
+			commitComment('13'),
+		];
+		for (const activity of equalActivities) {
+			const result = ok(
+				reconcileActivities(planInput([activity, activity])),
+			);
+			expect(result.newActivities).toEqual([activity]);
+		}
+
+		const conflicts: readonly (readonly [Activity, Activity])[] = [
+			[review('20', '50'), review('20', '51')],
+			[issueComment('21', '60'), issueComment('21', '61')],
+			[
+				issueComment('22', '62', 'issue'),
+				issueComment('22', '62', 'pull-request'),
+			],
+			[reviewComment('23', '70'), reviewComment('23', '71')],
+			[commitComment('24', '80'), commitComment('24', '81')],
+		];
+		for (const [first, second] of conflicts) {
+			expect(
+				reconcileActivities(planInput([first, second])),
+			).toMatchObject({
+				ok: false,
+				error: {
+					kind: 'conflicting-provider-activity',
+					providerEventId: first.providerEventId,
+				},
+			});
+		}
 	});
 
 	it('reduces duplicate PR provenance consistently before reconciliation', () => {

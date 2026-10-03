@@ -1092,6 +1092,42 @@ function hasSameActivity(left: Activity, right: Activity): boolean {
 			left.title === right.title &&
 			left.sourceUrl === right.sourceUrl
 		);
+	if (
+		left.family === 'pull-request-review' &&
+		right.family === 'pull-request-review'
+	)
+		return (
+			left.number === right.number &&
+			left.reviewId === right.reviewId &&
+			left.sourceUrl === right.sourceUrl
+		);
+	if (left.family === 'comment' && right.family === 'comment') {
+		if (left.action === 'issue-comment' && right.action === 'issue-comment')
+			return (
+				left.target === right.target &&
+				left.number === right.number &&
+				left.commentId === right.commentId &&
+				left.sourceUrl === right.sourceUrl
+			);
+		if (
+			left.action === 'review-comment' &&
+			right.action === 'review-comment'
+		)
+			return (
+				left.number === right.number &&
+				left.commentId === right.commentId &&
+				left.sourceUrl === right.sourceUrl
+			);
+		if (
+			left.action === 'commit-comment' &&
+			right.action === 'commit-comment'
+		)
+			return (
+				left.commitId === right.commitId &&
+				left.commentId === right.commentId &&
+				left.sourceUrl === right.sourceUrl
+			);
+	}
 	return false;
 }
 

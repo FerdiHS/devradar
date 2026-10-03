@@ -325,6 +325,7 @@ export interface PullRequestReviewActivity {
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
 	readonly number: CanonicalNumber;
+	readonly reviewId: CanonicalNumber;
 	readonly sourceUrl: string;
 }
 
@@ -336,6 +337,7 @@ export interface IssueCommentActivity {
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
 	readonly number: CanonicalNumber;
+	readonly commentId: CanonicalNumber;
 	readonly sourceUrl: string;
 }
 
@@ -346,6 +348,7 @@ export interface PullRequestReviewCommentActivity {
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
 	readonly number: CanonicalNumber;
+	readonly commentId: CanonicalNumber;
 	readonly sourceUrl: string;
 }
 
@@ -356,6 +359,7 @@ export interface CommitCommentActivity {
 	readonly timestamp: CanonicalTimestamp;
 	readonly repository: CanonicalRepository;
 	readonly commitId: CanonicalCommitId;
+	readonly commentId: CanonicalNumber;
 	readonly sourceUrl: string;
 }
 
@@ -541,6 +545,7 @@ export function createPullRequestReviewActivity(
 		family: 'pull-request-review',
 		action: 'created',
 		number: number.value,
+		reviewId: reviewId.value,
 		sourceUrl: optionalAnchoredSourceUrl(
 			input.providerSourceUrl,
 			expectedUrl,
@@ -574,6 +579,7 @@ export function createIssueCommentActivity(
 		action: 'issue-comment',
 		target: input.target,
 		number: number.value,
+		commentId: commentId.value,
 		sourceUrl: optionalAnchoredSourceUrl(
 			input.providerSourceUrl,
 			expectedUrl,
@@ -602,6 +608,7 @@ export function createPullRequestReviewCommentActivity(
 		family: 'comment',
 		action: 'review-comment',
 		number: number.value,
+		commentId: commentId.value,
 		sourceUrl: optionalAnchoredSourceUrl(
 			input.providerSourceUrl,
 			expectedUrl,
@@ -630,6 +637,7 @@ export function createCommitCommentActivity(
 		family: 'comment',
 		action: 'commit-comment',
 		commitId: commitId.value,
+		commentId: commentId.value,
 		sourceUrl: optionalAnchoredSourceUrl(
 			input.providerSourceUrl,
 			expectedUrl,
