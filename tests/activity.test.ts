@@ -6,15 +6,18 @@ import {
 	canonicalizeTimestamp,
 	compareActivities,
 	compareCanonicalTimestamps,
+	createCommitCommentActivity,
+	createIssueCommentActivity,
 	createIssueActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	createPushActivity,
 	isActivityEligible,
 	normalizeProviderText,
 	serializeActivityFragment,
 	validateCommitId,
 	validateRef,
-	type Activity,
 } from '../src/domain/activity';
 
 const ok = <T>(result: { ok: boolean; value?: T }): T => {
@@ -615,46 +618,50 @@ describe('safe links and exact fragments', () => {
 		const sha = 'a'.repeat(40);
 		const repository =
 			'[octocat/hello-world](https://github.com/octocat/hello-world)';
-		const review = {
-			family: 'pull-request-review',
-			action: 'created',
-			repository: 'octocat/hello-world',
-			number: '4',
-			sourceUrl:
-				'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
-		} as unknown as Activity;
-		const issueComment = {
-			family: 'comment',
-			action: 'issue-comment',
-			target: 'issue',
-			repository: 'octocat/hello-world',
-			number: '5',
-			sourceUrl:
-				'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
-		} as unknown as Activity;
-		const pullRequestComment = {
-			family: 'comment',
-			action: 'issue-comment',
-			target: 'pull-request',
-			repository: 'octocat/hello-world',
-			number: '6',
-			sourceUrl: 'https://github.com/octocat/hello-world/pull/6',
-		} as unknown as Activity;
-		const reviewComment = {
-			family: 'comment',
-			action: 'review-comment',
-			repository: 'octocat/hello-world',
-			number: '7',
-			sourceUrl:
-				'https://github.com/octocat/hello-world/pull/7#discussion_r23',
-		} as unknown as Activity;
-		const commitComment = {
-			family: 'comment',
-			action: 'commit-comment',
-			repository: 'octocat/hello-world',
-			commitId: sha,
-			sourceUrl: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24`,
-		} as unknown as Activity;
+		const review = ok(
+			createPullRequestReviewActivity({
+				...base,
+				number: '4',
+				reviewId: '21',
+				providerSourceUrl:
+					'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+			}),
+		);
+		const issueComment = ok(
+			createIssueCommentActivity({
+				...base,
+				number: '5',
+				target: 'issue',
+				commentId: '22',
+				providerSourceUrl:
+					'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
+			}),
+		);
+		const pullRequestComment = ok(
+			createIssueCommentActivity({
+				...base,
+				number: '6',
+				target: 'pull-request',
+				commentId: '23',
+			}),
+		);
+		const reviewComment = ok(
+			createPullRequestReviewCommentActivity({
+				...base,
+				number: '7',
+				commentId: '23',
+				providerSourceUrl:
+					'https://github.com/octocat/hello-world/pull/7#discussion_r23',
+			}),
+		);
+		const commitComment = ok(
+			createCommitCommentActivity({
+				...base,
+				commitId: sha,
+				commentId: '24',
+				providerSourceUrl: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24`,
+			}),
+		);
 
 		expect([
 			serializeActivityFragment(review),
