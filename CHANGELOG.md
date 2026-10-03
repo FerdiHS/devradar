@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/FerdiHS/devradar/compare/0.3.0...0.4.0) (2026-10-03)
+
+
+### Features
+
+* **follow:** safely change a followed person's note destination ([#149](https://github.com/FerdiHS/devradar/issues/149)) ([75ce466](https://github.com/FerdiHS/devradar/commit/75ce46616259919390074767a79c0432aaa81dac))
+* manage followed people ([#146](https://github.com/FerdiHS/devradar/issues/146)) ([1dd85fb](https://github.com/FerdiHS/devradar/commit/1dd85fb324db35a3cd57683f53f6d7117f05e393))
+
 ## [0.3.0](https://github.com/FerdiHS/devradar/compare/0.2.0...0.3.0) (2026-09-26)
 
 
