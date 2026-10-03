@@ -1,4 +1,5 @@
 import {
+	areSameActivity,
 	compareActivities,
 	compareCanonicalTimestamps,
 	preferCanonicalActivity,
@@ -67,77 +68,13 @@ const failure = <T>(error: SyncDomainError): SyncResult<T> => ({
 	error,
 });
 
-function activitiesEqual(left: Activity, right: Activity): boolean {
-	if (
-		left.family !== right.family ||
-		left.action !== right.action ||
-		left.providerEventId !== right.providerEventId ||
-		left.timestamp !== right.timestamp ||
-		left.repository !== right.repository
-	)
-		return false;
-	if (left.family === 'push' && right.family === 'push')
-		return (
-			left.ref === right.ref && left.pushSourceUrl === right.pushSourceUrl
-		);
-	if (left.family === 'pull-request' && right.family === 'pull-request')
-		return (
-			left.number === right.number &&
-			left.title === right.title &&
-			left.sourceUrl === right.sourceUrl
-		);
-	if (left.family === 'issue' && right.family === 'issue')
-		return (
-			left.number === right.number &&
-			left.title === right.title &&
-			left.sourceUrl === right.sourceUrl
-		);
-	if (
-		left.family === 'pull-request-review' &&
-		right.family === 'pull-request-review'
-	)
-		return (
-			left.number === right.number &&
-			left.reviewId === right.reviewId &&
-			left.sourceUrl === right.sourceUrl
-		);
-	if (left.family === 'comment' && right.family === 'comment') {
-		if (left.action === 'issue-comment' && right.action === 'issue-comment')
-			return (
-				left.target === right.target &&
-				left.number === right.number &&
-				left.commentId === right.commentId &&
-				left.sourceUrl === right.sourceUrl
-			);
-		if (
-			left.action === 'review-comment' &&
-			right.action === 'review-comment'
-		)
-			return (
-				left.number === right.number &&
-				left.commentId === right.commentId &&
-				left.sourceUrl === right.sourceUrl
-			);
-		if (
-			left.action === 'commit-comment' &&
-			right.action === 'commit-comment'
-		)
-			return (
-				left.commitId === right.commitId &&
-				left.commentId === right.commentId &&
-				left.sourceUrl === right.sourceUrl
-			);
-	}
-	return false;
-}
-
 function uniqueActivities(
 	input: readonly Activity[],
 ): SyncResult<readonly Activity[]> {
 	const byId = new Map<string, Activity>();
 	for (const activity of input) {
 		const existing = byId.get(activity.providerEventId);
-		if (existing && !activitiesEqual(existing, activity))
+		if (existing && !areSameActivity(existing, activity))
 			return {
 				ok: false,
 				error: {
