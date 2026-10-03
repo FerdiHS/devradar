@@ -431,6 +431,36 @@ describe('person-note rendering', () => {
 		).toEqual([]);
 	});
 
+	it('retains canonical review and comment entries but rejects hostile links', () => {
+		const timestamp = '2026-08-20T12:00:00Z';
+		const repository =
+			'[octocat/hello-world](https://github.com/octocat/hello-world)';
+		const sha = 'a'.repeat(40);
+		const fragments = [
+			`Pull-request review on [#4](https://github.com/octocat/hello-world/pull/4#pullrequestreview-21) in ${repository}`,
+			`Issue comment on [#5](https://github.com/octocat/hello-world/issues/5#issuecomment-22) in ${repository}`,
+			`Pull-request comment on [#6](https://github.com/octocat/hello-world/pull/6) in ${repository}`,
+			`Pull-request review comment on [#7](https://github.com/octocat/hello-world/pull/7#discussion_r23) in ${repository}`,
+			`Commit comment on [${sha}](https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24) in ${repository}`,
+		];
+		const content = [
+			'## DevRadar activity',
+			'',
+			...fragments.map((fragment) => `- \`${timestamp}\` — ${fragment}`),
+		].join('\n');
+
+		expect(parseCanonicalActivityEntries(content)).toHaveLength(5);
+
+		const hostile = fragments[1]?.replace(
+			'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
+			'https://evil.example/octocat/hello-world/issues/5#issuecomment-22',
+		);
+		expect(hostile).toBeDefined();
+		expect(
+			parseCanonicalActivityEntries(`- \`${timestamp}\` — ${hostile}`),
+		).toEqual([]);
+	});
+
 	it('round-trips normalized tree-link refs', () => {
 		for (const replacement of ['\u2028', '\u202e']) {
 			const push = ok(

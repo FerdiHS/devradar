@@ -10,7 +10,7 @@ import type {
 } from '../src/application/github-identity';
 import type { NotePreparationResult } from '../src/application/note-persistence';
 import type {
-	DevRadarSettingsV2,
+	DevRadarSettingsV3,
 	FollowedPersonV1,
 	PersonSyncState,
 } from '../src/domain/settings';
@@ -54,9 +54,9 @@ function person(
 
 function settings(
 	followedPeople: FollowedPersonV1[] = [person()],
-): DevRadarSettingsV2 {
+): DevRadarSettingsV3 {
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople,
 		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 		githubRequestPolicy: {
@@ -102,8 +102,8 @@ function identityFailure(
 }
 
 function fakeSettings(
-	initial: DevRadarSettingsV2,
-	save: (candidate: DevRadarSettingsV2) => SettingsSaveResult = (
+	initial: DevRadarSettingsV3,
+	save: (candidate: DevRadarSettingsV3) => SettingsSaveResult = (
 		candidate,
 	) => ({
 		kind: 'saved',
@@ -111,8 +111,8 @@ function fakeSettings(
 	}),
 ) {
 	let state: SettingsRuntimeState = { kind: 'ready', settings: initial };
-	const savedCandidates: DevRadarSettingsV2[] = [];
-	const saveCandidate = vi.fn(async (candidate: DevRadarSettingsV2) => {
+	const savedCandidates: DevRadarSettingsV3[] = [];
+	const saveCandidate = vi.fn(async (candidate: DevRadarSettingsV3) => {
 		savedCandidates.push(candidate);
 		const result = save(candidate);
 		state =
@@ -173,11 +173,11 @@ function fakeGitHub(result: GitHubIdentityResult) {
 }
 
 function followApp(
-	initial: DevRadarSettingsV2,
+	initial: DevRadarSettingsV3,
 	result: GitHubIdentityResult,
 	options: {
 		notes?: ReturnType<typeof fakeNotes>;
-		save?: (candidate: DevRadarSettingsV2) => SettingsSaveResult;
+		save?: (candidate: DevRadarSettingsV3) => SettingsSaveResult;
 		mutationGuard?: ApplicationMutationGuard;
 	} = {},
 ) {
@@ -252,7 +252,7 @@ describe('FollowApplication', () => {
 			},
 			save: async (value) => ({
 				kind: 'saved',
-				settings: value as DevRadarSettingsV2,
+				settings: value as DevRadarSettingsV3,
 			}),
 		};
 		const guard = createApplicationMutationGuard();
@@ -449,7 +449,7 @@ describe('FollowApplication', () => {
 		const guard = createApplicationMutationGuard();
 		let loadCount = 0;
 		let saveCount = 0;
-		const savedCandidates: DevRadarSettingsV2[] = [];
+		const savedCandidates: DevRadarSettingsV3[] = [];
 		const persistence: SettingsPersistence = {
 			load: async () => {
 				loadCount += 1;
@@ -461,11 +461,11 @@ describe('FollowApplication', () => {
 			},
 			save: async (candidate) => {
 				saveCount += 1;
-				savedCandidates.push(candidate as DevRadarSettingsV2);
+				savedCandidates.push(candidate as DevRadarSettingsV3);
 				if (saveCount === 1) return { kind: 'write-failure' };
 				return {
 					kind: 'saved',
-					settings: candidate as DevRadarSettingsV2,
+					settings: candidate as DevRadarSettingsV3,
 				};
 			},
 		};

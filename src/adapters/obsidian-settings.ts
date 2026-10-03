@@ -1,6 +1,6 @@
 import {
 	parsePersistedSettings,
-	validatePersistedSettingsV2,
+	validatePersistedSettingsV3,
 } from '../domain/settings';
 import type {
 	SettingsLoadResult,
@@ -62,9 +62,9 @@ export class ObsidianSettingsPersistence implements SettingsPersistence {
 	}
 
 	async save(candidate: unknown): Promise<SettingsSaveResult> {
-		let result: ReturnType<typeof validatePersistedSettingsV2>;
+		let result: ReturnType<typeof validatePersistedSettingsV3>;
 		try {
-			result = validatePersistedSettingsV2(candidate, this.now());
+			result = validatePersistedSettingsV3(candidate, this.now());
 		} catch {
 			return { kind: 'internal-failure' };
 		}
@@ -101,7 +101,7 @@ function classifyValidationFailure(
 		if (
 			typeof descriptor.value === 'number' &&
 			Number.isInteger(descriptor.value) &&
-			descriptor.value > 2
+			descriptor.value > 3
 		)
 			return 'future-schema';
 		if (hasUnsafeReflection(raw)) return 'unclassifiable';

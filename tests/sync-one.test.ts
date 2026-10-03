@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	createIssueActivity,
+	createIssueCommentActivity,
+	createCommitCommentActivity,
 	createPushActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	ACTIVITY_FAMILIES,
 	type Activity,
 } from '../src/domain/activity';
@@ -17,7 +21,7 @@ import { SyncPersonExecutor } from '../src/application/sync-person';
 import type { GitHubPolicyObservation } from '../src/application/github-identity';
 import {
 	createEmptyPersonSyncState,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 } from '../src/domain/settings';
 import {
 	SettingsApplication,
@@ -88,9 +92,9 @@ const pullRequestActivity = (providerEventId: string): Activity => {
 };
 
 const settings = (
-	overrides: Partial<DevRadarSettingsV2> = {},
-): DevRadarSettingsV2 => ({
-	schemaVersion: 2,
+	overrides: Partial<DevRadarSettingsV3> = {},
+): DevRadarSettingsV3 => ({
+	schemaVersion: 3,
 	followedPeople: [
 		{
 			username: 'octocat',
@@ -125,7 +129,7 @@ const dependencies = (
 ) => {
 	let current = value;
 	const saveCandidateWithinMutation = vi.fn(
-		async (candidate: DevRadarSettingsV2) => {
+		async (candidate: DevRadarSettingsV3) => {
 			current = candidate;
 			return { kind: 'saved' as const, settings: candidate };
 		},
@@ -457,6 +461,106 @@ describe('Sync One application', () => {
 			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
 				.followedPeople[0]?.syncState.seenEvents,
 		).toEqual([]);
+	});
+
+	it('keeps reviews and all comment kinds disabled until their families are enabled', async () => {
+		const inputs = [
+			createPullRequestReviewActivity({
+				providerEventId: '51',
+				timestamp: '2026-08-18T03:00:00Z',
+				repository: 'octocat/hello-world',
+				number: 5,
+				reviewId: 501,
+			}),
+			createIssueCommentActivity({
+				providerEventId: '52',
+				timestamp: '2026-08-18T03:01:00Z',
+				repository: 'octocat/hello-world',
+				number: 6,
+				target: 'issue',
+				commentId: 502,
+			}),
+			createPullRequestReviewCommentActivity({
+				providerEventId: '53',
+				timestamp: '2026-08-18T03:02:00Z',
+				repository: 'octocat/hello-world',
+				number: 7,
+				commentId: 503,
+			}),
+			createCommitCommentActivity({
+				providerEventId: '54',
+				timestamp: '2026-08-18T03:03:00Z',
+				repository: 'octocat/hello-world',
+				commitId: 'abcdef0123456789abcdef0123456789abcdef01',
+				commentId: 504,
+			}),
+		];
+		const activities = inputs.map((result) => {
+			if (!result.ok) throw new Error(result.error.message);
+			return result.value;
+		});
+		const fakes = dependencies(
+			settings({
+				enabledActivityFamilies: ['push', 'pull-request', 'issue'],
+			}),
+			successfulProvider(activities),
+		);
+		const application = new SyncOneApplication(fakes.deps);
+
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'unchanged' });
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toEqual([]);
+		expect(fakes.notes.process).not.toHaveBeenCalled();
+
+		const afterDisabledRun =
+			fakes.saveCandidateWithinMutation.mock.calls[0]?.[0];
+		fakes.deps.settings.getSettingsState = vi.fn(() =>
+			ready({
+				...afterDisabledRun!,
+				enabledActivityFamilies: [
+					'push',
+					'pull-request',
+					'pull-request-review',
+					'issue',
+					'comment',
+				],
+			}),
+		);
+
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'updated' });
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[1]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toEqual(
+			expect.arrayContaining(
+				activities.map((item) => ({
+					id: item.providerEventId,
+					createdAt: item.timestamp,
+				})),
+			),
+		);
+		const afterEnabledRun =
+			fakes.saveCandidateWithinMutation.mock.calls[1]?.[0];
+		if (!afterEnabledRun)
+			throw new Error('expected persisted opt-in state');
+		fakes.deps.settings.getSettingsState = vi.fn(() =>
+			ready(afterEnabledRun),
+		);
+
+		expect(
+			await application.syncOne({ githubAccountId: '583231' }),
+		).toEqual({ kind: 'unchanged' });
+		expect(fakes.notes.process).toHaveBeenCalledTimes(1);
+		expect(
+			fakes.saveCandidateWithinMutation.mock.calls[1]?.[0]
+				.followedPeople[0]?.syncState.seenEvents,
+		).toHaveLength(4);
 	});
 
 	it('fails closed on unsupported platforms before provider or note work', async () => {
@@ -865,7 +969,7 @@ describe('Sync One application', () => {
 				settings: initialSettings,
 				needsMigration: false,
 			})),
-			save: vi.fn(async (candidate: DevRadarSettingsV2) => {
+			save: vi.fn(async (candidate: DevRadarSettingsV3) => {
 				saveCalls += 1;
 				if (saveCalls === 1) return { kind: 'write-failure' as const };
 				return { kind: 'saved' as const, settings: candidate };

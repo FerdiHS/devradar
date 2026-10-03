@@ -14,6 +14,7 @@ import {
 	serializeActivityFragment,
 	validateCommitId,
 	validateRef,
+	type Activity,
 } from '../src/domain/activity';
 
 const ok = <T>(result: { ok: boolean; value?: T }): T => {
@@ -608,5 +609,65 @@ describe('safe links and exact fragments', () => {
 			);
 			expect(serializeActivityFragment(activity)).toBe(expected);
 		}
+	});
+
+	it('serializes reviews and comments with minimal object-first context', () => {
+		const sha = 'a'.repeat(40);
+		const repository =
+			'[octocat/hello-world](https://github.com/octocat/hello-world)';
+		const review = {
+			family: 'pull-request-review',
+			action: 'created',
+			repository: 'octocat/hello-world',
+			number: '4',
+			sourceUrl:
+				'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+		} as unknown as Activity;
+		const issueComment = {
+			family: 'comment',
+			action: 'issue-comment',
+			target: 'issue',
+			repository: 'octocat/hello-world',
+			number: '5',
+			sourceUrl:
+				'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
+		} as unknown as Activity;
+		const pullRequestComment = {
+			family: 'comment',
+			action: 'issue-comment',
+			target: 'pull-request',
+			repository: 'octocat/hello-world',
+			number: '6',
+			sourceUrl: 'https://github.com/octocat/hello-world/pull/6',
+		} as unknown as Activity;
+		const reviewComment = {
+			family: 'comment',
+			action: 'review-comment',
+			repository: 'octocat/hello-world',
+			number: '7',
+			sourceUrl:
+				'https://github.com/octocat/hello-world/pull/7#discussion_r23',
+		} as unknown as Activity;
+		const commitComment = {
+			family: 'comment',
+			action: 'commit-comment',
+			repository: 'octocat/hello-world',
+			commitId: sha,
+			sourceUrl: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24`,
+		} as unknown as Activity;
+
+		expect([
+			serializeActivityFragment(review),
+			serializeActivityFragment(issueComment),
+			serializeActivityFragment(pullRequestComment),
+			serializeActivityFragment(reviewComment),
+			serializeActivityFragment(commitComment),
+		]).toEqual([
+			`Pull-request review on [#4](https://github.com/octocat/hello-world/pull/4#pullrequestreview-21) in ${repository}`,
+			`Issue comment on [#5](https://github.com/octocat/hello-world/issues/5#issuecomment-22) in ${repository}`,
+			`Pull-request comment on [#6](https://github.com/octocat/hello-world/pull/6) in ${repository}`,
+			`Pull-request review comment on [#7](https://github.com/octocat/hello-world/pull/7#discussion_r23) in ${repository}`,
+			`Commit comment on [${sha}](https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24) in ${repository}`,
+		]);
 	});
 });

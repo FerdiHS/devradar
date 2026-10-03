@@ -42,11 +42,11 @@ The complete people-first MVP catalogue contains:
 8. Repository forks
 9. Branches and tags
 
-The `v0.3.0` implementation slice supports a single global configurable
-selection whose catalogue contains exactly Pushes, Pull requests, and Issues.
-Any subset, including the empty subset, is valid. The other six families are
-documentation-only future scope and are not selectable, persisted, or
-implemented by this release.
+The current implementation slice supports one global configurable selection
+whose catalogue contains Pushes, Pull requests, Pull-request reviews, Issues,
+and Comments. Any subset, including the empty subset, is valid. The other four
+families remain documentation-only future scope and are not selectable,
+persisted, or implemented.
 
 ## Canonical mapping table
 
@@ -197,7 +197,7 @@ algorithm rather than defining competing provider timestamp rules. Plugin-owned
 timestamps are a separate settings/sync concern and use their exact
 millisecond-precision UTC grammar.
 
-## Canonical v0.2 activity serialization
+## Canonical activity serialization
 
 The person-note contract supplies the entry envelope:
 
@@ -208,11 +208,16 @@ The person-note contract supplies the entry envelope:
 The activity fragment is exactly one of these forms. There is no alternate
 wording, punctuation, field order, or link placement:
 
-| Family        | Canonical activity fragment                                                                                                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pushes        | `Push to [REPOSITORY](REPOSITORY_URL) at REF` when no source link is available, or `Push to [REPOSITORY](REPOSITORY_URL) at [REF](SOURCE_URL)` when one is available |
-| Pull requests | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                             |
-| Issues        | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                                           |
+| Family                       | Canonical activity fragment                                                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pushes                       | `Push to [REPOSITORY](REPOSITORY_URL) at REF` when no source link is available, or `Push to [REPOSITORY](REPOSITORY_URL) at [REF](SOURCE_URL)` when one is available |
+| Pull requests                | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                             |
+| Pull-request reviews         | `Pull-request review on [#NUMBER](REVIEW_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                                |
+| Issues                       | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                                           |
+| Issue comments               | `Issue comment on [#NUMBER](ISSUE_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                               |
+| Pull-request comments        | `Pull-request comment on [#NUMBER](PULL_REQUEST_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                 |
+| Pull-request review comments | `Pull-request review comment on [#NUMBER](REVIEW_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                |
+| Commit comments              | `Commit comment on [COMMIT_ID](COMMIT_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                           |
 
 `REPOSITORY` is the canonical `owner/name` identity and `REPOSITORY_URL` is
 `https://github.com/{REPOSITORY}`. `ACTION` is the lowercase action in the
@@ -227,6 +232,14 @@ commit or ref source link can be derived and validated; otherwise it is plain
 escaped text. The display text remains the same in either case. Optional
 branch, head, merge, and other metadata never changes the serialization and is
 omitted when absent.
+
+Review and comment links use a provider URL only when it exactly matches the
+validated GitHub repository, target, nested review/comment ID, and documented
+fragment from the source-link rules above. The linked review/comment is
+optional metadata: when its URL is absent or invalid, use the canonical parent
+pull-request, issue, or commit URL. `COMMIT_ID` is the full lowercase
+40-character commit ID. Do not render review state, titles, comment path/line,
+comment body, or review body.
 
 The exact provider-text normalization algorithm is:
 

@@ -549,6 +549,204 @@ describe('GitHub Events validation and mapping', () => {
 		expect(caseOnlyResult).toMatchObject({ kind: 'success' });
 	});
 
+	it('maps created reviews and comments with canonical context and no bodies', async () => {
+		const sha = 'a'.repeat(40);
+		const events = [
+			event({
+				id: '20',
+				type: 'PullRequestReviewEvent',
+				payload: {
+					action: 'created',
+					pull_request: { number: 4 },
+					review: {
+						id: 21,
+						html_url:
+							'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+						state: 'approved',
+						body: 'review body must not be retained',
+					},
+				},
+			}),
+			event({
+				id: '21',
+				type: 'IssueCommentEvent',
+				payload: {
+					action: 'created',
+					issue: { number: 5, title: 'ignored' },
+					comment: {
+						id: 22,
+						html_url: 'https://evil.example/comment',
+						body: 'issue comment body must not be retained',
+					},
+				},
+			}),
+			event({
+				id: '22',
+				type: 'IssueCommentEvent',
+				payload: {
+					action: 'created',
+					issue: {
+						number: 6,
+						pull_request: null,
+					},
+					comment: {
+						id: 23,
+						html_url:
+							'https://github.com/octocat/hello-world/pull/6#issuecomment-23',
+						body: 'pull-request comment body must not be retained',
+						path: 'secret/path',
+						line: 99,
+					},
+				},
+			}),
+			event({
+				id: '23',
+				type: 'PullRequestReviewCommentEvent',
+				payload: {
+					action: 'created',
+					pull_request: { number: 7 },
+					comment: {
+						id: 24,
+						html_url:
+							'https://github.com/octocat/hello-world/pull/7#discussion_r24',
+						body: 'review comment body must not be retained',
+						path: 'private/path',
+						line: 100,
+					},
+				},
+			}),
+			event({
+				id: '24',
+				type: 'CommitCommentEvent',
+				payload: {
+					action: 'created',
+					comment: {
+						id: 25,
+						commit_id: sha.toUpperCase(),
+						html_url: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-25`,
+						body: 'commit comment body must not be retained',
+					},
+				},
+			}),
+		];
+		const { adapter: github } = adapter([response(events)]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result.kind).toBe('success');
+		if (result.kind !== 'success') return;
+		expect(result.data.activities).toEqual([
+			{
+				family: 'pull-request-review',
+				action: 'created',
+				providerEventId: '20',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '4',
+				sourceUrl:
+					'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+			},
+			{
+				family: 'comment',
+				action: 'issue-comment',
+				target: 'issue',
+				providerEventId: '21',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '5',
+				sourceUrl: 'https://github.com/octocat/hello-world/issues/5',
+			},
+			{
+				family: 'comment',
+				action: 'issue-comment',
+				target: 'pull-request',
+				providerEventId: '22',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '6',
+				sourceUrl:
+					'https://github.com/octocat/hello-world/pull/6#issuecomment-23',
+			},
+			{
+				family: 'comment',
+				action: 'review-comment',
+				providerEventId: '23',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				number: '7',
+				sourceUrl:
+					'https://github.com/octocat/hello-world/pull/7#discussion_r24',
+			},
+			{
+				family: 'comment',
+				action: 'commit-comment',
+				providerEventId: '24',
+				timestamp: '2026-08-20T12:00:00Z',
+				repository: 'octocat/hello-world',
+				commitId: sha,
+				sourceUrl: `https://github.com/octocat/hello-world/commit/${sha}#commitcomment-25`,
+			},
+		]);
+		expect(JSON.stringify(result.data.activities)).not.toContain(
+			'body must not be retained',
+		);
+		expect(JSON.stringify(result.data.activities)).not.toContain(
+			'private/path',
+		);
+	});
+
+	it('fails malformed required review and comment data but ignores unsupported actions', async () => {
+		const invalidEvents = [
+			event({
+				type: 'PullRequestReviewEvent',
+				payload: {
+					action: 'created',
+					pull_request: { number: 4 },
+					review: { id: '01' },
+				},
+			}),
+			event({
+				type: 'IssueCommentEvent',
+				payload: {
+					action: 'created',
+					issue: { number: 4 },
+					comment: { id: 'not-an-id' },
+				},
+			}),
+			event({
+				type: 'CommitCommentEvent',
+				payload: {
+					action: 'created',
+					comment: { id: 5, commit_id: 'a'.repeat(39) },
+				},
+			}),
+		];
+		for (const invalidEvent of invalidEvents) {
+			const { adapter: github } = adapter([response([invalidEvent])]);
+			expect(await github.retrieveEvents(eventsRequest())).toMatchObject({
+				kind: 'person-failure',
+				failure: { category: 'malformed-provider-data' },
+			});
+		}
+
+		const { adapter: github } = adapter([
+			response([
+				event({
+					type: 'PullRequestReviewEvent',
+					payload: { action: 'dismissed' },
+				}),
+				event({
+					type: 'IssueCommentEvent',
+					payload: { action: 'edited' },
+				}),
+			]),
+		]);
+		expect(await github.retrieveEvents(eventsRequest())).toMatchObject({
+			kind: 'success',
+			data: { activities: [] },
+		});
+	});
+
 	it('ignores the provider URL when enriching a trimmed Pull Request event', async () => {
 		const trimmed = event({
 			id: '2',
@@ -984,10 +1182,7 @@ describe('GitHub Events validation and mapping', () => {
 
 	it('ignores structurally valid unknown/deferred events without over-validation', async () => {
 		const { adapter: github } = adapter([
-			response([
-				{ type: 'PullRequestReviewEvent' },
-				{ type: 'FutureEvent' },
-			]),
+			response([{ type: 'DiscussionEvent' }, { type: 'FutureEvent' }]),
 		]);
 		const result = await github.retrieveEvents(eventsRequest());
 		expect(result).toMatchObject({

@@ -3,14 +3,19 @@ import {
 	isCanonicalPositiveDecimalString,
 } from './primitives';
 
-export type ActivityFamily = 'push' | 'pull-request' | 'issue';
+export type ActivityFamily =
+	'push' | 'pull-request' | 'pull-request-review' | 'issue' | 'comment';
 export type PullRequestAction = 'opened' | 'reopened' | 'closed' | 'merged';
 export type IssueAction = 'opened' | 'reopened' | 'closed';
+export type CommentAction =
+	'issue-comment' | 'review-comment' | 'commit-comment';
 
 export const ACTIVITY_FAMILIES = [
 	'push',
 	'pull-request',
+	'pull-request-review',
 	'issue',
+	'comment',
 ] as const satisfies readonly ActivityFamily[];
 
 type Brand<Name extends string> = string & { readonly __brand: Name };
@@ -313,7 +318,58 @@ export interface IssueActivity {
 	readonly sourceUrl: string;
 }
 
-export type Activity = PushActivity | PullRequestActivity | IssueActivity;
+export interface PullRequestReviewActivity {
+	readonly family: 'pull-request-review';
+	readonly action: 'created';
+	readonly providerEventId: CanonicalEventId;
+	readonly timestamp: CanonicalTimestamp;
+	readonly repository: CanonicalRepository;
+	readonly number: CanonicalNumber;
+	readonly sourceUrl: string;
+}
+
+export interface IssueCommentActivity {
+	readonly family: 'comment';
+	readonly action: 'issue-comment';
+	readonly target: 'issue' | 'pull-request';
+	readonly providerEventId: CanonicalEventId;
+	readonly timestamp: CanonicalTimestamp;
+	readonly repository: CanonicalRepository;
+	readonly number: CanonicalNumber;
+	readonly sourceUrl: string;
+}
+
+export interface PullRequestReviewCommentActivity {
+	readonly family: 'comment';
+	readonly action: 'review-comment';
+	readonly providerEventId: CanonicalEventId;
+	readonly timestamp: CanonicalTimestamp;
+	readonly repository: CanonicalRepository;
+	readonly number: CanonicalNumber;
+	readonly sourceUrl: string;
+}
+
+export interface CommitCommentActivity {
+	readonly family: 'comment';
+	readonly action: 'commit-comment';
+	readonly providerEventId: CanonicalEventId;
+	readonly timestamp: CanonicalTimestamp;
+	readonly repository: CanonicalRepository;
+	readonly commitId: CanonicalCommitId;
+	readonly sourceUrl: string;
+}
+
+export type CommentActivity =
+	| IssueCommentActivity
+	| PullRequestReviewCommentActivity
+	| CommitCommentActivity;
+
+export type Activity =
+	| PushActivity
+	| PullRequestActivity
+	| PullRequestReviewActivity
+	| IssueActivity
+	| CommentActivity;
 
 function common(
 	input: SharedInput,
@@ -449,6 +505,139 @@ export function createIssueActivity(
 	return createObjectActivity(input, 'issue');
 }
 
+function optionalAnchoredSourceUrl(
+	providerSourceUrl: unknown,
+	expectedUrl: string,
+	fallbackUrl: string,
+): string {
+	return providerSourceUrl === expectedUrl ? expectedUrl : fallbackUrl;
+}
+
+function canonicalNestedId(
+	input: string | number,
+):
+	| { readonly ok: true; readonly value: CanonicalNumber }
+	| { readonly ok: false; readonly error: ValidationError } {
+	return canonicalizePositiveNumber(input);
+}
+
+export function createPullRequestReviewActivity(
+	input: SharedInput & {
+		number: string | number;
+		reviewId: string | number;
+		providerSourceUrl?: unknown;
+	},
+): ValidationResult<PullRequestReviewActivity> {
+	const shared = common(input);
+	if (!shared.ok) return shared;
+	const number = canonicalizePositiveNumber(input.number);
+	if (!number.ok) return number;
+	const reviewId = canonicalNestedId(input.reviewId);
+	if (!reviewId.ok) return reviewId;
+	const fallbackUrl = pullRequestUrl(shared.value.repository, number.value);
+	const expectedUrl = `${fallbackUrl}#pullrequestreview-${reviewId.value}`;
+	return success({
+		...shared.value,
+		family: 'pull-request-review',
+		action: 'created',
+		number: number.value,
+		sourceUrl: optionalAnchoredSourceUrl(
+			input.providerSourceUrl,
+			expectedUrl,
+			fallbackUrl,
+		),
+	});
+}
+
+export function createIssueCommentActivity(
+	input: SharedInput & {
+		number: string | number;
+		target: 'issue' | 'pull-request';
+		commentId: string | number;
+		providerSourceUrl?: unknown;
+	},
+): ValidationResult<IssueCommentActivity> {
+	const shared = common(input);
+	if (!shared.ok) return shared;
+	const number = canonicalizePositiveNumber(input.number);
+	if (!number.ok) return number;
+	const commentId = canonicalNestedId(input.commentId);
+	if (!commentId.ok) return commentId;
+	const fallbackUrl =
+		input.target === 'pull-request'
+			? pullRequestUrl(shared.value.repository, number.value)
+			: issueUrl(shared.value.repository, number.value);
+	const expectedUrl = `${fallbackUrl}#issuecomment-${commentId.value}`;
+	return success({
+		...shared.value,
+		family: 'comment',
+		action: 'issue-comment',
+		target: input.target,
+		number: number.value,
+		sourceUrl: optionalAnchoredSourceUrl(
+			input.providerSourceUrl,
+			expectedUrl,
+			fallbackUrl,
+		),
+	});
+}
+
+export function createPullRequestReviewCommentActivity(
+	input: SharedInput & {
+		number: string | number;
+		commentId: string | number;
+		providerSourceUrl?: unknown;
+	},
+): ValidationResult<PullRequestReviewCommentActivity> {
+	const shared = common(input);
+	if (!shared.ok) return shared;
+	const number = canonicalizePositiveNumber(input.number);
+	if (!number.ok) return number;
+	const commentId = canonicalNestedId(input.commentId);
+	if (!commentId.ok) return commentId;
+	const fallbackUrl = pullRequestUrl(shared.value.repository, number.value);
+	const expectedUrl = `${fallbackUrl}#discussion_r${commentId.value}`;
+	return success({
+		...shared.value,
+		family: 'comment',
+		action: 'review-comment',
+		number: number.value,
+		sourceUrl: optionalAnchoredSourceUrl(
+			input.providerSourceUrl,
+			expectedUrl,
+			fallbackUrl,
+		),
+	});
+}
+
+export function createCommitCommentActivity(
+	input: SharedInput & {
+		commitId: unknown;
+		commentId: string | number;
+		providerSourceUrl?: unknown;
+	},
+): ValidationResult<CommitCommentActivity> {
+	const shared = common(input);
+	if (!shared.ok) return shared;
+	const commitId = validateCommitId(input.commitId);
+	if (!commitId.ok) return commitId;
+	const commentId = canonicalNestedId(input.commentId);
+	if (!commentId.ok) return commentId;
+	const fallbackUrl = `${repositoryUrl(shared.value.repository)}/commit/${commitId.value}`;
+	const expectedUrl = `${fallbackUrl}#commitcomment-${commentId.value}`;
+	return success({
+		...shared.value,
+		family: 'comment',
+		action: 'commit-comment',
+		commitId: commitId.value,
+		sourceUrl: optionalAnchoredSourceUrl(
+			input.providerSourceUrl,
+			expectedUrl,
+			fallbackUrl,
+		),
+	});
+}
+
 export type TrackingStart =
 	| { mode: 'available-recent' }
 	| { mode: 'from-now' | 'from-date'; at: string };
@@ -518,6 +707,20 @@ export function serializeActivityFragment(activity: Activity): string {
 		return activity.pushSourceUrl
 			? `Push to ${repository} at [${ref}](${activity.pushSourceUrl})`
 			: `Push to ${repository} at ${ref}`;
+	}
+	if (activity.family === 'pull-request-review')
+		return `Pull-request review on [#${activity.number}](${activity.sourceUrl}) in ${repository}`;
+	if (activity.family === 'comment') {
+		if (activity.action === 'issue-comment') {
+			const label =
+				activity.target === 'pull-request'
+					? 'Pull-request comment'
+					: 'Issue comment';
+			return `${label} on [#${activity.number}](${activity.sourceUrl}) in ${repository}`;
+		}
+		if (activity.action === 'review-comment')
+			return `Pull-request review comment on [#${activity.number}](${activity.sourceUrl}) in ${repository}`;
+		return `Commit comment on [${activity.commitId}](${activity.sourceUrl}) in ${repository}`;
 	}
 	const title = activity.title;
 	const label = activity.family === 'pull-request' ? 'Pull request' : 'Issue';

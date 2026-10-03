@@ -2,16 +2,17 @@
 
 This document resolves the persisted followed-person configuration, global
 activity-family selection, and lifecycle contract for
-[Issue #62](https://github.com/FerdiHS/devradar/issues/62) and the schema-v2
-and filter changes in [Issue #121](https://github.com/FerdiHS/devradar/issues/121).
+[Issue #62](https://github.com/FerdiHS/devradar/issues/62), the schema-v2
+filter changes in [Issue #121](https://github.com/FerdiHS/devradar/issues/121),
+and the schema-v3 review/comment families in [Issues #142 and #143](https://github.com/FerdiHS/devradar/issues/142).
 It defines data and behavior, including the global activity-family settings
 control; it does not define GitHub requests, note writing, or synchronization.
 
 ## Schema version and migration
 
 The persisted settings schema is independent from DevRadar plugin SemVer.
-Schema version `2` is the current interpretation of persisted data. Schema
-version `1` is the sole supported migration source.
+Schema version `3` is the current interpretation of persisted data. Schema
+versions `1` and `2` are supported migration sources.
 
 The canonical shape is:
 
@@ -27,6 +28,15 @@ type DevRadarSettingsV2 = {
 	followedPeople: Array<FollowedPersonV1>;
 	githubRequestPolicy?: GitHubRequestPolicyV1;
 	enabledActivityFamilies: Array<'push' | 'pull-request' | 'issue'>;
+};
+
+type DevRadarSettingsV3 = {
+	schemaVersion: 3;
+	followedPeople: Array<FollowedPersonV1>;
+	githubRequestPolicy?: GitHubRequestPolicyV1;
+	enabledActivityFamilies: Array<
+		'push' | 'pull-request' | 'pull-request-review' | 'issue' | 'comment'
+	>;
 };
 
 type FollowedPersonV1 = {
@@ -46,10 +56,11 @@ type GitHubRequestPolicyV1 = {
 ```
 
 `enabledActivityFamilies` is one global selection shared by every followed
-person. Its only catalogue members are `push`, `pull-request`, and `issue`;
-the persisted order is always that canonical catalogue order. Each member may
-appear at most once, and an empty array is valid. No other activity family is
-selectable in this release.
+person. V3's catalogue members are `push`, `pull-request`,
+`pull-request-review`, `issue`, and `comment`; the persisted order is always
+that canonical catalogue order. Each member may appear at most once, and an
+empty array is valid. Schema V2 validation remains limited to its original
+three families.
 
 `PersonSyncState` is the plugin-owned internal state defined by
 [`sync.md`](sync.md). User-controlled configuration and internal provider/sync
@@ -66,23 +77,28 @@ person must not clear this global state.
 
 Absent saved data is a valid empty runtime value and is not eagerly written.
 The known legacy value `{}` is valid empty schema-v1 input and is migrated to
-schema v2 with all three implemented families enabled. A valid schema-v1
-dataset is migrated losslessly for followed people, note paths, tracking
-starts, sync/deduplication state, attempt/success metadata, polling metadata,
-and global provider policy, with the three families added as the default
-selection. Migration is persisted before the runtime becomes ready and is
-performed under the shared application mutation boundary; a migration write
-failure leaves settings in recovery and blocks GitHub and note work.
+schema V3 with all three original families enabled. Review and Comments are off
+by default for fresh and migrated settings until explicitly selected. A valid
+schema-v1 dataset is migrated losslessly for followed people, note paths,
+tracking starts, sync/deduplication state, attempt/success metadata, polling
+metadata, and global provider policy, with the original three families added
+as the default selection. A valid schema-v2 dataset preserves its selected
+families exactly when migrated to V3. Migration is persisted before the
+runtime becomes ready and is performed under the shared application mutation
+boundary; a migration write failure leaves settings in recovery and blocks
+GitHub and note work.
 
-Schema-v1 and schema-v2 values are validated strictly. Schema v1 rejects the
-v2-only `enabledActivityFamilies` field, while schema v2 requires it.
-Arbitrary non-empty unversioned objects and malformed values are not
-heuristically migrated. A schema version greater than `2` is a future-schema
-recovery state: it is not partially interpreted, downgraded, discarded, or
-replaced with defaults. Other malformed or unsafe values also fail closed.
+Schema-v1, schema-v2, and schema-v3 values are validated strictly. Schema v1
+rejects the v2-only `enabledActivityFamilies` field, while schemas v2 and v3
+require it. Schema v2 rejects the V3-only families. Arbitrary non-empty
+unversioned objects and malformed values are not heuristically migrated. A
+schema version greater than `3` is a future-schema recovery state: it is not
+partially interpreted, downgraded, discarded, or replaced with defaults. Other
+malformed or unsafe values also fail closed.
 
-Every persisted settings write is validated as schema v2. Runtime settings are
-therefore always schema v2, even when the loaded data originated in schema v1.
+Every persisted settings write is validated as schema V3. Runtime settings are
+therefore always schema V3, even when loaded data originated in schema V1 or
+V2.
 
 ### Obsidian plugin-data boundary evidence
 

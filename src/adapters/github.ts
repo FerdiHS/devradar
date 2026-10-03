@@ -2,8 +2,12 @@ import {
 	canonicalizeRepository,
 	canonicalizePositiveNumber,
 	canonicalizeTimestamp,
+	createCommitCommentActivity,
+	createIssueCommentActivity,
 	createIssueActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	createPushActivity,
 	preferCanonicalActivity,
 	type Activity,
@@ -774,6 +778,119 @@ function mapSupportedEvent(
 			: { kind: 'invalid' };
 	}
 
+	if (type === 'PullRequestReviewEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
+		const review = asRecord(readOwn(payload, 'review'));
+		const number =
+			pullRequest === undefined
+				? undefined
+				: readOwn(pullRequest, 'number');
+		const reviewId =
+			review === undefined ? undefined : readOwn(review, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof reviewId !== 'string' && typeof reviewId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const activity = createPullRequestReviewActivity({
+			...envelope,
+			number,
+			reviewId,
+			providerSourceUrl:
+				review === undefined ? undefined : readOwn(review, 'html_url'),
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'IssueCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const issue = asRecord(readOwn(payload, 'issue'));
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const number =
+			issue === undefined ? undefined : readOwn(issue, 'number');
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof commentId !== 'string' && typeof commentId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const target =
+			issue !== undefined &&
+			Object.prototype.hasOwnProperty.call(issue, 'pull_request')
+				? 'pull-request'
+				: 'issue';
+		const activity = createIssueCommentActivity({
+			...envelope,
+			number,
+			target,
+			commentId,
+			providerSourceUrl:
+				comment === undefined
+					? undefined
+					: readOwn(comment, 'html_url'),
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'PullRequestReviewCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const number =
+			pullRequest === undefined
+				? undefined
+				: readOwn(pullRequest, 'number');
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof commentId !== 'string' && typeof commentId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const activity = createPullRequestReviewCommentActivity({
+			...envelope,
+			number,
+			commentId,
+			providerSourceUrl:
+				comment === undefined
+					? undefined
+					: readOwn(comment, 'html_url'),
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'CommitCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (typeof commentId !== 'string' && typeof commentId !== 'number')
+			return { kind: 'invalid' };
+		const activity = createCommitCommentActivity({
+			...envelope,
+			commentId,
+			commitId:
+				comment === undefined
+					? undefined
+					: readOwn(comment, 'commit_id'),
+			providerSourceUrl:
+				comment === undefined
+					? undefined
+					: readOwn(comment, 'html_url'),
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
 	return { kind: 'ignored' };
 }
 
@@ -786,7 +903,17 @@ function mapEvent(
 	if (record === undefined) return { kind: 'invalid' };
 	const type = readOwn(record, 'type');
 	if (!isUsableProviderToken(type)) return { kind: 'invalid' };
-	if (!['PushEvent', 'PullRequestEvent', 'IssuesEvent'].includes(type))
+	if (
+		![
+			'PushEvent',
+			'PullRequestEvent',
+			'PullRequestReviewEvent',
+			'IssuesEvent',
+			'IssueCommentEvent',
+			'PullRequestReviewCommentEvent',
+			'CommitCommentEvent',
+		].includes(type)
+	)
 		return { kind: 'ignored' };
 	return mapSupportedEvent(record, type, username, githubAccountId);
 }

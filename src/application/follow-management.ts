@@ -2,7 +2,7 @@ import { compareCanonicalTimestamps } from '../domain/activity';
 import {
 	validateCanonicalPluginTimestamp,
 	canonicalizeDraftNotePath,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 	type FollowedPersonV1,
 } from '../domain/settings';
 import type { PersonIdentity } from '../domain/person-note';
@@ -142,7 +142,7 @@ export class FollowManagementApplication {
 				const person = findPerson(current, githubAccountId);
 				if (!person) return failed('not-followed');
 
-				const candidate: DevRadarSettingsV2 = {
+				const candidate: DevRadarSettingsV3 = {
 					...current.settings,
 					followedPeople: current.settings.followedPeople.filter(
 						(item) => item.githubAccountId !== githubAccountId,
@@ -186,7 +186,7 @@ export class FollowManagementApplication {
 				const trackingStart = this.prepareTrackingStart(draft);
 				if (!trackingStart.ok)
 					return trackingStartFailed(trackingStart.reason);
-				const candidate: DevRadarSettingsV2 = {
+				const candidate: DevRadarSettingsV3 = {
 					...state.settings,
 					followedPeople: state.settings.followedPeople.map(
 						(person) =>
@@ -281,7 +281,7 @@ export class FollowManagementApplication {
 					preparedPath: notePath,
 				};
 
-				const candidate: DevRadarSettingsV2 = {
+				const candidate: DevRadarSettingsV3 = {
 					...state.settings,
 					followedPeople: state.settings.followedPeople.map(
 						(person) =>

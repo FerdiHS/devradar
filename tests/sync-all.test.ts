@@ -9,7 +9,7 @@ import type {
 import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 import {
 	createEmptyPersonSyncState,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 	type FollowedPersonV1,
 } from '../src/domain/settings';
 import type { SyncOneResult } from '../src/application/sync-one';
@@ -27,13 +27,13 @@ const person = (
 	...patch,
 });
 
-const settings = (people: readonly FollowedPersonV1[]): DevRadarSettingsV2 => ({
-	schemaVersion: 2,
+const settings = (people: readonly FollowedPersonV1[]): DevRadarSettingsV3 => ({
+	schemaVersion: 3,
 	followedPeople: [...people],
 	enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 });
 
-const ready = (value: DevRadarSettingsV2): SettingsRuntimeState => ({
+const ready = (value: DevRadarSettingsV3): SettingsRuntimeState => ({
 	kind: 'ready',
 	settings: value,
 });
@@ -67,7 +67,7 @@ describe('Sync All application', () => {
 		const invalid = {
 			...settings([person('octocat', '20')]),
 			schemaVersion: 1,
-		} as unknown as DevRadarSettingsV2;
+		} as unknown as DevRadarSettingsV3;
 		const executor: Pick<SyncPersonExecutor, 'execute'> = {
 			execute: vi.fn(),
 		};
