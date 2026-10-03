@@ -517,14 +517,6 @@ function optionalAnchoredSourceUrl(
 	return providerSourceUrl === expectedUrl ? expectedUrl : fallbackUrl;
 }
 
-function canonicalNestedId(
-	input: string | number,
-):
-	| { readonly ok: true; readonly value: CanonicalNumber }
-	| { readonly ok: false; readonly error: ValidationError } {
-	return canonicalizePositiveNumber(input);
-}
-
 export function createPullRequestReviewActivity(
 	input: SharedInput & {
 		number: string | number;
@@ -536,7 +528,7 @@ export function createPullRequestReviewActivity(
 	if (!shared.ok) return shared;
 	const number = canonicalizePositiveNumber(input.number);
 	if (!number.ok) return number;
-	const reviewId = canonicalNestedId(input.reviewId);
+	const reviewId = canonicalizePositiveNumber(input.reviewId);
 	if (!reviewId.ok) return reviewId;
 	const fallbackUrl = pullRequestUrl(shared.value.repository, number.value);
 	const expectedUrl = `${fallbackUrl}#pullrequestreview-${reviewId.value}`;
@@ -566,7 +558,7 @@ export function createIssueCommentActivity(
 	if (!shared.ok) return shared;
 	const number = canonicalizePositiveNumber(input.number);
 	if (!number.ok) return number;
-	const commentId = canonicalNestedId(input.commentId);
+	const commentId = canonicalizePositiveNumber(input.commentId);
 	if (!commentId.ok) return commentId;
 	const fallbackUrl =
 		input.target === 'pull-request'
@@ -599,7 +591,7 @@ export function createPullRequestReviewCommentActivity(
 	if (!shared.ok) return shared;
 	const number = canonicalizePositiveNumber(input.number);
 	if (!number.ok) return number;
-	const commentId = canonicalNestedId(input.commentId);
+	const commentId = canonicalizePositiveNumber(input.commentId);
 	if (!commentId.ok) return commentId;
 	const fallbackUrl = pullRequestUrl(shared.value.repository, number.value);
 	const expectedUrl = `${fallbackUrl}#discussion_r${commentId.value}`;
@@ -628,7 +620,7 @@ export function createCommitCommentActivity(
 	if (!shared.ok) return shared;
 	const commitId = validateCommitId(input.commitId);
 	if (!commitId.ok) return commitId;
-	const commentId = canonicalNestedId(input.commentId);
+	const commentId = canonicalizePositiveNumber(input.commentId);
 	if (!commentId.ok) return commentId;
 	const fallbackUrl = `${repositoryUrl(shared.value.repository)}/commit/${commitId.value}`;
 	const expectedUrl = `${fallbackUrl}#commitcomment-${commentId.value}`;
