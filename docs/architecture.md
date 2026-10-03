@@ -85,7 +85,7 @@ must be smoke-tested on the target Obsidian version before release.
 ## Responsibilities and testability
 
 - The **domain** owns the canonical activity representation, followed-person
-  state, schema-v2 validation/migration, canonical global activity-family
+  state, schema-v3 validation/migration, canonical global activity-family
   selection, tracking-start comparisons, activity filtering, deterministic
   ordering, deduplication decisions, sync-state transition rules, and
   managed-section parsing/rendering, as defined by the detailed contracts.

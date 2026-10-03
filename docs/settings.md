@@ -4,7 +4,9 @@ This document resolves the persisted followed-person configuration, global
 activity-family selection, and lifecycle contract for
 [Issue #62](https://github.com/FerdiHS/devradar/issues/62), the schema-v2
 filter changes in [Issue #121](https://github.com/FerdiHS/devradar/issues/121),
-and the schema-v3 review/comment families in [Issues #142 and #143](https://github.com/FerdiHS/devradar/issues/142).
+and the schema-v3 review/comment families in
+[Issue #142](https://github.com/FerdiHS/devradar/issues/142) and
+[Issue #143](https://github.com/FerdiHS/devradar/issues/143).
 It defines data and behavior, including the global activity-family settings
 control; it does not define GitHub requests, note writing, or synchronization.
 
