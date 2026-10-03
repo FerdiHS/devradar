@@ -736,14 +736,6 @@ export function createEmptySettingsV1(): DevRadarSettingsV1 {
 	return { schemaVersion: 1, followedPeople: [] };
 }
 
-export function createEmptySettingsV2(): DevRadarSettingsV2 {
-	return {
-		schemaVersion: 2,
-		followedPeople: [],
-		enabledActivityFamilies: [...LEGACY_ACTIVITY_FAMILIES],
-	};
-}
-
 export function createEmptySettingsV3(): DevRadarSettingsV3 {
 	return {
 		schemaVersion: 3,
@@ -830,23 +822,6 @@ function cloneGithubRequestPolicy(
 	policy: GitHubRequestPolicyV1 | undefined,
 ): GitHubRequestPolicyV1 | undefined {
 	return policy === undefined ? undefined : { ...policy };
-}
-
-export function migrateSettingsV1ToV2(
-	input: DevRadarSettingsV1,
-): DevRadarSettingsV2 {
-	return {
-		schemaVersion: 2,
-		followedPeople: cloneFollowedPeople(input.followedPeople),
-		...(cloneGithubRequestPolicy(input.githubRequestPolicy) === undefined
-			? {}
-			: {
-					githubRequestPolicy: cloneGithubRequestPolicy(
-						input.githubRequestPolicy,
-					),
-				}),
-		enabledActivityFamilies: [...LEGACY_ACTIVITY_FAMILIES],
-	};
 }
 
 export function migrateSettingsV1ToV3(

@@ -10,9 +10,8 @@ import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	createEmptySettingsV1,
-	createEmptySettingsV2,
 	createEmptySettingsV3,
-	migrateSettingsV1ToV2,
+	migrateSettingsV1ToV3,
 	parsePersistedSettings,
 	type DevRadarSettingsV3,
 	validateCanonicalPluginTimestamp,
@@ -103,23 +102,7 @@ function expectV2Failure(
 	return result.error;
 }
 
-describe('schema-v2 settings construction and migration', () => {
-	it('constructs fresh V2 settings with all implemented families enabled', () => {
-		const settings = createEmptySettingsV2();
-		const secondSettings = createEmptySettingsV2();
-
-		expect(settings).toEqual({
-			schemaVersion: 2,
-			followedPeople: [],
-			enabledActivityFamilies: ['push', 'pull-request', 'issue'],
-		});
-		expect(settings).not.toBe(secondSettings);
-		expect(settings.followedPeople).not.toBe(secondSettings.followedPeople);
-		expect(settings.enabledActivityFamilies).not.toBe(
-			secondSettings.enabledActivityFamilies,
-		);
-	});
-
+describe('settings schema migration', () => {
 	it('migrates V1 losslessly and adds the canonical default selection', () => {
 		const input = validSettings({
 			githubRequestPolicy: {
@@ -175,7 +158,7 @@ describe('schema-v2 settings construction and migration', () => {
 		const input = validatePersistedSettingsV1(validSettings(), NOW);
 		if (!input.ok) throw new Error('expected valid V1 settings');
 
-		const migrated = migrateSettingsV1ToV2(input.value);
+		const migrated = migrateSettingsV1ToV3(input.value);
 		migrated.followedPeople[0]?.syncState.seenEvents.push({
 			id: '456',
 			createdAt: PROVIDER_TIME,
