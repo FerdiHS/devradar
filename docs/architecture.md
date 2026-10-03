@@ -342,10 +342,10 @@ The `v0.3.0` people-first slice supports multiple followed people,
 case-insensitively unique effective note paths with each note
 associated to at most one followed person, tracking starts, follow-time identity
 resolution, and a global configurable selection of only Pushes, Pull requests,
-and Issues. It permits an empty selection and does not implement the other six
-catalogue families.
-It includes manual sequential Sync All and Sync One, complete retrieval, safe managed-note mutation,
-deduplication/idempotency, state-save recovery, overlap prevention, and the
+Pull-request reviews, Issues, and Comments. It permits an empty selection and
+does not implement the other four catalogue families. It includes manual
+sequential Sync All and Sync One, complete retrieval, safe managed-note
+mutation, deduplication/idempotency, state-save recovery, overlap prevention, and the
 `updated`/`unchanged`/`failed`/narrowly-defined-`skipped` outcomes above.
 
 Issue [#122](https://github.com/FerdiHS/devradar/issues/122) implements Sync All
@@ -355,7 +355,8 @@ over the same global activity selection and mutation boundary.
 
 The following are also outside this implementation slice:
 
-- additional activity families beyond Pushes, Pull requests, and Issues;
+- additional activity families beyond Pushes, Pull requests, Pull-request
+  reviews, Issues, and Comments;
 - richer followed-person management UI;
 - authentication or private GitHub activity;
 - repository or organisation tracking;

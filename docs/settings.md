@@ -316,7 +316,7 @@ This is distinct from a runtime GitHub or note failure for one person after the
 configuration has been validated; those failures remain person-scoped unless
 the provider contract says otherwise.
 
-The settings UI exposes the global activity-family selection as three
+The settings UI exposes the global activity-family selection as five
 checkboxes and an explicit save action. Saving rereads the current authoritative
 settings inside the shared mutation boundary and changes only
 `enabledActivityFamilies`; it preserves followed people, notes, sync/deduplication
