@@ -798,8 +798,6 @@ function mapSupportedEvent(
 			...envelope,
 			number,
 			reviewId,
-			providerSourceUrl:
-				review === undefined ? undefined : readOwn(review, 'html_url'),
 		});
 		return activity.ok
 			? { kind: 'activity', activity: activity.value }
@@ -829,10 +827,6 @@ function mapSupportedEvent(
 			number,
 			target,
 			commentId,
-			providerSourceUrl:
-				comment === undefined
-					? undefined
-					: readOwn(comment, 'html_url'),
 		});
 		return activity.ok
 			? { kind: 'activity', activity: activity.value }
@@ -858,10 +852,6 @@ function mapSupportedEvent(
 			...envelope,
 			number,
 			commentId,
-			providerSourceUrl:
-				comment === undefined
-					? undefined
-					: readOwn(comment, 'html_url'),
 		});
 		return activity.ok
 			? { kind: 'activity', activity: activity.value }
@@ -882,10 +872,6 @@ function mapSupportedEvent(
 				comment === undefined
 					? undefined
 					: readOwn(comment, 'commit_id'),
-			providerSourceUrl:
-				comment === undefined
-					? undefined
-					: readOwn(comment, 'html_url'),
 		});
 		return activity.ok
 			? { kind: 'activity', activity: activity.value }

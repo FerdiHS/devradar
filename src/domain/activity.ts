@@ -509,19 +509,10 @@ export function createIssueActivity(
 	return createObjectActivity(input, 'issue');
 }
 
-function optionalAnchoredSourceUrl(
-	providerSourceUrl: unknown,
-	expectedUrl: string,
-	fallbackUrl: string,
-): string {
-	return providerSourceUrl === expectedUrl ? expectedUrl : fallbackUrl;
-}
-
 export function createPullRequestReviewActivity(
 	input: SharedInput & {
 		number: string | number;
 		reviewId: string | number;
-		providerSourceUrl?: unknown;
 	},
 ): ValidationResult<PullRequestReviewActivity> {
 	const shared = common(input);
@@ -538,11 +529,7 @@ export function createPullRequestReviewActivity(
 		action: 'created',
 		number: number.value,
 		reviewId: reviewId.value,
-		sourceUrl: optionalAnchoredSourceUrl(
-			input.providerSourceUrl,
-			expectedUrl,
-			fallbackUrl,
-		),
+		sourceUrl: expectedUrl,
 	});
 }
 
@@ -551,7 +538,6 @@ export function createIssueCommentActivity(
 		number: string | number;
 		target: 'issue' | 'pull-request';
 		commentId: string | number;
-		providerSourceUrl?: unknown;
 	},
 ): ValidationResult<IssueCommentActivity> {
 	const shared = common(input);
@@ -572,11 +558,7 @@ export function createIssueCommentActivity(
 		target: input.target,
 		number: number.value,
 		commentId: commentId.value,
-		sourceUrl: optionalAnchoredSourceUrl(
-			input.providerSourceUrl,
-			expectedUrl,
-			fallbackUrl,
-		),
+		sourceUrl: expectedUrl,
 	});
 }
 
@@ -584,7 +566,6 @@ export function createPullRequestReviewCommentActivity(
 	input: SharedInput & {
 		number: string | number;
 		commentId: string | number;
-		providerSourceUrl?: unknown;
 	},
 ): ValidationResult<PullRequestReviewCommentActivity> {
 	const shared = common(input);
@@ -601,11 +582,7 @@ export function createPullRequestReviewCommentActivity(
 		action: 'review-comment',
 		number: number.value,
 		commentId: commentId.value,
-		sourceUrl: optionalAnchoredSourceUrl(
-			input.providerSourceUrl,
-			expectedUrl,
-			fallbackUrl,
-		),
+		sourceUrl: expectedUrl,
 	});
 }
 
@@ -613,7 +590,6 @@ export function createCommitCommentActivity(
 	input: SharedInput & {
 		commitId: unknown;
 		commentId: string | number;
-		providerSourceUrl?: unknown;
 	},
 ): ValidationResult<CommitCommentActivity> {
 	const shared = common(input);
@@ -630,11 +606,7 @@ export function createCommitCommentActivity(
 		action: 'commit-comment',
 		commitId: commitId.value,
 		commentId: commentId.value,
-		sourceUrl: optionalAnchoredSourceUrl(
-			input.providerSourceUrl,
-			expectedUrl,
-			fallbackUrl,
-		),
+		sourceUrl: expectedUrl,
 	});
 }
 

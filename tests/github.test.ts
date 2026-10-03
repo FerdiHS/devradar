@@ -656,7 +656,8 @@ describe('GitHub Events validation and mapping', () => {
 				repository: 'octocat/hello-world',
 				number: '5',
 				commentId: '22',
-				sourceUrl: 'https://github.com/octocat/hello-world/issues/5',
+				sourceUrl:
+					'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
 			},
 			{
 				family: 'comment',
@@ -697,6 +698,40 @@ describe('GitHub Events validation and mapping', () => {
 		);
 		expect(JSON.stringify(result.data.activities)).not.toContain(
 			'private/path',
+		);
+	});
+
+	it('keeps nested activity links stable when provider URLs vary', async () => {
+		const reviewEvent = (htmlUrl?: string) =>
+			event({
+				id: '20',
+				type: 'PullRequestReviewEvent',
+				payload: {
+					action: 'created',
+					pull_request: { number: 4 },
+					review: {
+						id: 21,
+						...(htmlUrl === undefined ? {} : { html_url: htmlUrl }),
+					},
+				},
+			});
+		const { adapter: github } = adapter([
+			response([
+				reviewEvent(),
+				reviewEvent(
+					'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
+				),
+				reviewEvent('https://evil.example/review'),
+			]),
+		]);
+
+		const result = await github.retrieveEvents(eventsRequest());
+
+		expect(result.kind).toBe('success');
+		if (result.kind !== 'success') return;
+		expect(result.data.activities).toHaveLength(1);
+		expect(result.data.activities[0]?.sourceUrl).toBe(
+			'https://github.com/octocat/hello-world/pull/4#pullrequestreview-21',
 		);
 	});
 
