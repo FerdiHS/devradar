@@ -202,6 +202,43 @@ describe('schema-v3 settings construction', () => {
 			secondSettings.enabledActivityFamilies,
 		);
 	});
+
+	it('rejects unknown, duplicate, and non-canonical V3 family selections', () => {
+		const settings = {
+			schemaVersion: 3,
+			followedPeople: [],
+			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		};
+		const cases = [
+			{
+				families: ['release'],
+				code: 'invalid-activity-family',
+				path: '/enabledActivityFamilies/0',
+			},
+			{
+				families: ['comment', 'comment'],
+				code: 'duplicate-activity-family',
+				path: '/enabledActivityFamilies/1',
+			},
+			{
+				families: ['comment', 'pull-request-review'],
+				code: 'noncanonical-activity-family-order',
+				path: '/enabledActivityFamilies',
+			},
+		];
+
+		for (const testCase of cases) {
+			expect(
+				parsePersistedSettings(
+					{ ...settings, enabledActivityFamilies: testCase.families },
+					NOW,
+				),
+			).toMatchObject({
+				ok: false,
+				error: { code: testCase.code, path: testCase.path },
+			});
+		}
+	});
 });
 
 describe('schema-v2 persisted validation', () => {
