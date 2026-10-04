@@ -338,7 +338,7 @@ The local-first MVP introduces no DevRadar backend, hosted database,
 telemetry or analytics, vault-data transmission, automated publication, or
 additional service beyond the documented GitHub API and Obsidian runtime.
 
-The `v0.3.0` people-first slice supports multiple followed people,
+The current people-first slice supports multiple followed people,
 case-insensitively unique effective note paths with each note
 associated to at most one followed person, tracking starts, follow-time identity
 resolution, and a global configurable selection of only Pushes, Pull requests,

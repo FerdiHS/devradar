@@ -4,7 +4,7 @@ DevRadar is a local-first Obsidian plugin for following selected GitHub users an
 
 ## Status
 
-The `v0.3.0` implementation slice lets users follow selected GitHub users, choose a global subset of Pushes, Pull requests, Pull-request reviews, Issues, and Comments, and manually sync one person or all followed people. GitHub activity history is recent, limited, delayed, and non-exhaustive; DevRadar does not provide real-time activity collection.
+The current implementation slice lets users follow selected GitHub users, choose a global subset of Pushes, Pull requests, Pull-request reviews, Issues, and Comments, and manually sync one person or all followed people. GitHub activity history is recent, limited, delayed, and non-exhaustive; DevRadar does not provide real-time activity collection.
 
 **Platform support:** For the `v0.3.0` implementation slice, Obsidian Desktop is the designated and required runtime-validation target. Obsidian Mobile remains an intended compatibility target; iOS and Android runtime behavior is not claimed as validated.
 

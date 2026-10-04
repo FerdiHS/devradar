@@ -118,8 +118,8 @@ The exact managed-marker syntax and complete note template are defined in the
 ## Activity and retention boundaries
 
 For the complete people-first MVP, “meaningful activity” means a supported
-activity type enabled in the single global activity configuration. The
-`v0.3.0` implementation supports exactly five selectable families—Pushes,
+activity type enabled in the single global activity configuration.
+The current implementation supports exactly five selectable families—Pushes,
 Pull requests, Pull-request reviews, Issues, and Comments—and permits any
 global subset, including none. The other four catalogue families described in
 the [activity specification](activity.md)
@@ -181,7 +181,7 @@ Obsidian Desktop and Mobile are both MVP and product-support requirements. For t
 ## MVP success criteria
 
 The complete people-first MVP is successful when it reliably satisfies the
-following criteria. The `v0.3.0` implementation slice uses the configurable
+following criteria. The current implementation slice uses the configurable
 Pushes, Pull requests, Pull-request reviews, Issues, and Comments subset and
 implements the Sync One and sequential Sync All parts of this contract.
 
