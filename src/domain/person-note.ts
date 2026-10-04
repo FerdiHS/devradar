@@ -667,12 +667,11 @@ function canonicalObjectFragment(
 	return title.length > 0 && isCanonicalProviderText(title);
 }
 
-function canonicalOptionalActivityAnchor(
+function canonicalRequiredActivityAnchor(
 	actualUrl: string,
 	canonicalUrl: string,
 	anchor: string,
 ): boolean {
-	if (actualUrl === canonicalUrl) return true;
 	const prefix = `${canonicalUrl}#${anchor}`;
 	if (!actualUrl.startsWith(prefix)) return false;
 	const nestedId = actualUrl.slice(prefix.length);
@@ -697,7 +696,7 @@ function canonicalActivityContextFragment(
 		target === 'pull-request'
 			? pullRequestUrl(repositoryLink.repository, number.value)
 			: issueUrl(repositoryLink.repository, number.value);
-	return canonicalOptionalActivityAnchor(
+	return canonicalRequiredActivityAnchor(
 		numberLink.url,
 		canonicalUrl,
 		anchor,
@@ -713,7 +712,7 @@ function canonicalCommitCommentFragment(input: string): boolean {
 	const repositoryLink = canonicalRepositoryLink(input, commitLink.end + 4);
 	if (!repositoryLink || repositoryLink.end !== input.length) return false;
 	const canonicalUrl = `${repositoryUrl(repositoryLink.repository)}/commit/${commitLink.label}`;
-	return canonicalOptionalActivityAnchor(
+	return canonicalRequiredActivityAnchor(
 		commitLink.url,
 		canonicalUrl,
 		'commitcomment-',

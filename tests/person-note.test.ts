@@ -439,7 +439,7 @@ describe('person-note rendering', () => {
 		const fragments = [
 			`Pull-request review on [#4](https://github.com/octocat/hello-world/pull/4#pullrequestreview-21) in ${repository}`,
 			`Issue comment on [#5](https://github.com/octocat/hello-world/issues/5#issuecomment-22) in ${repository}`,
-			`Pull-request comment on [#6](https://github.com/octocat/hello-world/pull/6) in ${repository}`,
+			`Pull-request comment on [#6](https://github.com/octocat/hello-world/pull/6#issuecomment-23) in ${repository}`,
 			`Pull-request review comment on [#7](https://github.com/octocat/hello-world/pull/7#discussion_r23) in ${repository}`,
 			`Commit comment on [${sha}](https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24) in ${repository}`,
 		];
@@ -450,6 +450,18 @@ describe('person-note rendering', () => {
 		].join('\n');
 
 		expect(parseCanonicalActivityEntries(content)).toHaveLength(5);
+
+		for (const fragment of fragments) {
+			const parentOnly = fragment.replace(
+				/#(?:pullrequestreview-|issuecomment-|discussion_r|commitcomment-)\d+/,
+				'',
+			);
+			expect(
+				parseCanonicalActivityEntries(
+					`- \`${timestamp}\` — ${parentOnly}`,
+				),
+			).toEqual([]);
+		}
 
 		const hostile = fragments[1]?.replace(
 			'https://github.com/octocat/hello-world/issues/5#issuecomment-22',
