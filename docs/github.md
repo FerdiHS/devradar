@@ -176,7 +176,12 @@ non-empty string `type` before it can be classified. Unknown event types and
 documented deferred event families are ignored after that minimum check; their
 irrelevant payload fields are not validated. `PushEvent`, `PullRequestEvent`,
 and `IssuesEvent` require the common `id`, `created_at`, `repo.name`, and
-`actor.id`/`actor.login` envelope plus their mapping-specific fields. A
+`actor.id`/`actor.login` envelope plus their mapping-specific fields.
+`PullRequestReviewEvent`, `IssueCommentEvent`,
+`PullRequestReviewCommentEvent`, and `CommitCommentEvent` use the same common
+envelope and map only their documented `created` action; other actions are
+ignored. Their nested IDs and target fields are required mapping data, while
+their bodies and other optional payload metadata are not retained. A
 structurally valid supported Pull Request event may omit its title; in that
 case, retrieve the canonical Pull Request detail endpoint above and validate
 the returned identity and title before mapping it. The event action remains

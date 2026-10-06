@@ -21,7 +21,7 @@ import {
 } from '../src/settings';
 import type { GitHubIdentity } from '../src/application/github-identity';
 import { ACTIVITY_FAMILIES } from '../src/domain/activity';
-import { createEmptySettingsV2 } from '../src/domain/settings';
+import { createEmptySettingsV3 } from '../src/domain/settings';
 
 class FakeElement {
 	children: FakeElement[] = [];
@@ -121,7 +121,7 @@ function renderedDefinition(
 const readyEmpty: SettingsRuntimeState = {
 	kind: 'ready',
 	settings: {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: [],
 		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 	},
@@ -130,7 +130,7 @@ const readyEmpty: SettingsRuntimeState = {
 const readyWithFollowedPerson: SettingsRuntimeState = {
 	kind: 'ready',
 	settings: {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: [
 			{
 				username: 'octocat',
@@ -155,7 +155,7 @@ function tabFor(state: SettingsRuntimeState, pending = false) {
 	const saveActivityFamilies = vi.fn<SettingsTabHost['saveActivityFamilies']>(
 		async () => ({
 			kind: 'saved' as const,
-			settings: createEmptySettingsV2(),
+			settings: createEmptySettingsV3(),
 		}),
 	);
 	const unfollow = vi.fn<SettingsTabHost['unfollow']>(async () => ({
@@ -243,6 +243,26 @@ const ordinaryMalformed = {
 };
 
 describe('DevRadarSettingTab declarative settings UI', () => {
+	it('shows opt-in review and comment filters unchecked for fresh settings', () => {
+		const view = tabFor({
+			kind: 'ready',
+			settings: createEmptySettingsV3(),
+		});
+		const rows = flattenDefinitions(getSettingDefinitions(view.tab));
+
+		for (const [label, family] of [
+			['Pull-request reviews', 'pull-request-review'],
+			['Comments', 'comment'],
+		] as const) {
+			const checkbox = allElements(
+				renderedDefinition(view.tab, label, rows),
+			).find((element) => element.type === 'checkbox');
+			expect(checkbox).toBeDefined();
+			expect(checkbox?.id).toBe(`devradar-activity-family-${family}`);
+			expect(checkbox?.checked).toBe(false);
+		}
+	});
+
 	it('exposes stable searchable labels without putting runtime values in definition metadata', () => {
 		const privateUsername = 'private-user-issue-133';
 		const privateNotePath = 'Private/issue-133-notes.md';
@@ -250,7 +270,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -296,7 +316,9 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			expect.arrayContaining([
 				'Pushes',
 				'Pull requests',
+				'Pull-request reviews',
 				'Issues',
+				'Comments',
 				'Save activity filters',
 				'GitHub username',
 				'Note destination',
@@ -342,7 +364,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -456,7 +478,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -618,7 +640,13 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 		Object.assign(view.tab, { update });
 		const rows = flattenDefinitions(getSettingDefinitions(view.tab));
 
-		for (const family of ['Pushes', 'Pull requests', 'Issues']) {
+		for (const family of [
+			'Pushes',
+			'Pull requests',
+			'Pull-request reviews',
+			'Issues',
+			'Comments',
+		]) {
 			const checkbox = allElements(
 				renderedDefinition(view.tab, family, rows),
 			).find((element) => element.type === 'checkbox');
@@ -703,7 +731,7 @@ describe('DevRadarSettingTab declarative settings UI', () => {
 			).find((element) => element.type === 'checkbox')?.disabled,
 		).toBe(true);
 
-		releaseSave({ kind: 'saved', settings: createEmptySettingsV2() });
+		releaseSave({ kind: 'saved', settings: createEmptySettingsV3() });
 		await pendingSave;
 	});
 });
@@ -1155,7 +1183,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			const view = tabFor({
 				kind: 'ready',
 				settings: {
-					schemaVersion: 2,
+					schemaVersion: 3,
 					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 					followedPeople: [
 						{
@@ -1223,7 +1251,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		).toEqual(['Now', 'Available recent activity', 'Date & time']);
 		expect(
 			elements.filter((element) => element.tag === 'input'),
-		).toHaveLength(5);
+		).toHaveLength(7);
 		expect(
 			elements
 				.filter((element) => element.tag === 'label')
@@ -1231,7 +1259,9 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		).toEqual([
 			'devradar-activity-family-push',
 			'devradar-activity-family-pull-request',
+			'devradar-activity-family-pull-request-review',
 			'devradar-activity-family-issue',
+			'devradar-activity-family-comment',
 			'devradar-follow-username',
 			'devradar-follow-note-path',
 			'devradar-follow-tracking-start',
@@ -1246,7 +1276,9 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		).toEqual([
 			'devradar-activity-family-push',
 			'devradar-activity-family-pull-request',
+			'devradar-activity-family-pull-request-review',
 			'devradar-activity-family-issue',
+			'devradar-activity-family-comment',
 			'devradar-follow-username',
 			'devradar-follow-note-path',
 			'devradar-follow-tracking-start',
@@ -1256,12 +1288,16 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 	it('allows any global activity-family subset and saves it explicitly', async () => {
 		const view = tabFor(readyEmpty);
 		view.tab.display();
-		const issue = allElements(view.root).find(
-			(element) => element.id === 'devradar-activity-family-issue',
-		);
-		if (!issue) throw new Error('expected issue activity checkbox');
-		issue.checked = false;
-		issue.emit('change');
+		for (const family of ['issue', 'pull-request-review', 'comment']) {
+			const checkbox = allElements(view.root).find(
+				(element) =>
+					element.id === `devradar-activity-family-${family}`,
+			);
+			if (!checkbox)
+				throw new Error(`expected ${family} activity checkbox`);
+			checkbox.checked = false;
+			checkbox.emit('change');
+		}
 
 		const save = allElements(view.root).find(
 			(element) =>
@@ -1347,7 +1383,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		pendingIssue!.emit('change');
 		expect(pendingIssue!.disabled).toBe(true);
 
-		release({ kind: 'saved', settings: createEmptySettingsV2() });
+		release({ kind: 'saved', settings: createEmptySettingsV3() });
 		await pending;
 	});
 
@@ -1355,7 +1391,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -1393,7 +1429,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -1426,7 +1462,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 		const view = tabFor({
 			kind: 'ready',
 			settings: {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 				followedPeople: [
 					{
@@ -1482,7 +1518,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			const view = tabFor({
 				kind: 'ready',
 				settings: {
-					schemaVersion: 2,
+					schemaVersion: 3,
 					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 					followedPeople: [
 						{
@@ -1569,7 +1605,7 @@ describe('DevRadarSettingTab ready Follow UI', () => {
 			const view = tabFor({
 				kind: 'ready',
 				settings: {
-					schemaVersion: 2,
+					schemaVersion: 3,
 					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 					followedPeople: [
 						{

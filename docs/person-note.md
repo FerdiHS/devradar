@@ -149,6 +149,11 @@ wording, reorder fields, or move links. The note's existing line-ending
 convention is applied to the resulting Markdown, while the entry content itself
 is compared byte-for-byte for canonical reconciliation.
 
+Pull-request review and comment entries contain only the activity kind,
+validated PR, issue, or commit context, and repository link defined by
+[`activity.md`](activity.md). Review and comment bodies and unrelated payload
+metadata are never rendered or retained.
+
 ## External text and links
 
 GitHub-provided display text is untrusted. Before rendering it inside the

@@ -667,6 +667,94 @@ function canonicalObjectFragment(
 	return title.length > 0 && isCanonicalProviderText(title);
 }
 
+function canonicalRequiredActivityAnchor(
+	actualUrl: string,
+	canonicalUrl: string,
+	anchor: string,
+): boolean {
+	const prefix = `${canonicalUrl}#${anchor}`;
+	if (!actualUrl.startsWith(prefix)) return false;
+	const nestedId = actualUrl.slice(prefix.length);
+	const canonicalId = canonicalizePositiveNumber(nestedId);
+	return canonicalId.ok && canonicalId.value === nestedId;
+}
+
+function canonicalActivityContextFragment(
+	input: string,
+	prefix: string,
+	target: 'issue' | 'pull-request',
+	anchor: 'issuecomment-' | 'discussion_r' | 'pullrequestreview-',
+): boolean {
+	if (!input.startsWith(prefix)) return false;
+	const numberLink = readMarkdownLink(input, prefix.length);
+	if (!numberLink || !numberLink.label.startsWith('#')) return false;
+	const number = canonicalizePositiveNumber(numberLink.label.slice(1));
+	if (!number.ok || !input.startsWith(' in ', numberLink.end)) return false;
+	const repositoryLink = canonicalRepositoryLink(input, numberLink.end + 4);
+	if (!repositoryLink || repositoryLink.end !== input.length) return false;
+	const canonicalUrl =
+		target === 'pull-request'
+			? pullRequestUrl(repositoryLink.repository, number.value)
+			: issueUrl(repositoryLink.repository, number.value);
+	return canonicalRequiredActivityAnchor(
+		numberLink.url,
+		canonicalUrl,
+		anchor,
+	);
+}
+
+function canonicalCommitCommentFragment(input: string): boolean {
+	const prefix = 'Commit comment on ';
+	if (!input.startsWith(prefix)) return false;
+	const commitLink = readMarkdownLink(input, prefix.length);
+	if (!commitLink || !/^[0-9a-f]{40}$/.test(commitLink.label)) return false;
+	if (!input.startsWith(' in ', commitLink.end)) return false;
+	const repositoryLink = canonicalRepositoryLink(input, commitLink.end + 4);
+	if (!repositoryLink || repositoryLink.end !== input.length) return false;
+	const canonicalUrl = `${repositoryUrl(repositoryLink.repository)}/commit/${commitLink.label}`;
+	return canonicalRequiredActivityAnchor(
+		commitLink.url,
+		canonicalUrl,
+		'commitcomment-',
+	);
+}
+
+function canonicalReviewFragment(input: string): boolean {
+	return canonicalActivityContextFragment(
+		input,
+		'Pull-request review on ',
+		'pull-request',
+		'pullrequestreview-',
+	);
+}
+
+function canonicalIssueCommentFragment(input: string): boolean {
+	return canonicalActivityContextFragment(
+		input,
+		'Issue comment on ',
+		'issue',
+		'issuecomment-',
+	);
+}
+
+function canonicalPullRequestCommentFragment(input: string): boolean {
+	return canonicalActivityContextFragment(
+		input,
+		'Pull-request comment on ',
+		'pull-request',
+		'issuecomment-',
+	);
+}
+
+function canonicalReviewCommentFragment(input: string): boolean {
+	return canonicalActivityContextFragment(
+		input,
+		'Pull-request review comment on ',
+		'pull-request',
+		'discussion_r',
+	);
+}
+
 function canonicalPushFragment(input: string): boolean {
 	if (!input.startsWith('Push to ')) return false;
 	const repositoryLink = canonicalRepositoryLink(input, 'Push to '.length);
@@ -715,7 +803,12 @@ function isCanonicalActivityFragment(input: string): boolean {
 	return (
 		canonicalPushFragment(input) ||
 		canonicalObjectFragment(input, 'pull-request') ||
-		canonicalObjectFragment(input, 'issue')
+		canonicalObjectFragment(input, 'issue') ||
+		canonicalReviewFragment(input) ||
+		canonicalIssueCommentFragment(input) ||
+		canonicalPullRequestCommentFragment(input) ||
+		canonicalReviewCommentFragment(input) ||
+		canonicalCommitCommentFragment(input)
 	);
 }
 

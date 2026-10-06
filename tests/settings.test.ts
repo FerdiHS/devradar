@@ -10,10 +10,10 @@ import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	createEmptySettingsV1,
-	createEmptySettingsV2,
-	migrateSettingsV1ToV2,
+	createEmptySettingsV3,
+	migrateSettingsV1ToV3,
 	parsePersistedSettings,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 	validateCanonicalPluginTimestamp,
 	validatePersistedSettingsV1,
 	validatePersistedSettingsV2,
@@ -81,7 +81,7 @@ function validSettingsV2(overrides: Record<string, unknown> = {}) {
 	return {
 		schemaVersion: 2,
 		followedPeople: [validPerson()],
-		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		enabledActivityFamilies: ['push', 'pull-request', 'issue'],
 		...overrides,
 	};
 }
@@ -102,23 +102,7 @@ function expectV2Failure(
 	return result.error;
 }
 
-describe('schema-v2 settings construction and migration', () => {
-	it('constructs fresh V2 settings with all implemented families enabled', () => {
-		const settings = createEmptySettingsV2();
-		const secondSettings = createEmptySettingsV2();
-
-		expect(settings).toEqual({
-			schemaVersion: 2,
-			followedPeople: [],
-			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
-		});
-		expect(settings).not.toBe(secondSettings);
-		expect(settings.followedPeople).not.toBe(secondSettings.followedPeople);
-		expect(settings.enabledActivityFamilies).not.toBe(
-			secondSettings.enabledActivityFamilies,
-		);
-	});
-
+describe('settings schema migration', () => {
 	it('migrates V1 losslessly and adds the canonical default selection', () => {
 		const input = validSettings({
 			githubRequestPolicy: {
@@ -132,8 +116,8 @@ describe('schema-v2 settings construction and migration', () => {
 			value: {
 				settings: {
 					...input,
-					schemaVersion: 2,
-					enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+					schemaVersion: 3,
+					enabledActivityFamilies: ['push', 'pull-request', 'issue'],
 				},
 				needsMigration: true,
 			},
@@ -149,14 +133,22 @@ describe('schema-v2 settings construction and migration', () => {
 		expect(parsePersistedSettings({}, NOW)).toEqual({
 			ok: true,
 			value: {
-				settings: createEmptySettingsV2(),
+				settings: {
+					schemaVersion: 3,
+					followedPeople: [],
+					enabledActivityFamilies: ['push', 'pull-request', 'issue'],
+				},
 				needsMigration: true,
 			},
 		});
 		expect(parsePersistedSettings(undefined, NOW)).toEqual({
 			ok: true,
 			value: {
-				settings: createEmptySettingsV2(),
+				settings: {
+					schemaVersion: 3,
+					followedPeople: [],
+					enabledActivityFamilies: ['push', 'pull-request', 'issue'],
+				},
 				needsMigration: false,
 			},
 		});
@@ -166,7 +158,7 @@ describe('schema-v2 settings construction and migration', () => {
 		const input = validatePersistedSettingsV1(validSettings(), NOW);
 		if (!input.ok) throw new Error('expected valid V1 settings');
 
-		const migrated = migrateSettingsV1ToV2(input.value);
+		const migrated = migrateSettingsV1ToV3(input.value);
 		migrated.followedPeople[0]?.syncState.seenEvents.push({
 			id: '456',
 			createdAt: PROVIDER_TIME,
@@ -175,6 +167,60 @@ describe('schema-v2 settings construction and migration', () => {
 		expect(
 			input.value.followedPeople[0]?.syncState.seenEvents,
 		).toHaveLength(1);
+	});
+});
+
+describe('schema-v3 settings construction', () => {
+	it('constructs fresh V3 settings with only the original activity families enabled', () => {
+		const settings = createEmptySettingsV3();
+		const secondSettings = createEmptySettingsV3();
+
+		expect(settings).toEqual({
+			schemaVersion: 3,
+			followedPeople: [],
+			enabledActivityFamilies: ['push', 'pull-request', 'issue'],
+		});
+		expect(settings).not.toBe(secondSettings);
+		expect(settings.enabledActivityFamilies).not.toBe(
+			secondSettings.enabledActivityFamilies,
+		);
+	});
+
+	it('rejects unknown, duplicate, and non-canonical V3 family selections', () => {
+		const settings = {
+			schemaVersion: 3,
+			followedPeople: [],
+			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		};
+		const cases = [
+			{
+				families: ['release'],
+				code: 'invalid-activity-family',
+				path: '/enabledActivityFamilies/0',
+			},
+			{
+				families: ['comment', 'comment'],
+				code: 'duplicate-activity-family',
+				path: '/enabledActivityFamilies/1',
+			},
+			{
+				families: ['comment', 'pull-request-review'],
+				code: 'noncanonical-activity-family-order',
+				path: '/enabledActivityFamilies',
+			},
+		];
+
+		for (const testCase of cases) {
+			expect(
+				parsePersistedSettings(
+					{ ...settings, enabledActivityFamilies: testCase.families },
+					NOW,
+				),
+			).toMatchObject({
+				ok: false,
+				error: { code: testCase.code, path: testCase.path },
+			});
+		}
 	});
 });
 
@@ -222,14 +268,42 @@ describe('schema-v2 persisted validation', () => {
 			'noncanonical-activity-family-order',
 			'/enabledActivityFamilies',
 		);
+		for (const family of ['pull-request-review', 'comment']) {
+			expectV2Failure(
+				validSettingsV2({ enabledActivityFamilies: [family] }),
+				'invalid-activity-family',
+				'/enabledActivityFamilies/0',
+			);
+		}
 	});
 
-	it('dispatches schema versions without treating V2 as future schema', () => {
-		expect(parsePersistedSettings(validSettingsV2(), NOW)).toMatchObject({
+	it('migrates V2 selections to V3 and keeps strict future-schema handling', () => {
+		expect(
+			parsePersistedSettings(
+				validSettingsV2({ enabledActivityFamilies: ['issue'] }),
+				NOW,
+			),
+		).toEqual({
 			ok: true,
-			value: { needsMigration: false },
+			value: {
+				needsMigration: true,
+				settings: {
+					schemaVersion: 3,
+					followedPeople: [validPerson()],
+					enabledActivityFamilies: ['issue'],
+				},
+			},
 		});
-		expect(parsePersistedSettings({ schemaVersion: 3 }, NOW)).toMatchObject(
+		const current = {
+			schemaVersion: 3,
+			followedPeople: [],
+			enabledActivityFamilies: ['pull-request-review', 'comment'],
+		};
+		expect(parsePersistedSettings(current, NOW)).toEqual({
+			ok: true,
+			value: { settings: current, needsMigration: false },
+		});
+		expect(parsePersistedSettings({ schemaVersion: 4 }, NOW)).toMatchObject(
 			{
 				ok: false,
 				error: {
@@ -238,7 +312,7 @@ describe('schema-v2 persisted validation', () => {
 				},
 			},
 		);
-		expect(parsePersistedSettings({ schemaVersion: 2 }, NOW)).toMatchObject(
+		expect(parsePersistedSettings({ schemaVersion: 3 }, NOW)).toMatchObject(
 			{
 				ok: false,
 				error: { code: 'missing-field', path: '/followedPeople' },
@@ -1505,9 +1579,9 @@ describe('draft note-path canonicalization', () => {
 });
 
 describe('SettingsApplication candidate saves', () => {
-	function candidate(): DevRadarSettingsV2 {
+	function candidate(): DevRadarSettingsV3 {
 		return {
-			schemaVersion: 2,
+			schemaVersion: 3,
 			followedPeople: [],
 			enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 			githubRequestPolicy: {
@@ -1527,7 +1601,7 @@ describe('SettingsApplication candidate saves', () => {
 	}
 
 	it('makes a saved complete candidate authoritative after persistence', async () => {
-		const initial = createEmptySettingsV2();
+		const initial = createEmptySettingsV3();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
 			load: async () => ({
@@ -1537,7 +1611,7 @@ describe('SettingsApplication candidate saves', () => {
 			}),
 			save: async (value) => ({
 				kind: 'saved',
-				settings: value as DevRadarSettingsV2,
+				settings: value as DevRadarSettingsV3,
 			}),
 		};
 		const settings = application(persistence);
@@ -1553,7 +1627,7 @@ describe('SettingsApplication candidate saves', () => {
 	});
 
 	it('enters recovery without exposing a failed candidate', async () => {
-		const initial = createEmptySettingsV2();
+		const initial = createEmptySettingsV3();
 		const next = candidate();
 		const persistence: SettingsPersistence = {
 			load: async () => ({
@@ -1579,7 +1653,7 @@ describe('SettingsApplication candidate saves', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
-				settings: createEmptySettingsV2(),
+				settings: createEmptySettingsV3(),
 				needsMigration: false,
 			}),
 			save: async () => {
@@ -1608,14 +1682,14 @@ describe('SettingsApplication candidate saves', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
-				settings: createEmptySettingsV2(),
+				settings: createEmptySettingsV3(),
 				needsMigration: false,
 			}),
 			save: async (value) => {
 				events.push('save-start');
 				await blocked;
 				events.push('save-end');
-				return { kind: 'saved', settings: value as DevRadarSettingsV2 };
+				return { kind: 'saved', settings: value as DevRadarSettingsV3 };
 			},
 		};
 		const settings = new SettingsApplication(
@@ -1639,8 +1713,8 @@ describe('SettingsApplication candidate saves', () => {
 	});
 
 	it('persists a legacy load before exposing ready runtime state', async () => {
-		const migrated = createEmptySettingsV2();
-		const saved: DevRadarSettingsV2[] = [];
+		const migrated = createEmptySettingsV3();
+		const saved: DevRadarSettingsV3[] = [];
 		let stateDuringMigration: SettingsRuntimeState | undefined;
 		const persistence: SettingsPersistence = {
 			load: async () => ({
@@ -1649,9 +1723,9 @@ describe('SettingsApplication candidate saves', () => {
 				needsMigration: true,
 			}),
 			save: async (value) => {
-				saved.push(value as DevRadarSettingsV2);
+				saved.push(value as DevRadarSettingsV3);
 				stateDuringMigration = settings.getSettingsState();
-				return { kind: 'saved', settings: value as DevRadarSettingsV2 };
+				return { kind: 'saved', settings: value as DevRadarSettingsV3 };
 			},
 		};
 		const settings = application(persistence);
@@ -1670,7 +1744,7 @@ describe('SettingsApplication candidate saves', () => {
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
-				settings: createEmptySettingsV2(),
+				settings: createEmptySettingsV3(),
 				needsMigration: true,
 			}),
 			save: async () => ({ kind: 'write-failure' }),
@@ -1686,8 +1760,8 @@ describe('SettingsApplication candidate saves', () => {
 	});
 
 	it('updates only activity families from the current authoritative settings', async () => {
-		const initial: DevRadarSettingsV2 = {
-			...createEmptySettingsV2(),
+		const initial: DevRadarSettingsV3 = {
+			...createEmptySettingsV3(),
 			followedPeople: [
 				{
 					username: 'octocat',
@@ -1713,7 +1787,7 @@ describe('SettingsApplication candidate saves', () => {
 				rateLimitNotBefore: '2026-08-21T00:00:00.000Z',
 			},
 		};
-		let saved!: DevRadarSettingsV2;
+		let saved!: DevRadarSettingsV3;
 		const persistence: SettingsPersistence = {
 			load: async () => ({
 				kind: 'loaded',
@@ -1721,7 +1795,7 @@ describe('SettingsApplication candidate saves', () => {
 				needsMigration: false,
 			}),
 			save: async (value) => {
-				saved = value as DevRadarSettingsV2;
+				saved = value as DevRadarSettingsV3;
 				return { kind: 'saved', settings: saved };
 			},
 		};

@@ -6,8 +6,12 @@ import {
 	canonicalizeTimestamp,
 	compareActivities,
 	compareCanonicalTimestamps,
+	createCommitCommentActivity,
+	createIssueCommentActivity,
 	createIssueActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	createPushActivity,
 	isActivityEligible,
 	normalizeProviderText,
@@ -608,5 +612,62 @@ describe('safe links and exact fragments', () => {
 			);
 			expect(serializeActivityFragment(activity)).toBe(expected);
 		}
+	});
+
+	it('serializes reviews and comments with minimal object-first context', () => {
+		const sha = 'a'.repeat(40);
+		const repository =
+			'[octocat/hello-world](https://github.com/octocat/hello-world)';
+		const review = ok(
+			createPullRequestReviewActivity({
+				...base,
+				number: '4',
+				reviewId: '21',
+			}),
+		);
+		const issueComment = ok(
+			createIssueCommentActivity({
+				...base,
+				number: '5',
+				target: 'issue',
+				commentId: '22',
+			}),
+		);
+		const pullRequestComment = ok(
+			createIssueCommentActivity({
+				...base,
+				number: '6',
+				target: 'pull-request',
+				commentId: '23',
+			}),
+		);
+		const reviewComment = ok(
+			createPullRequestReviewCommentActivity({
+				...base,
+				number: '7',
+				commentId: '23',
+			}),
+		);
+		const commitComment = ok(
+			createCommitCommentActivity({
+				...base,
+				commitId: sha,
+				commentId: '24',
+			}),
+		);
+
+		expect([
+			serializeActivityFragment(review),
+			serializeActivityFragment(issueComment),
+			serializeActivityFragment(pullRequestComment),
+			serializeActivityFragment(reviewComment),
+			serializeActivityFragment(commitComment),
+		]).toEqual([
+			`Pull-request review on [#4](https://github.com/octocat/hello-world/pull/4#pullrequestreview-21) in ${repository}`,
+			`Issue comment on [#5](https://github.com/octocat/hello-world/issues/5#issuecomment-22) in ${repository}`,
+			`Pull-request comment on [#6](https://github.com/octocat/hello-world/pull/6#issuecomment-23) in ${repository}`,
+			`Pull-request review comment on [#7](https://github.com/octocat/hello-world/pull/7#discussion_r23) in ${repository}`,
+			`Commit comment on [${sha}](https://github.com/octocat/hello-world/commit/${sha}#commitcomment-24) in ${repository}`,
+		]);
 	});
 });

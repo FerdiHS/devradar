@@ -44,12 +44,12 @@ import type { SyncAllResult } from '../src/application/sync-all';
 import { ACTIVITY_FAMILIES } from '../src/domain/activity';
 
 const EMPTY = {
-	schemaVersion: 2,
+	schemaVersion: 3,
 	followedPeople: [],
-	enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+	enabledActivityFamilies: ['push', 'pull-request', 'issue'],
 };
 const FOLLOWED = {
-	schemaVersion: 2,
+	schemaVersion: 3,
 	followedPeople: [
 		{
 			username: 'octocat',
@@ -241,7 +241,7 @@ describe('DevRadarPlugin settings lifecycle', () => {
 			},
 			{
 				loadData: async () => ({
-					schemaVersion: 3,
+					schemaVersion: 4,
 					followedPeople: [],
 				}),
 				diagnostic: {

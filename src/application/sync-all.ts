@@ -1,9 +1,9 @@
 import { compareCanonicalTimestamps } from '../domain/activity';
 import {
 	validateCanonicalPluginTimestamp,
-	validatePersistedSettingsV2,
+	validatePersistedSettingsV3,
 	type CanonicalPluginTimestamp,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 } from '../domain/settings';
 import type { ApplicationMutationGuard } from './mutation-guard';
 import type { SettingsAuthority, SettingsRuntimeState } from './settings';
@@ -51,7 +51,7 @@ export type SyncAllDependencies = {
 
 type ReadySettingsSnapshot = {
 	readonly kind: 'ready';
-	readonly settings: DevRadarSettingsV2;
+	readonly settings: DevRadarSettingsV3;
 	readonly now: CanonicalPluginTimestamp;
 };
 type SettingsRead =
@@ -249,7 +249,7 @@ export class SyncAllApplication {
 		const runtime: SettingsRuntimeState =
 			this.dependencies.settings.getSettingsState();
 		if (runtime.kind !== 'ready') return { kind: 'not-ready' };
-		const validated = validatePersistedSettingsV2(runtime.settings, now);
+		const validated = validatePersistedSettingsV3(runtime.settings, now);
 		return validated.ok
 			? { kind: 'ready', settings: validated.value, now }
 			: { kind: 'invalid' };
@@ -278,7 +278,7 @@ export class SyncAllApplication {
 }
 
 function isGlobalPolicyActive(
-	settings: DevRadarSettingsV2,
+	settings: DevRadarSettingsV3,
 	now: CanonicalPluginTimestamp,
 ): boolean {
 	const boundary = settings.githubRequestPolicy?.rateLimitNotBefore;

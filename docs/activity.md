@@ -42,11 +42,11 @@ The complete people-first MVP catalogue contains:
 8. Repository forks
 9. Branches and tags
 
-The `v0.3.0` implementation slice supports a single global configurable
-selection whose catalogue contains exactly Pushes, Pull requests, and Issues.
-Any subset, including the empty subset, is valid. The other six families are
-documentation-only future scope and are not selectable, persisted, or
-implemented by this release.
+The current implementation slice supports one global configurable selection
+whose catalogue contains Pushes, Pull requests, Pull-request reviews, Issues,
+and Comments. Any subset, including the empty subset, is valid. The other four
+families remain documentation-only future scope and are not selectable,
+persisted, or implemented.
 
 ## Canonical mapping table
 
@@ -55,27 +55,27 @@ identity are required for every supported row. A row's event-specific required
 fields are also required. Optional fields may be absent without invalidating
 the activity; the corresponding metadata is omitted.
 
-| GitHub event and action/condition                                                      | DevRadar family and action           | Event-specific required data                                                                                                                                             | Optional metadata and semantics                                                                                              |
-| -------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `PushEvent` with its event-level push payload                                          | Pushes / `pushed`                    | `payload.ref`                                                                                                                                                            | `payload.head`, `payload.before`; one event produces one activity, never one per commit.                                     |
-| `PullRequestEvent` / `opened`                                                          | Pull requests / `opened`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL                                                         | Base/head branch details.                                                                                                    |
-| `PullRequestEvent` / `reopened`                                                        | Pull requests / `reopened`           | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL                                                         | Base/head branch details.                                                                                                    |
-| `PullRequestEvent` / `closed` with `payload.pull_request.merged === false` or missing  | Pull requests / `closed`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL                                                         | Missing merge metadata is interpreted as historical `closed`; merge metadata is not rendered.                                |
-| `PullRequestEvent` / `merged`, or `closed` with `payload.pull_request.merged === true` | Pull requests / `merged`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL                                                         | A `merged` event may omit nested merge metadata; contradictory `merged === false` is malformed.                              |
-| `IssuesEvent` / `opened`                                                               | Issues / `opened`                    | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                                                                | No optional activity metadata.                                                                                               |
-| `IssuesEvent` / `reopened`                                                             | Issues / `reopened`                  | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                                                                | No optional activity metadata.                                                                                               |
-| `IssuesEvent` / `closed`                                                               | Issues / `closed`                    | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                                                                | No optional activity metadata.                                                                                               |
-| `PullRequestReviewEvent` / `created`                                                   | Pull-request reviews / `created`     | `payload.pull_request.number`, `payload.review.id`, canonical pull-request source URL                                                                                    | `payload.review.html_url`, `payload.review.state`; review body is never retained. `updated` and `dismissed` are unsupported. |
-| `IssueCommentEvent` / `created`                                                        | Comments / `issue-comment`           | `payload.issue.number`, presence/absence of `payload.issue.pull_request` as the issue/PR discriminator, `payload.comment.id`, canonical issue or pull-request source URL | `payload.comment.html_url`, issue or pull-request title. Comment body is never retained.                                     |
-| `PullRequestReviewCommentEvent` / `created`                                            | Comments / `review-comment`          | `payload.pull_request.number`, `payload.comment.id`, canonical pull-request source URL                                                                                   | `payload.comment.html_url`, `payload.comment.path`, `payload.comment.line`; comment body is never retained.                  |
-| `CommitCommentEvent` / `created`                                                       | Comments / `commit-comment`          | `payload.comment.id`, `payload.comment.commit_id`, canonical repository identity                                                                                         | `payload.comment.html_url`, commit identity; comment body is never retained.                                                 |
-| `DiscussionEvent` / `created`                                                          | Discussions / `created`              | `payload.discussion.number`, `payload.discussion.title`, `payload.discussion.html_url`                                                                                   | `payload.discussion.category`; discussion comments have no separate supported Events API mapping.                            |
-| `ReleaseEvent` / `published`                                                           | Releases / `published`               | `payload.release.id`, `payload.release.tag_name`, `payload.release.html_url`                                                                                             | `payload.release.name`; release body is never retained. Other release actions are unsupported.                               |
-| `ForkEvent` / `forked`                                                                 | Repository forks / `forked`          | canonical source repository identity, `payload.forkee.id`, `payload.forkee.full_name`, `payload.forkee.html_url`                                                         | Forked repository display name.                                                                                              |
-| `CreateEvent` with `payload.ref_type === "branch"`                                     | Branches and tags / `branch-created` | `payload.ref`, `payload.ref_type`, canonical repository identity                                                                                                         | `payload.full_ref`. Repository creation is not a branch/tag activity.                                                        |
-| `CreateEvent` with `payload.ref_type === "tag"`                                        | Branches and tags / `tag-created`    | `payload.ref`, `payload.ref_type`, canonical repository identity                                                                                                         | `payload.full_ref`.                                                                                                          |
-| `DeleteEvent` with `payload.ref_type === "branch"`                                     | Branches and tags / `branch-deleted` | `payload.ref`, `payload.ref_type`, canonical repository identity                                                                                                         | `payload.full_ref` when present.                                                                                             |
-| `DeleteEvent` with `payload.ref_type === "tag"`                                        | Branches and tags / `tag-deleted`    | `payload.ref`, `payload.ref_type`, canonical repository identity                                                                                                         | `payload.full_ref` when present.                                                                                             |
+| GitHub event and action/condition                                                      | DevRadar family and action           | Event-specific required data                                                                                                 | Optional metadata and semantics                                                                   |
+| -------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `PushEvent` with its event-level push payload                                          | Pushes / `pushed`                    | `payload.ref`                                                                                                                | `payload.head`, `payload.before`; one event produces one activity, never one per commit.          |
+| `PullRequestEvent` / `opened`                                                          | Pull requests / `opened`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL             | Base/head branch details.                                                                         |
+| `PullRequestEvent` / `reopened`                                                        | Pull requests / `reopened`           | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL             | Base/head branch details.                                                                         |
+| `PullRequestEvent` / `closed` with `payload.pull_request.merged === false` or missing  | Pull requests / `closed`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL             | Missing merge metadata is interpreted as historical `closed`; merge metadata is not rendered.     |
+| `PullRequestEvent` / `merged`, or `closed` with `payload.pull_request.merged === true` | Pull requests / `merged`             | `payload.number`, title from the Event or approved bound PR-detail enrichment, canonical pull-request source URL             | A `merged` event may omit nested merge metadata; contradictory `merged === false` is malformed.   |
+| `IssuesEvent` / `opened`                                                               | Issues / `opened`                    | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                    | No optional activity metadata.                                                                    |
+| `IssuesEvent` / `reopened`                                                             | Issues / `reopened`                  | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                    | No optional activity metadata.                                                                    |
+| `IssuesEvent` / `closed`                                                               | Issues / `closed`                    | `payload.issue.number`, `payload.issue.title`, canonical issue source URL                                                    | No optional activity metadata.                                                                    |
+| `PullRequestReviewEvent` / `created`                                                   | Pull-request reviews / `created`     | `payload.pull_request.number`, `payload.review.id`                                                                           | `payload.review.state`; review body is never retained. `updated` and `dismissed` are unsupported. |
+| `IssueCommentEvent` / `created`                                                        | Comments / `issue-comment`           | `payload.issue.number`, presence/absence of `payload.issue.pull_request` as the issue/PR discriminator, `payload.comment.id` | Issue or pull-request title. Comment body is never retained.                                      |
+| `PullRequestReviewCommentEvent` / `created`                                            | Comments / `review-comment`          | `payload.pull_request.number`, `payload.comment.id`                                                                          | `payload.comment.path`, `payload.comment.line`; comment body is never retained.                   |
+| `CommitCommentEvent` / `created`                                                       | Comments / `commit-comment`          | `payload.comment.id`, `payload.comment.commit_id`, canonical repository identity                                             | Commit identity; comment body is never retained.                                                  |
+| `DiscussionEvent` / `created`                                                          | Discussions / `created`              | `payload.discussion.number`, `payload.discussion.title`, `payload.discussion.html_url`                                       | `payload.discussion.category`; discussion comments have no separate supported Events API mapping. |
+| `ReleaseEvent` / `published`                                                           | Releases / `published`               | `payload.release.id`, `payload.release.tag_name`, `payload.release.html_url`                                                 | `payload.release.name`; release body is never retained. Other release actions are unsupported.    |
+| `ForkEvent` / `forked`                                                                 | Repository forks / `forked`          | canonical source repository identity, `payload.forkee.id`, `payload.forkee.full_name`, `payload.forkee.html_url`             | Forked repository display name.                                                                   |
+| `CreateEvent` with `payload.ref_type === "branch"`                                     | Branches and tags / `branch-created` | `payload.ref`, `payload.ref_type`, canonical repository identity                                                             | `payload.full_ref`. Repository creation is not a branch/tag activity.                             |
+| `CreateEvent` with `payload.ref_type === "tag"`                                        | Branches and tags / `tag-created`    | `payload.ref`, `payload.ref_type`, canonical repository identity                                                             | `payload.full_ref`.                                                                               |
+| `DeleteEvent` with `payload.ref_type === "branch"`                                     | Branches and tags / `branch-deleted` | `payload.ref`, `payload.ref_type`, canonical repository identity                                                             | `payload.full_ref` when present.                                                                  |
+| `DeleteEvent` with `payload.ref_type === "tag"`                                        | Branches and tags / `tag-deleted`    | `payload.ref`, `payload.ref_type`, canonical repository identity                                                             | `payload.full_ref` when present.                                                                  |
 
 The supported event families and payload shapes are verified against the
 [documented GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/github-event-types?apiVersion=2026-03-10).
@@ -91,14 +91,14 @@ URLs. Use these rules:
 - For `IssueCommentEvent`, a present `payload.issue.pull_request` selects the
   pull-request path; its absence selects the issue path. The discriminator is
   required even though the issue number is shared by both URL forms.
-- Review, issue-comment, review-comment, and commit-comment links use the
-  corresponding `payload.*.html_url` only after validating these exact forms:
+- Review, issue-comment, review-comment, and commit-comment links are derived
+  from the canonical target and required provider IDs in these exact forms:
   `/{repo}/pull/{number}#pullrequestreview-{review.id}`;
   `/{repo}/{issues|pull}/{number}#issuecomment-{comment.id}`;
   `/{repo}/pull/{number}#discussion_r{comment.id}`; and
   `/{repo}/commit/{comment.commit_id}#commitcomment-{comment.id}`. The
-  validated URL is optional metadata if the provider does not supply it; its
-  provider ID remains required for a comment or review mapping.
+  provider's nested `html_url` is not used, so missing or changed URL metadata
+  cannot change the serialized activity link.
 - Discussion and release links use `payload.discussion.html_url` and
   `payload.release.html_url`, validated respectively as
   `/{repo}/discussions/{discussion.number}` and
@@ -197,7 +197,7 @@ algorithm rather than defining competing provider timestamp rules. Plugin-owned
 timestamps are a separate settings/sync concern and use their exact
 millisecond-precision UTC grammar.
 
-## Canonical v0.2 activity serialization
+## Canonical activity serialization
 
 The person-note contract supplies the entry envelope:
 
@@ -208,11 +208,16 @@ The person-note contract supplies the entry envelope:
 The activity fragment is exactly one of these forms. There is no alternate
 wording, punctuation, field order, or link placement:
 
-| Family        | Canonical activity fragment                                                                                                                                          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pushes        | `Push to [REPOSITORY](REPOSITORY_URL) at REF` when no source link is available, or `Push to [REPOSITORY](REPOSITORY_URL) at [REF](SOURCE_URL)` when one is available |
-| Pull requests | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                             |
-| Issues        | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                                           |
+| Family                       | Canonical activity fragment                                                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pushes                       | `Push to [REPOSITORY](REPOSITORY_URL) at REF` when no source link is available, or `Push to [REPOSITORY](REPOSITORY_URL) at [REF](SOURCE_URL)` when one is available |
+| Pull requests                | `Pull request [#NUMBER](PULL_REQUEST_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                             |
+| Pull-request reviews         | `Pull-request review on [#NUMBER](REVIEW_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                                |
+| Issues                       | `Issue [#NUMBER](ISSUE_URL) ACTION in [REPOSITORY](REPOSITORY_URL): TITLE`                                                                                           |
+| Issue comments               | `Issue comment on [#NUMBER](ISSUE_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                               |
+| Pull-request comments        | `Pull-request comment on [#NUMBER](PULL_REQUEST_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                 |
+| Pull-request review comments | `Pull-request review comment on [#NUMBER](REVIEW_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                |
+| Commit comments              | `Commit comment on [COMMIT_ID](COMMIT_COMMENT_SOURCE_URL) in [REPOSITORY](REPOSITORY_URL)`                                                                           |
 
 `REPOSITORY` is the canonical `owner/name` identity and `REPOSITORY_URL` is
 `https://github.com/{REPOSITORY}`. `ACTION` is the lowercase action in the
@@ -227,6 +232,11 @@ commit or ref source link can be derived and validated; otherwise it is plain
 escaped text. The display text remains the same in either case. Optional
 branch, head, merge, and other metadata never changes the serialization and is
 omitted when absent.
+
+Review and comment links use the canonical target and required review/comment
+IDs, independent of the provider's optional `html_url`. `COMMIT_ID` is the full
+lowercase 40-character commit ID. Do not render review state, titles, comment
+path/line, comment body, or review body.
 
 The exact provider-text normalization algorithm is:
 

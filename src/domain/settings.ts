@@ -16,8 +16,23 @@ export type DevRadarSettingsV1 = {
 	readonly githubRequestPolicy?: GitHubRequestPolicyV1;
 };
 
+export type LegacyActivityFamily = 'push' | 'pull-request' | 'issue';
+
+const LEGACY_ACTIVITY_FAMILIES = [
+	'push',
+	'pull-request',
+	'issue',
+] as const satisfies readonly ActivityFamily[];
+
 export type DevRadarSettingsV2 = {
 	readonly schemaVersion: 2;
+	readonly followedPeople: FollowedPersonV1[];
+	readonly githubRequestPolicy?: GitHubRequestPolicyV1;
+	readonly enabledActivityFamilies: LegacyActivityFamily[];
+};
+
+export type DevRadarSettingsV3 = {
+	readonly schemaVersion: 3;
 	readonly followedPeople: FollowedPersonV1[];
 	readonly githubRequestPolicy?: GitHubRequestPolicyV1;
 	readonly enabledActivityFamilies: ActivityFamily[];
@@ -721,11 +736,11 @@ export function createEmptySettingsV1(): DevRadarSettingsV1 {
 	return { schemaVersion: 1, followedPeople: [] };
 }
 
-export function createEmptySettingsV2(): DevRadarSettingsV2 {
+export function createEmptySettingsV3(): DevRadarSettingsV3 {
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: [],
-		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+		enabledActivityFamilies: [...LEGACY_ACTIVITY_FAMILIES],
 	};
 }
 
@@ -749,15 +764,24 @@ export function validatePersistedSettingsV2(
 	return result as SchemaV1ValidationResult<DevRadarSettingsV2>;
 }
 
+export function validatePersistedSettingsV3(
+	input: unknown,
+	currentInstant: string,
+): SchemaV1ValidationResult<DevRadarSettingsV3> {
+	const result = validatePersistedSettingsVersion(input, currentInstant, 3);
+	return result as SchemaV1ValidationResult<DevRadarSettingsV3>;
+}
+
 export function canonicalizeEnabledActivityFamilies(
 	input: readonly unknown[],
+	catalogue: readonly ActivityFamily[] = ACTIVITY_FAMILIES,
 ): SchemaV1ValidationResult<ActivityFamily[]> {
 	const selected = new Set<ActivityFamily>();
 	for (let index = 0; index < input.length; index += 1) {
 		const family = input[index];
 		if (
 			typeof family !== 'string' ||
-			!(ACTIVITY_FAMILIES as readonly string[]).includes(family)
+			!(catalogue as readonly string[]).includes(family)
 		)
 			return failure(
 				'invalid-activity-family',
@@ -772,32 +796,65 @@ export function canonicalizeEnabledActivityFamilies(
 			);
 		selected.add(family as ActivityFamily);
 	}
-	return success(ACTIVITY_FAMILIES.filter((family) => selected.has(family)));
+	return success(catalogue.filter((family) => selected.has(family)));
 }
 
-export function migrateSettingsV1ToV2(
+function cloneFollowedPeople(
+	people: readonly FollowedPersonV1[],
+): FollowedPersonV1[] {
+	return people.map((person) => ({
+		...person,
+		trackingStart:
+			person.trackingStart.mode === 'available-recent'
+				? { mode: 'available-recent' as const }
+				: { ...person.trackingStart },
+		syncState: {
+			...person.syncState,
+			seenEvents: person.syncState.seenEvents.map((event) => ({
+				...event,
+			})),
+			github: { ...person.syncState.github },
+		},
+	}));
+}
+
+function cloneGithubRequestPolicy(
+	policy: GitHubRequestPolicyV1 | undefined,
+): GitHubRequestPolicyV1 | undefined {
+	return policy === undefined ? undefined : { ...policy };
+}
+
+export function migrateSettingsV1ToV3(
 	input: DevRadarSettingsV1,
-): DevRadarSettingsV2 {
+): DevRadarSettingsV3 {
 	return {
-		schemaVersion: 2,
-		followedPeople: input.followedPeople.map((person) => ({
-			...person,
-			trackingStart:
-				person.trackingStart.mode === 'available-recent'
-					? { mode: 'available-recent' as const }
-					: { ...person.trackingStart },
-			syncState: {
-				...person.syncState,
-				seenEvents: person.syncState.seenEvents.map((event) => ({
-					...event,
-				})),
-				github: { ...person.syncState.github },
-			},
-		})),
-		...(input.githubRequestPolicy === undefined
+		schemaVersion: 3,
+		followedPeople: cloneFollowedPeople(input.followedPeople),
+		...(cloneGithubRequestPolicy(input.githubRequestPolicy) === undefined
 			? {}
-			: { githubRequestPolicy: { ...input.githubRequestPolicy } }),
-		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
+			: {
+					githubRequestPolicy: cloneGithubRequestPolicy(
+						input.githubRequestPolicy,
+					),
+				}),
+		enabledActivityFamilies: [...LEGACY_ACTIVITY_FAMILIES],
+	};
+}
+
+export function migrateSettingsV2ToV3(
+	input: DevRadarSettingsV2,
+): DevRadarSettingsV3 {
+	return {
+		schemaVersion: 3,
+		followedPeople: cloneFollowedPeople(input.followedPeople),
+		...(cloneGithubRequestPolicy(input.githubRequestPolicy) === undefined
+			? {}
+			: {
+					githubRequestPolicy: cloneGithubRequestPolicy(
+						input.githubRequestPolicy,
+					),
+				}),
+		enabledActivityFamilies: [...input.enabledActivityFamilies],
 	};
 }
 
@@ -805,7 +862,7 @@ export type PersistedSettingsParseResult =
 	| {
 			readonly ok: true;
 			readonly value: {
-				readonly settings: DevRadarSettingsV2;
+				readonly settings: DevRadarSettingsV3;
 				readonly needsMigration: boolean;
 			};
 	  }
@@ -818,12 +875,12 @@ export function parsePersistedSettings(
 	if (input === undefined)
 		return {
 			ok: true,
-			value: { settings: createEmptySettingsV2(), needsMigration: false },
+			value: { settings: createEmptySettingsV3(), needsMigration: false },
 		};
 	if (isEmptyPlainRecord(input))
 		return {
 			ok: true,
-			value: { settings: createEmptySettingsV2(), needsMigration: true },
+			value: { settings: createEmptySettingsV3(), needsMigration: true },
 		};
 
 	const schemaVersion = readSchemaVersion(input);
@@ -834,7 +891,7 @@ export function parsePersistedSettings(
 			? {
 					ok: true,
 					value: {
-						settings: migrateSettingsV1ToV2(result.value),
+						settings: migrateSettingsV1ToV3(result.value),
 						needsMigration: true,
 					},
 				}
@@ -845,16 +902,28 @@ export function parsePersistedSettings(
 		return result.ok
 			? {
 					ok: true,
+					value: {
+						settings: migrateSettingsV2ToV3(result.value),
+						needsMigration: true,
+					},
+				}
+			: result;
+	}
+	if (schemaVersion.value === 3) {
+		const result = validatePersistedSettingsV3(input, currentInstant);
+		return result.ok
+			? {
+					ok: true,
 					value: { settings: result.value, needsMigration: false },
 				}
 			: result;
 	}
 	return failure(
-		schemaVersion.value > 2
+		schemaVersion.value > 3
 			? 'unsupported-schema-version'
 			: 'invalid-schema-version',
 		'/schemaVersion',
-		schemaVersion.value > 2
+		schemaVersion.value > 3
 			? 'schema version is unsupported'
 			: 'schema version is invalid',
 	);
@@ -863,8 +932,10 @@ export function parsePersistedSettings(
 function validatePersistedSettingsVersion(
 	input: unknown,
 	currentInstant: string,
-	version: 1 | 2,
-): SchemaV1ValidationResult<DevRadarSettingsV1 | DevRadarSettingsV2> {
+	version: 1 | 2 | 3,
+): SchemaV1ValidationResult<
+	DevRadarSettingsV1 | DevRadarSettingsV2 | DevRadarSettingsV3
+> {
 	const current = validatePluginTimestamp(currentInstant, '');
 	if (!current.ok) return current;
 	if (version === 1 && input === undefined)
@@ -982,7 +1053,10 @@ function validatePersistedSettingsVersion(
 		if (!item.ok) return item;
 		familyValues.push(item.value);
 	}
-	const families = canonicalizeEnabledActivityFamilies(familyValues);
+	const families = canonicalizeEnabledActivityFamilies(
+		familyValues,
+		version === 2 ? LEGACY_ACTIVITY_FAMILIES : ACTIVITY_FAMILIES,
+	);
 	if (!families.ok) return families;
 	if (
 		families.value.length !== familyValues.length ||
@@ -993,8 +1067,17 @@ function validatePersistedSettingsVersion(
 			'/enabledActivityFamilies',
 			'activity families are not in canonical order',
 		);
+	if (version === 2)
+		return success({
+			schemaVersion: 2,
+			followedPeople: people,
+			...(githubRequestPolicy === undefined
+				? {}
+				: { githubRequestPolicy }),
+			enabledActivityFamilies: families.value as LegacyActivityFamily[],
+		});
 	return success({
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: people,
 		...(githubRequestPolicy === undefined ? {} : { githubRequestPolicy }),
 		enabledActivityFamilies: families.value,

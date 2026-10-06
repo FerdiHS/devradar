@@ -1490,8 +1490,12 @@ function activityFamilyLabel(family: ActivityFamily): string {
 			return 'Pushes';
 		case 'pull-request':
 			return 'Pull requests';
+		case 'pull-request-review':
+			return 'Pull-request reviews';
 		case 'issue':
 			return 'Issues';
+		case 'comment':
+			return 'Comments';
 	}
 }
 

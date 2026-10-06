@@ -1,6 +1,6 @@
 import {
-	createEmptySettingsV2,
-	type DevRadarSettingsV2,
+	createEmptySettingsV3,
+	type DevRadarSettingsV3,
 	type SchemaV1ValidationError,
 } from '../domain/settings';
 import type { ActivityFamily } from '../domain/activity';
@@ -23,7 +23,7 @@ export type SettingsRecoveryDiagnostic =
 export type SettingsLoadResult =
 	| {
 			readonly kind: 'loaded';
-			readonly settings: DevRadarSettingsV2;
+			readonly settings: DevRadarSettingsV3;
 			readonly needsMigration: boolean;
 	  }
 	| {
@@ -32,7 +32,7 @@ export type SettingsLoadResult =
 	  };
 
 export type SettingsSaveResult =
-	| { readonly kind: 'saved'; readonly settings: DevRadarSettingsV2 }
+	| { readonly kind: 'saved'; readonly settings: DevRadarSettingsV3 }
 	| {
 			readonly kind: 'candidate-validation-failure';
 			readonly error: SchemaV1ValidationError;
@@ -46,7 +46,7 @@ export type SettingsPersistence = {
 };
 
 export type SettingsRuntimeState =
-	| { readonly kind: 'ready'; readonly settings: DevRadarSettingsV2 }
+	| { readonly kind: 'ready'; readonly settings: DevRadarSettingsV3 }
 	| {
 			readonly kind: 'recovery';
 			readonly diagnostic: SettingsRecoveryDiagnostic;
@@ -60,9 +60,9 @@ export type SettingsApplicationHost = {
 };
 
 export type SettingsAuthority = SettingsApplicationHost & {
-	saveCandidate(candidate: DevRadarSettingsV2): Promise<SettingsSaveResult>;
+	saveCandidate(candidate: DevRadarSettingsV3): Promise<SettingsSaveResult>;
 	saveCandidateWithinMutation(
-		candidate: DevRadarSettingsV2,
+		candidate: DevRadarSettingsV3,
 	): Promise<SettingsSaveResult>;
 	saveActivityFamilies(
 		families: readonly ActivityFamily[],
@@ -104,7 +104,7 @@ export class SettingsApplication implements SettingsAuthority {
 	}
 
 	async saveCandidate(
-		candidate: DevRadarSettingsV2,
+		candidate: DevRadarSettingsV3,
 	): Promise<SettingsSaveResult> {
 		return this.mutationGuard.run(() =>
 			this.saveCandidateWithinMutation(candidate),
@@ -112,7 +112,7 @@ export class SettingsApplication implements SettingsAuthority {
 	}
 
 	async saveCandidateWithinMutation(
-		candidate: DevRadarSettingsV2,
+		candidate: DevRadarSettingsV3,
 	): Promise<SettingsSaveResult> {
 		if (!this.persistence) return { kind: 'internal-failure' };
 		try {
@@ -132,7 +132,7 @@ export class SettingsApplication implements SettingsAuthority {
 		return this.mutationGuard.run(() => {
 			if (this.settingsState.kind !== 'ready')
 				return Promise.resolve({ kind: 'internal-failure' as const });
-			const candidate: DevRadarSettingsV2 = {
+			const candidate: DevRadarSettingsV3 = {
 				...this.settingsState.settings,
 				enabledActivityFamilies: [...families],
 			};
@@ -164,7 +164,7 @@ export class SettingsApplication implements SettingsAuthority {
 
 		await this.runRecoveryAction(() =>
 			this.mutationGuard.run(async () => {
-				const result = await persistence.save(createEmptySettingsV2());
+				const result = await persistence.save(createEmptySettingsV3());
 				this.settingsState = toRuntimeStateFromSave(result);
 			}),
 		);

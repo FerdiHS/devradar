@@ -7,7 +7,7 @@ import {
 	canonicalizeDraftNotePath,
 	createEmptyPersonSyncState,
 	validateCanonicalPluginTimestamp,
-	type DevRadarSettingsV2,
+	type DevRadarSettingsV3,
 	type FollowedPersonV1,
 } from '../domain/settings';
 import {
@@ -84,7 +84,7 @@ type PreparedDraft = {
 };
 
 type PolicyMerge = {
-	readonly settings: DevRadarSettingsV2;
+	readonly settings: DevRadarSettingsV3;
 	readonly material: boolean;
 };
 
@@ -208,7 +208,7 @@ export class FollowApplication {
 	}
 
 	private async saveCandidate(
-		candidate: DevRadarSettingsV2,
+		candidate: DevRadarSettingsV3,
 	): Promise<SettingsSaveResult> {
 		try {
 			return await this.dependencies.settings.saveCandidateWithinMutation(
@@ -289,7 +289,7 @@ function hasDuplicateAssociation(
 }
 
 function mergePolicy(
-	current: DevRadarSettingsV2,
+	current: DevRadarSettingsV3,
 	observation: GitHubPolicyObservation,
 ): PolicyMerge {
 	const settings = cloneSettings(current);
@@ -315,9 +315,9 @@ function mergePolicy(
 	return { settings, material };
 }
 
-function cloneSettings(current: DevRadarSettingsV2): DevRadarSettingsV2 {
+function cloneSettings(current: DevRadarSettingsV3): DevRadarSettingsV3 {
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: current.followedPeople.map((person) => ({
 			...person,
 			trackingStart:
@@ -340,11 +340,11 @@ function cloneSettings(current: DevRadarSettingsV2): DevRadarSettingsV2 {
 }
 
 function addAssociation(
-	settings: DevRadarSettingsV2,
+	settings: DevRadarSettingsV3,
 	identity: GitHubIdentity,
 	draft: PreparedDraft,
 	commitInstant: string,
-): DevRadarSettingsV2 {
+): DevRadarSettingsV3 {
 	const trackingStart =
 		draft.trackingStart.mode === 'now'
 			? { mode: 'from-now' as const, at: commitInstant }

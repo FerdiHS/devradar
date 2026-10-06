@@ -1,9 +1,14 @@
 import {
+	areSameActivity,
 	canonicalizeRepository,
 	canonicalizePositiveNumber,
 	canonicalizeTimestamp,
+	createCommitCommentActivity,
+	createIssueCommentActivity,
 	createIssueActivity,
 	createPullRequestActivity,
+	createPullRequestReviewActivity,
+	createPullRequestReviewCommentActivity,
 	createPushActivity,
 	preferCanonicalActivity,
 	type Activity,
@@ -774,6 +779,105 @@ function mapSupportedEvent(
 			: { kind: 'invalid' };
 	}
 
+	if (type === 'PullRequestReviewEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
+		const review = asRecord(readOwn(payload, 'review'));
+		const number =
+			pullRequest === undefined
+				? undefined
+				: readOwn(pullRequest, 'number');
+		const reviewId =
+			review === undefined ? undefined : readOwn(review, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof reviewId !== 'string' && typeof reviewId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const activity = createPullRequestReviewActivity({
+			...envelope,
+			number,
+			reviewId,
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'IssueCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const issue = asRecord(readOwn(payload, 'issue'));
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const number =
+			issue === undefined ? undefined : readOwn(issue, 'number');
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof commentId !== 'string' && typeof commentId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const target =
+			issue !== undefined &&
+			Object.prototype.hasOwnProperty.call(issue, 'pull_request')
+				? 'pull-request'
+				: 'issue';
+		const activity = createIssueCommentActivity({
+			...envelope,
+			number,
+			target,
+			commentId,
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'PullRequestReviewCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const pullRequest = asRecord(readOwn(payload, 'pull_request'));
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const number =
+			pullRequest === undefined
+				? undefined
+				: readOwn(pullRequest, 'number');
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (
+			(typeof number !== 'string' && typeof number !== 'number') ||
+			(typeof commentId !== 'string' && typeof commentId !== 'number')
+		)
+			return { kind: 'invalid' };
+		const activity = createPullRequestReviewCommentActivity({
+			...envelope,
+			number,
+			commentId,
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
+	if (type === 'CommitCommentEvent') {
+		if (action !== 'created') return { kind: 'ignored' };
+		const comment = asRecord(readOwn(payload, 'comment'));
+		const commentId =
+			comment === undefined ? undefined : readOwn(comment, 'id');
+		if (typeof commentId !== 'string' && typeof commentId !== 'number')
+			return { kind: 'invalid' };
+		const activity = createCommitCommentActivity({
+			...envelope,
+			commentId,
+			commitId:
+				comment === undefined
+					? undefined
+					: readOwn(comment, 'commit_id'),
+		});
+		return activity.ok
+			? { kind: 'activity', activity: activity.value }
+			: { kind: 'invalid' };
+	}
+
 	return { kind: 'ignored' };
 }
 
@@ -786,7 +890,17 @@ function mapEvent(
 	if (record === undefined) return { kind: 'invalid' };
 	const type = readOwn(record, 'type');
 	if (!isUsableProviderToken(type)) return { kind: 'invalid' };
-	if (!['PushEvent', 'PullRequestEvent', 'IssuesEvent'].includes(type))
+	if (
+		![
+			'PushEvent',
+			'PullRequestEvent',
+			'PullRequestReviewEvent',
+			'IssuesEvent',
+			'IssueCommentEvent',
+			'PullRequestReviewCommentEvent',
+			'CommitCommentEvent',
+		].includes(type)
+	)
 		return { kind: 'ignored' };
 	return mapSupportedEvent(record, type, username, githubAccountId);
 }
@@ -938,34 +1052,6 @@ function parseNextPage(
 		}
 	}
 	return { ok: true, ...(next === undefined ? {} : { next }) };
-}
-
-function hasSameActivity(left: Activity, right: Activity): boolean {
-	if (
-		left.family !== right.family ||
-		left.action !== right.action ||
-		left.providerEventId !== right.providerEventId ||
-		left.timestamp !== right.timestamp ||
-		left.repository !== right.repository
-	)
-		return false;
-	if (left.family === 'push' && right.family === 'push')
-		return (
-			left.ref === right.ref && left.pushSourceUrl === right.pushSourceUrl
-		);
-	if (left.family === 'pull-request' && right.family === 'pull-request')
-		return (
-			left.number === right.number &&
-			left.title === right.title &&
-			left.sourceUrl === right.sourceUrl
-		);
-	if (left.family === 'issue' && right.family === 'issue')
-		return (
-			left.number === right.number &&
-			left.title === right.title &&
-			left.sourceUrl === right.sourceUrl
-		);
-	return false;
 }
 
 export class GitHubAdapter {
@@ -1477,7 +1563,7 @@ export class GitHubAdapter {
 					mapped.activity.providerEventId,
 				);
 				if (existing !== undefined) {
-					if (!hasSameActivity(existing, mapped.activity))
+					if (!areSameActivity(existing, mapped.activity))
 						return resultPersonFailure(
 							failure(
 								'malformed-provider-data',

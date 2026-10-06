@@ -4,11 +4,11 @@ import { SyncAllApplication } from '../src/application/sync-all';
 import { SyncOneApplication } from '../src/application/sync-one';
 import { createApplicationMutationGuard } from '../src/application/mutation-guard';
 import type {
-	DevRadarSettingsV2,
+	DevRadarSettingsV3,
 	FollowedPersonV1,
 } from '../src/domain/settings';
 import { ACTIVITY_FAMILIES, createIssueActivity } from '../src/domain/activity';
-import { validatePersistedSettingsV2 } from '../src/domain/settings';
+import { validatePersistedSettingsV3 } from '../src/domain/settings';
 import type {
 	SettingsRuntimeState,
 	SettingsSaveResult,
@@ -40,9 +40,9 @@ function person(username: string, githubAccountId: string): FollowedPersonV1 {
 	};
 }
 
-function settings(): DevRadarSettingsV2 {
+function settings(): DevRadarSettingsV3 {
 	return {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		followedPeople: [person('octocat', '42'), person('hubot', '7')],
 		enabledActivityFamilies: [...ACTIVITY_FAMILIES],
 		githubRequestPolicy: { rateLimitNotBefore: '2026-08-25T00:00:00.000Z' },
@@ -53,7 +53,7 @@ function harness(
 	initial = settings(),
 	options: {
 		confirm?: (message: string) => boolean;
-		save?: (candidate: DevRadarSettingsV2) => Promise<SettingsSaveResult>;
+		save?: (candidate: DevRadarSettingsV3) => Promise<SettingsSaveResult>;
 		notePreparation?: NotePreparationResult | 'throw';
 		guard?: ReturnType<typeof createApplicationMutationGuard>;
 		now?: () => string;
@@ -61,7 +61,7 @@ function harness(
 ) {
 	let state: SettingsRuntimeState = { kind: 'ready', settings: initial };
 	let persisted = initial;
-	const saved: DevRadarSettingsV2[] = [];
+	const saved: DevRadarSettingsV3[] = [];
 	const noteContents = new Map(
 		initial.followedPeople.map((person) => [
 			person.notePath,
@@ -73,7 +73,7 @@ function harness(
 		identity: PersonIdentity;
 		transform: AssociationTransform;
 	}[] = [];
-	const save = vi.fn(async (candidate: DevRadarSettingsV2) => {
+	const save = vi.fn(async (candidate: DevRadarSettingsV3) => {
 		saved.push(candidate);
 		const result = options.save
 			? await options.save(candidate)
@@ -251,7 +251,7 @@ describe('FollowManagementApplication.unfollow', () => {
 		const current = view.getState();
 		if (current.kind !== 'ready')
 			throw new Error('expected ready settings');
-		const validation = validatePersistedSettingsV2(
+		const validation = validatePersistedSettingsV3(
 			current.settings,
 			'2026-08-28T00:00:00.000Z',
 		);

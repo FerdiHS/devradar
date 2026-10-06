@@ -35,7 +35,8 @@ The MVP workflow is:
     - import available recent activity; or
     - a selected date and time.
 4. Configure one global selection from the implemented activity subset of
-   Pushes, Pull requests, and Issues; any subset, including none, is valid.
+   Pushes, Pull requests, Pull-request reviews, Issues, and Comments; any
+   subset, including none, is valid.
 5. Manually run either **Sync all followed people** or **Sync one person**.
    Issue [#121](https://github.com/FerdiHS/devradar/issues/121) applies the
    global activity selection to Sync One, and Issue
@@ -117,10 +118,11 @@ The exact managed-marker syntax and complete note template are defined in the
 ## Activity and retention boundaries
 
 For the complete people-first MVP, “meaningful activity” means a supported
-activity type enabled in the single global activity configuration. The
-`v0.3.0` implementation supports exactly three selectable families—Pushes,
-Pull requests, and Issues—and permits any global subset, including none. The
-other six catalogue families described in the [activity specification](activity.md)
+activity type enabled in the single global activity configuration.
+The current implementation supports exactly five selectable families—Pushes,
+Pull requests, Pull-request reviews, Issues, and Comments—and permits any
+global subset, including none. The other four catalogue families described in
+the [activity specification](activity.md)
 remain future scope and are not implemented or selectable.
 
 DevRadar must not use:
@@ -179,9 +181,9 @@ Obsidian Desktop and Mobile are both MVP and product-support requirements. For t
 ## MVP success criteria
 
 The complete people-first MVP is successful when it reliably satisfies the
-following criteria. The `v0.3.0` implementation slice uses the configurable
-Pushes, Pull requests, and Issues subset and implements the Sync One and
-sequential Sync All parts of this contract.
+following criteria. The current implementation slice uses the configurable
+Pushes, Pull requests, Pull-request reviews, Issues, and Comments subset and
+implements the Sync One and sequential Sync All parts of this contract.
 
 - follows explicitly configured GitHub users;
 - supports per-person note paths and tracking start times;
